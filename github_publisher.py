@@ -85,7 +85,7 @@ def create_github_publisher_interface():
 
     st.sidebar.markdown("**🔗 GitHub設定**")
     github_token = st.sidebar.text_input("Personal Access Token", type="password", key="github_token_input")
-    repo_name_input = st.sidebar.text_input("リポジトリ名", value="Genie-Scripts/Streamlit-Inpatient-Dashboard", help="username/repository形式")
+    repo_name_input = st.sidebar.text_input("リポジトリ名", value="Genie-Scripts/Temp-Dashboard", help="username/repository形式")
     branch_name = st.sidebar.selectbox("ブランチ", ["main", "gh-pages", "master"], index=0)
 
     if st.sidebar.button("🧪 設定を適用", key="apply_github_settings", use_container_width=True):
