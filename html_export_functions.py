@@ -1645,15 +1645,49 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
         return generate_all_in_one_html_report(df, target_data, period)
 
 def _generate_high_score_view_basic(dept_scores: List[Dict], ward_scores: List[Dict], period: str) -> str:
-    """基本的なハイスコアビューHTML生成（Phase1版）"""
+    """基本的なハイスコアビューHTML生成（デバッグ強化版）"""
     
     try:
-        start_date, end_date, period_desc = get_period_dates(pd.DataFrame(), period)
-        period_display = period_desc if period_desc else period
+        logger.info(f"🏆 ハイスコアビュー生成開始: 診療科{len(dept_scores)}件, 病棟{len(ward_scores)}件")
+        
+        # デバッグ: スコアデータの確認
+        if dept_scores:
+            logger.info(f"診療科TOP: {dept_scores[0]['entity_name']} ({dept_scores[0]['total_score']:.0f}点)")
+        if ward_scores:
+            ward_name = ward_scores[0].get('display_name', ward_scores[0]['entity_name'])
+            logger.info(f"病棟TOP: {ward_name} ({ward_scores[0]['total_score']:.0f}点)")
+        
+        try:
+            start_date, end_date, period_desc = get_period_dates(pd.DataFrame(), period)
+            period_display = period_desc if period_desc else period
+        except:
+            period_display = period
+            logger.warning("期間情報の取得に失敗、デフォルト値を使用")
         
         # TOP3を抽出
         top_dept = dept_scores[:3]
         top_ward = ward_scores[:3]
+        
+        # データが空の場合の処理
+        if not top_dept and not top_ward:
+            return """
+            <div class="high-score-container">
+                <div class="section">
+                    <h2>🏆 週間ハイスコア TOP3</h2>
+                    <p class="period-info">データを準備中...</p>
+                    <div class="ranking-grid">
+                        <div class="ranking-section">
+                            <h3>🩺 診療科部門</h3>
+                            <div class="ranking-list"><p>スコア計算中...</p></div>
+                        </div>
+                        <div class="ranking-section">
+                            <h3>🏢 病棟部門</h3>
+                            <div class="ranking-list"><p>スコア計算中...</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """
         
         html = f"""
         <div class="high-score-container">
@@ -1677,15 +1711,31 @@ def _generate_high_score_view_basic(dept_scores: List[Dict], ward_scores: List[D
                     <h3>💡 今週のハイライト</h3>
                     {_generate_weekly_highlights(top_dept, top_ward)}
                 </div>
+                
+                <!-- デバッグ情報 -->
+                <div class="debug-info" style="margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 5px; font-size: 0.8em;">
+                    <strong>デバッグ情報:</strong><br>
+                    診療科: {len(dept_scores)}件 | 病棟: {len(ward_scores)}件<br>
+                    生成時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                </div>
             </div>
         </div>
         """
         
+        logger.info(f"✅ ハイスコアHTML生成完了: {len(html)}文字")
         return html
         
     except Exception as e:
-        logger.error(f"ハイスコアビューHTML生成エラー: {e}")
-        return "<div class='section'><p>ハイスコアデータの生成に失敗しました。</p></div>"
+        logger.error(f"❌ ハイスコアビューHTML生成エラー: {e}", exc_info=True)
+        return f"""
+        <div class="high-score-container">
+            <div class="section">
+                <h2>🏆 週間ハイスコア TOP3</h2>
+                <p style="color: red;">エラー: {str(e)}</p>
+                <p>デバッグ情報を確認してください。</p>
+            </div>
+        </div>
+        """
 
 def _generate_ranking_list_html(scores: List[Dict], entity_type: str) -> str:
     """ランキングリストHTML生成"""
@@ -1751,55 +1801,286 @@ def _generate_weekly_highlights(dept_scores: List[Dict], ward_scores: List[Dict]
         return "• 今週も各部門で頑張りが見られました！"
 
 def _integrate_high_score_to_html(base_html: str, high_score_html: str) -> str:
-    """基本HTMLにハイスコア機能を統合"""
+    """基本HTMLにハイスコア機能を統合（JavaScript修正版）"""
     try:
+        logger.info("🔧 ハイスコア統合開始...")
+        
         # ハイスコアビューをコンテンツに追加
         high_score_view = f'<div id="view-high-score" class="view-content">{high_score_html}</div>'
+        logger.info(f"📝 ハイスコアビュー生成完了: {len(high_score_view)}文字")
         
         # クイックボタンにハイスコアボタンを追加
         high_score_button = '''<button class="quick-button" onclick="showView('view-high-score')">
                             <span>🏆</span> ハイスコア部門
                         </button>'''
         
-        # HTMLの修正
-        # 1. ボタンの追加
-        modified_html = base_html.replace(
-            '<button class="quick-button" onclick="toggleTypeSelector(\'ward\')">',
-            '<button class="quick-button" onclick="toggleTypeSelector(\'ward\')">'
-        )
+        modified_html = base_html
         
-        # 病棟ボタンの後にハイスコアボタンを追加
-        modified_html = modified_html.replace(
-            '<span>🏢</span> 病棟別\n                        </button>',
-            '<span>🏢</span> 病棟別\n                        </button>\n                        ' + high_score_button
-        )
+        # === ボタン追加 ===
+        ward_button_pattern = '<span>🏢</span> 病棟別'
+        if ward_button_pattern in modified_html:
+            ward_button_end = modified_html.find('</button>', modified_html.find(ward_button_pattern))
+            if ward_button_end != -1:
+                insert_pos = ward_button_end + len('</button>')
+                modified_html = (modified_html[:insert_pos] + 
+                               '\n                        ' + high_score_button + 
+                               modified_html[insert_pos:])
+                logger.info("✅ ハイスコアボタン追加完了")
         
-        # 2. ビューコンテンツの追加
-        # 既存のビューの最後に追加
-        if '</div>\n            </div>' in modified_html:
-            modified_html = modified_html.replace(
-                '</div>\n            </div>',
-                high_score_view + '\n            </div>\n            </div>',
-                1  # 最初の1回のみ
-            )
+        # === ビューコンテンツ追加 ===
+        content_area_pattern = '<div class="content-area">'
+        content_area_pos = modified_html.find(content_area_pattern)
         
-        # 3. ハイスコア用CSSを追加
+        if content_area_pos != -1:
+            insert_pos = content_area_pos + len(content_area_pattern)
+            modified_html = (modified_html[:insert_pos] + 
+                           '\n                    ' + high_score_view + 
+                           modified_html[insert_pos:])
+            logger.info("✅ ハイスコアビュー追加完了")
+        
+        # === JavaScript強化（修正版） ===
+        enhanced_js = """
+        // === ハイスコア機能用JavaScript（修正版） ===
+        
+        // 既存のshowView関数を保存
+        let originalShowView = null;
+        if (typeof showView !== 'undefined') {
+            originalShowView = showView;
+        }
+        
+        // 強化されたshowView関数
+        function showView(viewId) {
+            console.log('🏆 showView called with:', viewId);
+            
+            try {
+                // 全てのビューを非表示
+                document.querySelectorAll('.view-content').forEach(content => {
+                    content.classList.remove('active');
+                    console.log('Hidden view:', content.id);
+                });
+                
+                // 指定されたビューを表示
+                const targetView = document.getElementById(viewId);
+                if (targetView) {
+                    targetView.classList.add('active');
+                    console.log('✅ Showing view:', viewId);
+                    
+                    // ハイスコア専用の処理
+                    if (viewId === 'view-high-score') {
+                        console.log('🏆 ハイスコアビューを表示中...');
+                        // スクロールトップ
+                        window.scrollTo(0, 0);
+                        
+                        // コンテンツの確認
+                        setTimeout(() => {
+                            const container = targetView.querySelector('.high-score-container');
+                            if (container) {
+                                console.log('✅ ハイスコアコンテナ確認OK');
+                            } else {
+                                console.error('❌ コンテナ未発見');
+                            }
+                        }, 100);
+                    }
+                    
+                    // Plotlyチャートの再描画をトリガー
+                    setTimeout(function() {
+                        window.dispatchEvent(new Event('resize'));
+                        
+                        if (window.Plotly) {
+                            const plots = targetView.querySelectorAll('.plotly-graph-div');
+                            plots.forEach(plot => {
+                                Plotly.Plots.resize(plot);
+                            });
+                        }
+                    }, 100);
+                } else {
+                    console.error('❌ View not found:', viewId);
+                    // 利用可能なビューをログ出力
+                    const availableViews = Array.from(document.querySelectorAll('.view-content')).map(v => v.id);
+                    console.log('Available views:', availableViews);
+                }
+                
+                // クイックボタンのアクティブ状態を更新
+                document.querySelectorAll('.quick-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                
+                // ハイスコアボタンをアクティブに
+                if (viewId === 'view-high-score') {
+                    const highScoreButton = Array.from(document.querySelectorAll('.quick-button')).find(btn => 
+                        btn.textContent.includes('ハイスコア部門')
+                    );
+                    if (highScoreButton) {
+                        highScoreButton.classList.add('active');
+                        console.log('✅ ハイスコアボタンアクティブ化');
+                    }
+                    
+                    // セレクターを隠す
+                    const deptWrapper = document.getElementById('dept-selector-wrapper');
+                    const wardWrapper = document.getElementById('ward-selector-wrapper');
+                    if (deptWrapper) deptWrapper.style.display = 'none';
+                    if (wardWrapper) wardWrapper.style.display = 'none';
+                    
+                    const deptSelect = document.getElementById('dept-selector');
+                    const wardSelect = document.getElementById('ward-selector');
+                    if (deptSelect) deptSelect.value = '';
+                    if (wardSelect) wardSelect.value = '';
+                    
+                } else if (viewId === 'view-all') {
+                    const allButton = document.querySelector('.quick-button');
+                    if (allButton) allButton.classList.add('active');
+                    
+                    // セレクターを隠す
+                    const deptWrapper = document.getElementById('dept-selector-wrapper');
+                    const wardWrapper = document.getElementById('ward-selector-wrapper');
+                    if (deptWrapper) deptWrapper.style.display = 'none';
+                    if (wardWrapper) wardWrapper.style.display = 'none';
+                    
+                    const deptSelect = document.getElementById('dept-selector');
+                    const wardSelect = document.getElementById('ward-selector');
+                    if (deptSelect) deptSelect.value = '';
+                    if (wardSelect) wardSelect.value = '';
+                }
+                
+            } catch (error) {
+                console.error('❌ showView error:', error);
+                // エラー時は元の関数にフォールバック
+                if (originalShowView && viewId !== 'view-high-score') {
+                    console.log('🔄 Falling back to original showView');
+                    originalShowView(viewId);
+                }
+            }
+        }
+        
+        // ページ読み込み完了時のデバッグ
+        window.addEventListener('DOMContentLoaded', function() {
+            console.log('🔍 DOM loaded. ハイスコア機能チェック開始...');
+            
+            setTimeout(() => {
+                const highScoreView = document.getElementById('view-high-score');
+                const highScoreButton = Array.from(document.querySelectorAll('.quick-button')).find(btn => 
+                    btn.textContent.includes('ハイスコア部門')
+                );
+                
+                console.log('ハイスコアビュー:', highScoreView ? '✅ 存在' : '❌ なし');
+                console.log('ハイスコアボタン:', highScoreButton ? '✅ 存在' : '❌ なし');
+                
+                if (highScoreView) {
+                    console.log('ハイスコアビューHTML長:', highScoreView.innerHTML.length);
+                    
+                    // コンテナの確認
+                    const container = highScoreView.querySelector('.high-score-container');
+                    console.log('ハイスコアコンテナ:', container ? '✅ 存在' : '❌ なし');
+                    
+                    if (container) {
+                        const sections = container.querySelectorAll('.ranking-section');
+                        console.log('ランキングセクション数:', sections.length);
+                    }
+                }
+                
+                // 全ビューの状況確認
+                const allViews = document.querySelectorAll('.view-content');
+                console.log('全ビュー数:', allViews.length);
+                allViews.forEach((view, index) => {
+                    console.log(`${index + 1}. ${view.id}: ${view.classList.contains('active') ? 'active' : 'inactive'}`);
+                });
+                
+                // テスト用：ハイスコアビューの表示テスト
+                if (highScoreView && highScoreButton) {
+                    console.log('🧪 ハイスコア機能は正常に組み込まれています');
+                } else {
+                    console.error('🚨 ハイスコア機能の組み込みに問題があります');
+                }
+                
+            }, 1000);
+        });
+        """
+        
+        # 既存のJavaScript内の showView 関数を置き換える
+        js_start = modified_html.find('<script>')
+        js_end = modified_html.find('</script>') + len('</script>')
+        
+        if js_start != -1 and js_end != -1:
+            # 既存のJavaScriptコンテンツを取得
+            existing_js = modified_html[js_start+8:js_end-9]
+            
+            # 既存のshowView関数を削除（単純な置換で対処）
+            import re
+            # showView関数の定義部分を削除
+            existing_js_cleaned = re.sub(r'function showView\([^}]+\}[^}]*\}', '', existing_js, flags=re.DOTALL)
+            
+            # 新しいJavaScriptを組み込み
+            new_js_section = f'<script>\n{enhanced_js}\n\n        // === 既存のその他のJavaScript ===\n{existing_js_cleaned}\n</script>'
+            modified_html = modified_html[:js_start] + new_js_section + modified_html[js_end:]
+            logger.info("✅ JavaScript強化完了")
+        else:
+            # JavaScript部分が見つからない場合は、</body>の直前に追加
+            body_end = modified_html.rfind('</body>')
+            if body_end != -1:
+                new_js_section = f'<script>\n{enhanced_js}\n</script>\n'
+                modified_html = modified_html[:body_end] + new_js_section + modified_html[body_end:]
+                logger.info("⚠️ フォールバック: bodyタグ直前にJavaScript追加")
+        
+        # ハイスコア用CSSを追加
         high_score_css = _get_high_score_css()
         modified_html = modified_html.replace('</style>', f'{high_score_css}\n            </style>')
         
+        # デバッグ情報をコメントとして追加
+        debug_comment = f"""
+        <!-- ハイスコア機能デバッグ情報
+        - ハイスコアビュー追加: {"✅" if "view-high-score" in modified_html else "❌"}
+        - ハイスコアボタン追加: {"✅" if "ハイスコア部門" in modified_html else "❌"}
+        - ビューHTML長: {len(high_score_html)}文字
+        - 統合完了時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        -->
+        """
+        modified_html = modified_html.replace('<head>', f'<head>\n{debug_comment}')
+        
+        logger.info("🎉 ハイスコア統合完了")
         return modified_html
         
     except Exception as e:
-        logger.error(f"HTML統合エラー: {e}")
+        logger.error(f"❌ HTML統合エラー: {e}", exc_info=True)
         return base_html
 
 def _get_high_score_css() -> str:
-    """ハイスコア部門用CSS"""
+    """ハイスコア部門用CSS（表示問題修正版）"""
     return """
-    /* === ハイスコア部門専用スタイル === */
+    /* === ハイスコア部門専用スタイル（修正版） === */
     .high-score-container {
         max-width: 1000px;
         margin: 0 auto;
+        padding: 20px;
+    }
+    
+    /* 重要: ビューの表示制御を確実にする */
+    .view-content {
+        display: none !important;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+    }
+    
+    .view-content.active {
+        display: block !important;
+        opacity: 1;
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* ハイスコア専用のビュー表示 */
+    #view-high-score {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        min-height: 400px;
+    }
+    
+    #view-high-score.active {
+        display: block !important;
     }
     
     .ranking-grid {
@@ -1810,17 +2091,22 @@ def _get_high_score_css() -> str:
     }
     
     .ranking-section h3 {
-        color: var(--primary-color);
+        color: var(--primary-color, #5B5FDE);
         margin-bottom: 20px;
         font-size: 1.2em;
         font-weight: 700;
+        text-align: center;
+        padding: 10px;
+        background: linear-gradient(135deg, rgba(91, 95, 222, 0.1) 0%, rgba(91, 95, 222, 0.05) 100%);
+        border-radius: 8px;
     }
     
     .ranking-list {
-        background: var(--gray-50);
+        background: var(--gray-50, #F9FAFB);
         border-radius: 12px;
         padding: 20px;
-        border: 1px solid var(--gray-200);
+        border: 1px solid var(--gray-200, #E5E7EB);
+        min-height: 200px;
     }
     
     .ranking-item {
@@ -1831,35 +2117,36 @@ def _get_high_score_css() -> str:
         background: white;
         border-radius: 8px;
         margin-bottom: 10px;
-        box-shadow: var(--shadow-sm);
-        transition: all var(--transition-fast);
-        border-left: 4px solid var(--gray-300);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+        border-left: 4px solid var(--gray-300, #D1D5DB);
     }
     
     .ranking-item:hover {
         transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
     
     .ranking-item.rank-1 {
         border-left-color: #FFD700;
-        background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0.05) 100%);
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.05) 100%);
     }
     
     .ranking-item.rank-2 {
         border-left-color: #C0C0C0;
-        background: linear-gradient(135deg, rgba(192, 192, 192, 0.1) 0%, rgba(192, 192, 192, 0.05) 100%);
+        background: linear-gradient(135deg, rgba(192, 192, 192, 0.15) 0%, rgba(192, 192, 192, 0.05) 100%);
     }
     
     .ranking-item.rank-3 {
         border-left-color: #CD7F32;
-        background: linear-gradient(135deg, rgba(205, 127, 50, 0.1) 0%, rgba(205, 127, 50, 0.05) 100%);
+        background: linear-gradient(135deg, rgba(205, 127, 50, 0.15) 0%, rgba(205, 127, 50, 0.05) 100%);
     }
     
     .medal {
         font-size: 1.8em;
         min-width: 50px;
         text-align: center;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
     }
     
     .ranking-info {
@@ -1868,45 +2155,49 @@ def _get_high_score_css() -> str:
     
     .ranking-info .name {
         font-weight: 700;
-        color: var(--gray-800);
+        color: var(--gray-800, #1F2937);
         font-size: 1em;
-        margin-bottom: 2px;
+        margin-bottom: 4px;
+        line-height: 1.2;
     }
     
     .ranking-info .detail {
         font-size: 0.85em;
-        color: var(--gray-600);
+        color: var(--gray-600, #4B5563);
+        line-height: 1.2;
     }
     
     .score {
-        font-size: 1.4em;
+        font-size: 1.6em;
         font-weight: 700;
-        color: var(--primary-color);
+        color: var(--primary-color, #5B5FDE);
         text-align: center;
-        min-width: 60px;
+        min-width: 70px;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     
     .period-info {
         text-align: center;
-        color: var(--gray-600);
+        color: var(--gray-600, #4B5563);
         margin-bottom: 30px;
         font-size: 0.95em;
-        padding: 10px;
-        background: var(--gray-50);
+        padding: 12px;
+        background: var(--gray-50, #F9FAFB);
         border-radius: 8px;
-        border: 1px solid var(--gray-200);
+        border: 1px solid var(--gray-200, #E5E7EB);
+        font-weight: 500;
     }
     
     .summary-section {
         background: linear-gradient(135deg, rgba(91, 95, 222, 0.1) 0%, rgba(91, 95, 222, 0.05) 100%);
-        border-left: 5px solid var(--primary-color);
+        border-left: 5px solid var(--primary-color, #5B5FDE);
         padding: 25px;
         border-radius: 12px;
         margin-top: 30px;
     }
     
     .summary-section h3 {
-        color: var(--primary-dark);
+        color: var(--primary-dark, #4347B8);
         margin-bottom: 15px;
         font-size: 1.1em;
         font-weight: 700;
@@ -1914,12 +2205,43 @@ def _get_high_score_css() -> str:
     
     .summary-section p {
         margin: 8px 0;
-        color: var(--gray-700);
+        color: var(--gray-700, #374151);
         line-height: 1.6;
+    }
+    
+    /* デバッグ情報スタイル */
+    .debug-info {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        font-size: 0.85em;
+        color: #6c757d;
+    }
+    
+    /* ローディング状態 */
+    .ranking-list p {
+        text-align: center;
+        color: var(--gray-500, #6B7280);
+        font-style: italic;
+        padding: 20px;
+    }
+    
+    /* アクティブボタンのスタイル強化 */
+    .quick-button.active {
+        background: var(--primary-color, #5B5FDE) !important;
+        color: white !important;
+        border-color: var(--primary-color, #5B5FDE) !important;
+        box-shadow: 0 4px 8px rgba(91, 95, 222, 0.3) !important;
     }
     
     /* レスポンシブ対応 */
     @media (max-width: 768px) {
+        .high-score-container {
+            padding: 10px;
+        }
+        
         .ranking-grid {
             grid-template-columns: 1fr;
             gap: 20px;
@@ -1940,12 +2262,218 @@ def _get_high_score_css() -> str:
         }
         
         .score {
-            font-size: 1.2em;
-            min-width: 50px;
+            font-size: 1.3em;
+            min-width: 55px;
         }
         
         .summary-section {
             padding: 20px;
         }
     }
+    
+    @media (max-width: 480px) {
+        .ranking-grid {
+            gap: 15px;
+        }
+        
+        .ranking-item {
+            padding: 10px;
+            gap: 8px;
+        }
+        
+        .medal {
+            font-size: 1.3em;
+            min-width: 35px;
+        }
+        
+        .score {
+            font-size: 1.1em;
+            min-width: 45px;
+        }
+    }
+    """
+    
+def _get_enhanced_javascript() -> str:
+    """強化されたJavaScript（競合回避版）"""
+    return """
+        // ハイスコア機能用JavaScript（競合回避版）
+        
+        // 既存の関数を上書きしないよう、新しい名前で定義
+        function showViewEnhanced(viewId) {
+            console.log('🏆 showViewEnhanced called with:', viewId);
+            
+            try {
+                // 全てのビューを非表示
+                const allViews = document.querySelectorAll('.view-content');
+                allViews.forEach(content => {
+                    content.classList.remove('active');
+                    content.style.display = 'none';
+                    console.log('Hidden view:', content.id);
+                });
+                
+                // 指定されたビューを表示
+                const targetView = document.getElementById(viewId);
+                if (targetView) {
+                    targetView.classList.add('active');
+                    targetView.style.display = 'block';
+                    console.log('✅ Showing view:', viewId);
+                    
+                    // ハイスコア専用の処理
+                    if (viewId === 'view-high-score') {
+                        console.log('🏆 ハイスコアビューアクティブ化完了');
+                        
+                        // スムーズスクロール
+                        targetView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        
+                        // コンテンツの可視性を確認
+                        setTimeout(() => {
+                            const container = targetView.querySelector('.high-score-container');
+                            if (container) {
+                                console.log('✅ ハイスコアコンテナ確認OK');
+                            } else {
+                                console.error('❌ ハイスコアコンテナが見つかりません');
+                            }
+                        }, 100);
+                    }
+                    
+                    // Plotlyチャートの再描画
+                    setTimeout(function() {
+                        window.dispatchEvent(new Event('resize'));
+                        if (window.Plotly) {
+                            const plots = targetView.querySelectorAll('.plotly-graph-div');
+                            plots.forEach(plot => {
+                                Plotly.Plots.resize(plot);
+                            });
+                        }
+                    }, 200);
+                    
+                } else {
+                    console.error('❌ View not found:', viewId);
+                    // 利用可能なビューをデバッグ表示
+                    const availableViews = Array.from(document.querySelectorAll('.view-content')).map(v => v.id);
+                    console.log('Available views:', availableViews);
+                    
+                    // フォールバック: データがある場合は新しいビューを作成
+                    if (viewId === 'view-high-score') {
+                        console.log('🔧 ハイスコアビューの緊急作成を試行...');
+                        createEmergencyHighScoreView();
+                    }
+                }
+            } catch (error) {
+                console.error('❌ showViewEnhanced error:', error);
+            }
+            
+            // ボタンのアクティブ状態更新
+            updateActiveButton(viewId);
+        }
+        
+        // 緊急時のハイスコアビュー作成
+        function createEmergencyHighScoreView() {
+            const contentArea = document.querySelector('.content-area');
+            if (contentArea) {
+                const emergencyView = document.createElement('div');
+                emergencyView.id = 'view-high-score';
+                emergencyView.className = 'view-content active';
+                emergencyView.innerHTML = `
+                    <div class="high-score-container">
+                        <div class="section">
+                            <h2>🏆 週間ハイスコア TOP3</h2>
+                            <p class="period-info">データを読み込んでいます...</p>
+                            <div class="ranking-grid">
+                                <div class="ranking-section">
+                                    <h3>🩺 診療科部門</h3>
+                                    <div class="ranking-list">
+                                        <p>スコア計算中...</p>
+                                    </div>
+                                </div>
+                                <div class="ranking-section">
+                                    <h3>🏢 病棟部門</h3>
+                                    <div class="ranking-list">
+                                        <p>スコア計算中...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                contentArea.appendChild(emergencyView);
+                console.log('🆘 緊急ハイスコアビュー作成完了');
+            }
+        }
+        
+        // ボタンのアクティブ状態更新
+        function updateActiveButton(viewId) {
+            // 全ボタンを非アクティブに
+            document.querySelectorAll('.quick-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // 対応するボタンをアクティブに
+            if (viewId === 'view-high-score') {
+                const highScoreButton = Array.from(document.querySelectorAll('.quick-button')).find(btn => 
+                    btn.textContent.includes('ハイスコア部門')
+                );
+                if (highScoreButton) {
+                    highScoreButton.classList.add('active');
+                    console.log('✅ ハイスコアボタンをアクティブ化');
+                }
+                
+                // セレクターを隠す
+                const deptWrapper = document.getElementById('dept-selector-wrapper');
+                const wardWrapper = document.getElementById('ward-selector-wrapper');
+                if (deptWrapper) deptWrapper.style.display = 'none';
+                if (wardWrapper) wardWrapper.style.display = 'none';
+                
+            } else if (viewId === 'view-all') {
+                const allButton = document.querySelector('.quick-button');
+                if (allButton) allButton.classList.add('active');
+            }
+        }
+        
+        // 既存のshowView関数を強化版で上書き
+        if (typeof showView !== 'undefined') {
+            const originalShowView = showView;
+            showView = function(viewId) {
+                console.log('🔄 showView intercepted, using enhanced version');
+                return showViewEnhanced(viewId);
+            };
+        } else {
+            window.showView = showViewEnhanced;
+        }
+        
+        // ページ読み込み完了時の確認処理
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔍 DOM loaded. ハイスコア機能チェック開始...');
+            
+            setTimeout(() => {
+                const highScoreView = document.getElementById('view-high-score');
+                const highScoreButton = Array.from(document.querySelectorAll('.quick-button')).find(btn => 
+                    btn.textContent.includes('ハイスコア部門')
+                );
+                
+                console.log('ハイスコアビュー:', highScoreView ? '✅ 存在' : '❌ なし');
+                console.log('ハイスコアボタン:', highScoreButton ? '✅ 存在' : '❌ なし');
+                
+                if (highScoreView) {
+                    console.log('ハイスコアビューHTML長:', highScoreView.innerHTML.length);
+                    console.log('ハイスコアビュークラス:', highScoreView.className);
+                }
+                
+                // 全ビューの状況確認
+                const allViews = document.querySelectorAll('.view-content');
+                console.log('全ビュー数:', allViews.length);
+                allViews.forEach(view => {
+                    console.log(`- ${view.id}: ${view.classList.contains('active') ? 'active' : 'inactive'}`);
+                });
+                
+            }, 500);
+        });
+        
+        // ウィンドウリサイズ時の処理
+        window.addEventListener('resize', function() {
+            const activeView = document.querySelector('.view-content.active');
+            if (activeView && activeView.id === 'view-high-score') {
+                console.log('🏆 ハイスコアビューのリサイズ処理');
+            }
+        });
     """
