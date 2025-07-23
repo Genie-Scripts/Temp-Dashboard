@@ -738,6 +738,16 @@ def create_sidebar():
     try:
         from github_publisher import create_github_publisher_interface
         create_github_publisher_interface() # この呼び出し一本に絞る
+        
+        # === ハイスコア機能の状況をログ出力（デバッグ用） ===
+        try:
+            from html_export_functions import calculate_all_high_scores
+            logger.info("✅ ハイスコア機能: インポート成功")
+        except ImportError:
+            logger.info("⚠️ ハイスコア機能: まだ実装されていません")
+        except Exception as e:
+            logger.error(f"⚠️ ハイスコア機能: エラー - {e}")
+            
     except ImportError as e:
         st.sidebar.markdown("---")
         st.sidebar.header("🌐 統合ダッシュボード公開")
@@ -748,6 +758,8 @@ def create_sidebar():
         st.sidebar.markdown("---")
         st.sidebar.header("🌐 統合ダッシュボード公開")
         st.sidebar.error(f"自動公開機能で予期せぬエラー: {str(e)}")
+        # ハイスコア機能の実装状況も表示
+        st.sidebar.caption("🏆 ハイスコア機能は準備中です")
         logger.error(f"GitHub Publisher Unexpected Error: {e}", exc_info=True)
     
     return True

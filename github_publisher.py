@@ -79,9 +79,16 @@ def check_publish_readiness() -> Tuple[bool, str]:
     return True, "公開可能です。"
 
 def create_github_publisher_interface():
-    """GitHub自動公開インターフェース（最終版）"""
+    """GitHub自動公開インターフェース（ハイスコア対応版）"""
     st.sidebar.markdown("---")
     st.sidebar.header("🌐 Webレポート公開機能")
+
+    # ハイスコア機能の状況確認
+    high_score_available = test_high_score_functionality()
+    if high_score_available:
+        st.sidebar.success("🏆 ハイスコア機能: 利用可能")
+    else:
+        st.sidebar.info("📊 ハイスコア機能: 準備中（従来版で公開）")
 
     st.sidebar.markdown("**🔗 GitHub設定**")
     github_token = st.sidebar.text_input("Personal Access Token", type="password", key="github_token_input")
@@ -102,8 +109,16 @@ def create_github_publisher_interface():
         if can_publish:
             st.sidebar.markdown("**📊 公開設定**")
             
+            # 期間選択（ハイスコア機能を考慮した説明追加）
             period_options = ["直近4週間", "直近8週", "直近12週", "今年度"]
             selected_period = st.sidebar.selectbox("📅 分析期間", period_options, index=0, key="github_analysis_period")
+            
+            # ハイスコア機能の説明
+            if high_score_available:
+                st.sidebar.markdown("🏆 **ハイスコア機能付き**で公開されます")
+                st.sidebar.caption("• 診療科・病棟の週間TOP3表示")
+                st.sidebar.caption("• 100点満点のスコアリング")
+                st.sidebar.caption("• 詳細な改善ポイント分析")
             
             if st.sidebar.button("🚀 統合レポートを公開", key="execute_publish_button", use_container_width=True, type="primary"):
                 execute_github_publish(selected_period)
@@ -111,7 +126,7 @@ def create_github_publisher_interface():
             st.sidebar.warning(f"⚠️ {status_message}")
 
 def execute_github_publish(period: str):
-    """単一ファイルの統合レポートを生成・公開する"""
+    """単一ファイルの統合レポートを生成・公開する（ハイスコア機能付き）"""
     publisher = st.session_state.get('github_publisher')
     if not publisher:
         st.error("GitHub設定が適用されていません。")
@@ -120,18 +135,62 @@ def execute_github_publish(period: str):
     df = st.session_state.get('df')
     target_data = st.session_state.get('target_data', pd.DataFrame())
 
-    with st.spinner(f"🚀 統合レポートを生成・公開中... (期間: {period})"):
-        from html_export_functions import generate_all_in_one_html_report
+    with st.spinner(f"🚀 統合レポート（ハイスコア機能付き）を生成・公開中... (期間: {period})"):
+        # === 修正箇所: ハイスコア機能付きレポート生成に変更 ===
+        try:
+            # Phase1: ハイスコア機能付きレポート生成を試行
+            from html_export_functions import generate_all_in_one_html_report_with_high_score
+            html_content = generate_all_in_one_html_report_with_high_score(df, target_data, period)
+            feature_description = "ハイスコア機能付き統合レポート"
+            
+        except ImportError as e:
+            # フォールバック: 従来版を使用
+            st.warning("⚠️ ハイスコア機能がまだ実装されていません。従来版レポートを生成します。")
+            from html_export_functions import generate_all_in_one_html_report
+            html_content = generate_all_in_one_html_report(df, target_data, period)
+            feature_description = "統合レポート（従来版）"
+            
+        except Exception as e:
+            # エラー時は従来版にフォールバック
+            st.error(f"⚠️ ハイスコア機能でエラーが発生しました: {e}")
+            st.info("従来版レポートで公開を続行します...")
+            from html_export_functions import generate_all_in_one_html_report
+            html_content = generate_all_in_one_html_report(df, target_data, period)
+            feature_description = "統合レポート（エラー回避版）"
         
-        html_content = generate_all_in_one_html_report(df, target_data, period)
-        
+        # HTML生成成功時の処理
         if html_content and "エラー" not in html_content:
-            success, msg = publisher.upload_html_file(html_content, "docs/index.html", f"Update All-in-One Report ({period})")
+            # コミットメッセージにハイスコア情報を含める
+            commit_message = f"Update {feature_description} ({period})"
+            success, msg = publisher.upload_html_file(html_content, "docs/index.html", commit_message)
+            
             if success:
-                st.success("✅ 統合レポートの公開が完了しました！")
+                st.success(f"✅ {feature_description}の公開が完了しました！")
                 public_url = publisher.get_public_url()
+                
+                # ハイスコア機能の説明を追加
+                if "ハイスコア" in feature_description:
+                    st.info("🏆 ハイスコア機能が追加されました！レポートの「🏆 ハイスコア部門」ボタンから確認できます。")
+                
                 st.markdown(f"🌐 [**公開サイトを開く**]({public_url})", unsafe_allow_html=True)
             else:
                 st.error(f"❌ 公開に失敗: {msg}")
         else:
             st.error("❌ HTMLコンテンツの生成に失敗しました。")
+
+# === 追加: ハイスコア機能のテスト関数 ===
+def test_high_score_functionality():
+    """ハイスコア機能の動作確認（デバッグ用）"""
+    try:
+        from html_export_functions import calculate_all_high_scores
+        df = st.session_state.get('df')
+        target_data = st.session_state.get('target_data', pd.DataFrame())
+        
+        if df is not None and not df.empty:
+            dept_scores, ward_scores = calculate_all_high_scores(df, target_data, "直近12週")
+            return len(dept_scores) + len(ward_scores) > 0
+        return False
+    except ImportError:
+        return False
+    except Exception:
+        return False
