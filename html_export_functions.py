@@ -179,7 +179,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             ward_id = f"view-ward-{ward_code}"
             ward_options += f'<option value="{ward_id}">{ward_name}</option>'
         
-        # 評価基準パネルのHTML（完全版）
+        # ===== 🔥 評価基準パネルのHTML（直近週重視版に更新） =====
         info_panel_html = f"""
         <div id="info-panel" class="info-panel">
             <div class="info-content">
@@ -201,6 +201,10 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         <h4>✅ 低（直近週達成率98%以上）</h4>
                         <p>直近週で目標達成済み。現状維持を基本とし、さらなる効率化の余地を検討</p>
                     </div>
+                    <div class="emphasis-box">
+                        <strong>📍 重要：</strong>評価は<span style="color: #e91e63; font-weight: bold;">直近週の実績</span>を最重要視し、
+                        <span style="color: #5b5fde; font-weight: bold;">98%基準</span>で判定します
+                    </div>
                 </div>
                 
                 <div class="info-section">
@@ -214,12 +218,12 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         <tr class="grade-s">
                             <td><strong>S</strong></td>
                             <td>直近週目標達成＋大幅改善</td>
-                            <td>直近週達成率98%以上かつ期間平均比+10%以上</td>
+                            <td>直近週達成率<span style="color: #10b981; font-weight: bold;">98%以上</span>かつ期間平均比+10%以上</td>
                         </tr>
                         <tr class="grade-a">
                             <td><strong>A</strong></td>
                             <td>直近週目標達成＋改善傾向</td>
-                            <td>直近週達成率98%以上かつ期間平均比+5%以上</td>
+                            <td>直近週達成率<span style="color: #3b82f6; font-weight: bold;">98%以上</span>かつ期間平均比+5%以上</td>
                         </tr>
                         <tr class="grade-b">
                             <td><strong>B</strong></td>
@@ -237,10 +241,112 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             <td>期間平均比-5%以下</td>
                         </tr>
                     </table>
+                    <div class="attention-box">
+                        <span style="color: #92400e;">⚠️ 重要な変更点</span><br>
+                        • 目標達成基準を95%から<strong style="color: #e91e63;">98%</strong>に引き上げ<br>
+                        • 評価軸を期間平均から<strong style="color: #5b5fde;">直近週実績</strong>に変更<br>
+                        • 変化率は「直近週 vs 期間平均」で算出
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>📈 改善度評価（直近週 vs 期間平均）</h3>
+                    <ul class="criteria-list">
+                        <li><span class="badge excellent">大幅改善</span> 直近週が期間平均比+10%以上</li>
+                        <li><span class="badge good">改善</span> 直近週が期間平均比+5〜10%</li>
+                        <li><span class="badge stable">維持</span> 直近週が期間平均比±5%未満</li>
+                        <li><span class="badge warning">低下</span> 直近週が期間平均比-5〜-10%</li>
+                        <li><span class="badge danger">要注意</span> 直近週が期間平均比-10%以下</li>
+                    </ul>
+                    <div class="note-box">
+                        <strong>📝 注意：</strong>「期間平均比」は、分析対象期間（{period}）の平均値に対する直近週実績の変化率です
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>📅 平均在院日数の評価（直近週重視）</h3>
+                    <div class="los-criteria">
+                        <h4>🎯 直近週で目標達成時（達成率98%以上）</h4>
+                        <ul>
+                            <li>直近週で短縮 → <span class="badge excellent">効率的</span></li>
+                            <li>直近週で維持 → <span class="badge stable">安定</span></li>
+                            <li>直近週で延長 → <span class="badge warning">要確認</span></li>
+                        </ul>
+                        
+                        <h4>⚠️ 直近週で目標未達時（達成率98%未満）</h4>
+                        <ul>
+                            <li>直近週で短縮 → <span class="badge warning">要検討</span>（収益への影響確認）</li>
+                            <li>直近週で維持 → <span class="badge warning">要対策</span></li>
+                            <li>直近週で延長 → <span class="badge good">改善中</span>（病床稼働向上）</li>
+                        </ul>
+                    </div>
+                    <div class="emphasis-box">
+                        <strong>💡 ポイント：</strong>在院日数の評価も直近週の実績を中心に、期間平均との比較で判定
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h3>📖 用語説明（直近週重視版）</h3>
+                    <dl class="term-list">
+                        <dt>🔥 直近週（最重要指標）</dt>
+                        <dd>分析期間の最新1週間（月曜〜日曜）の実績値。<strong style="color: #e91e63;">アクション判定の主要評価軸</strong></dd>
+                        
+                        <dt>期間平均</dt>
+                        <dd>分析対象期間（{period}）全体の平均値。直近週との比較基準として使用</dd>
+                        
+                        <dt>🎯 直近週目標達成率（主要KPI）</dt>
+                        <dd>（直近週実績値 ÷ 目標値）× 100%。<strong style="color: #5b5fde;">98%以上で目標達成と判定</strong></dd>
+                        
+                        <dt>期間平均比</dt>
+                        <dd>（直近週の値 - 期間平均値）÷ 期間平均値 × 100%。改善傾向の判定に使用</dd>
+                        
+                        <dt>新入院目標</dt>
+                        <dd>各診療科・病棟に設定された週間新入院患者数の目標値。<strong>直近週実績</strong>で評価</dd>
+                        
+                        <dt>病床稼働率</dt>
+                        <dd>（在院患者数 ÷ 病床数）× 100%。直近週と期間平均の両方で算出</dd>
+                        
+                        <dt>🎯 エンドポイント</dt>
+                        <dd><strong style="color: #e91e63;">在院患者数の目標達成</strong>。全ての施策の最終目標</dd>
+                    </dl>
+                </div>
+                
+                <div class="info-section">
+                    <h3>🔄 アクション判定フロー</h3>
+                    <div class="flow-chart">
+                        <div class="flow-step">
+                            <div class="step-number">1</div>
+                            <div class="step-content">
+                                <strong>直近週の在院患者数達成率をチェック</strong><br>
+                                98%以上 → 現状維持系<br>
+                                90-98% → 改善系<br>
+                                90%未満 → 緊急対応系
+                            </div>
+                        </div>
+                        <div class="flow-arrow">↓</div>
+                        <div class="flow-step">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <strong>直近週の新入院達成状況で詳細判定</strong><br>
+                                新入院も未達 → 新入院重視<br>
+                                新入院は達成 → 在院日数調整
+                            </div>
+                        </div>
+                        <div class="flow-arrow">↓</div>
+                        <div class="flow-step">
+                            <div class="step-number">3</div>
+                            <div class="step-content">
+                                <strong>期間平均比で改善傾向を考慮</strong><br>
+                                改善傾向 → 積極戦略<br>
+                                悪化傾向 → 防御的戦略
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-        """        
+        """
+
         # --- 最終的なHTMLの組み立て（デザイン改善版） ---
         final_html = f"""
         <!DOCTYPE html>
