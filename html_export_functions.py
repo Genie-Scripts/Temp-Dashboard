@@ -1609,27 +1609,29 @@ def calculate_all_high_scores(df, target_data, period="直近12週"):
         logger.error(f"全ハイスコア計算エラー: {e}")
         return [], []
 
+# ご自身のファイル内で、この関数をまるごと下記コードに置き換えてください。
 def generate_all_in_one_html_report_with_high_score(df, target_data, period="直近12週"):
     """ハイスコア機能付き統合HTMLレポート（修正版）"""
     try:
         logger.info("🏆 ハイスコア統合レポート生成開始")
 
         # 1. 基本レポート生成
+        # ボタン部分は後で置き換えるので、一旦オリジナルのHTMLを生成
         base_html = generate_all_in_one_html_report(df, target_data, period)
         logger.info(f"📄 基本HTML生成完了: {len(base_html)}文字")
 
         # 2. ハイスコアデータ計算
         dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
         logger.info(f"📊 スコア計算完了: 診療科{len(dept_scores)}件, 病棟{len(ward_scores)}件")
-        
+
         # 3. ハイスコアHTMLを生成
         if not dept_scores and not ward_scores:
-            logger.warning("⚠️ スコアデータなし")
+            logger.warning("⚠️ スコアデータなし、基本レポートのみ返します")
             return base_html
         
-        # ハイスコアセクションのHTML（id変更：view-high-scoreに統一）
+        # ハイスコア表示部分のHTMLを作成
         high_score_section = f"""
-        <div id="view-high-score" class="view-content">
+        <div id="view-high-score" class="view-content" style="display: none;">
             <div class="section">
                 <h2>🏆 週間ハイスコア TOP3</h2>
                 <div class="ranking-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
@@ -1637,10 +1639,8 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
                         <h3>🩺 診療科部門</h3>
                         <div class="ranking-list">
         """
-        
-        # 診療科ランキング
         for i, score in enumerate(dept_scores[:3]):
-            medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
+            medal = ["🥇", "🥈", "🥉"][i]
             high_score_section += f"""
                             <div class="ranking-item rank-{i+1}">
                                 <span class="medal">{medal}</span>
@@ -1649,9 +1649,7 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
                                     <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
                                 </div>
                                 <div class="score">{score['total_score']:.0f}点</div>
-                            </div>
-            """
-        
+                            </div>"""
         high_score_section += """
                         </div>
                     </div>
@@ -1659,10 +1657,8 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
                         <h3>🏢 病棟部門</h3>
                         <div class="ranking-list">
         """
-        
-        # 病棟ランキング
         for i, score in enumerate(ward_scores[:3]):
-            medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
+            medal = ["🥇", "🥈", "🥉"][i]
             ward_name = score.get('display_name', score['entity_name'])
             high_score_section += f"""
                             <div class="ranking-item rank-{i+1}">
@@ -1672,9 +1668,7 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
                                     <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
                                 </div>
                                 <div class="score">{score['total_score']:.0f}点</div>
-                            </div>
-            """
-        
+                            </div>"""
         high_score_section += """
                         </div>
                     </div>
@@ -1682,363 +1676,54 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
             </div>
         </div>
         """
-        
-        # 4. HTMLに組み込み（修正版：content-areaの直下に配置）
-        # content-areaの終了タグの直前に挿入
-        content_area_end = base_html.find('</div>', base_html.find('<div class="content-area">'))
-        
-        # content-area内の最後のview-contentを見つける
-        last_view_content_end = -1
-        content_area_start = base_html.find('<div class="content-area">')
-        if content_area_start > 0:
-            # view-contentクラスを持つすべてのdivの終了位置を探す
-            search_pos = content_area_start
-            while True:
-                view_content_pos = base_html.find('class="view-content"', search_pos, content_area_end)
-                if view_content_pos == -1:
-                    break
-                # この view-content の終了タグを見つける
-                div_count = 1
-                pos = base_html.find('>', view_content_pos) + 1
-                while div_count > 0 and pos < content_area_end:
-                    if base_html[pos:pos+4] == '<div':
-                        div_count += 1
-                    elif base_html[pos:pos+6] == '</div>':
-                        div_count -= 1
-                        if div_count == 0:
-                            last_view_content_end = pos + 6
-                    pos += 1
-                search_pos = pos
-        
-        # 挿入位置の決定
-        if last_view_content_end > 0:
-            insert_pos = last_view_content_end
-        else:
-            insert_pos = content_area_end
-        
-        modified_html = (base_html[:insert_pos] + 
-                       '\n                    ' + high_score_section + 
-                       base_html[insert_pos:])
-        
-        # 5. ボタンにハイスコアを追加
-        logger.info("ハイスコアボタンの追加処理を開始します。")
-        # ボタンを囲んでいるコンテナのクラス名を探します
-        # 注: 'quick-buttons' または 'quick-filters' のいずれかに対応します
-        buttons_container_tag = None
-        if modified_html.find('<div class="quick-buttons">') > -1:
-            buttons_container_tag = '<div class="quick-buttons">'
-        elif modified_html.find('<div class="quick-filters">') > -1:
-            buttons_container_tag = '<div class="quick-filters">'
 
-        if buttons_container_tag:
-            container_start_pos = modified_html.find(buttons_container_tag)
-            # ボタンコンテナの終了タグ(</div>)を、コンテナの開始位置以降で探します
-            insert_pos = modified_html.find('</div>', container_start_pos)
-            
-            if insert_pos > 0:
-                high_score_button = '''
-                <button class="quick-button" onclick="showView('view-high-score')">
-                    <span>🏆</span> ハイスコア部門
-                </button>'''
-                # </div> の直前にボタンを挿入します
-                modified_html = modified_html[:insert_pos] + high_score_button + modified_html[insert_pos:]
-                logger.info("✅ ハイスコアボタンの追加に成功しました。")
-            else:
-                logger.error("❌ ボタンコンテナの終了タグ(</div>)が見つかりませんでした。")
+        # 4. ハイスコアの「コンテンツ」をHTMLに追加
+        # content-areaの終了タグ </div> の直前に挿入
+        content_area_str = '<div class="content-area">'
+        content_area_start = base_html.find(content_area_str)
+        if content_area_start != -1:
+            # content-areaの終了位置を見つける
+            content_area_end = base_html.find('</div>', content_area_start + len(content_area_str))
+            if content_area_end != -1:
+                 # content-area の閉じタグの直前にハイスコアセクションを挿入
+                base_html = base_html[:content_area_end] + high_score_section + base_html[content_area_end:]
+                logger.info("✅ ハイスコアのコンテンツ部分を追加しました。")
+
+        # 5. ボタン部分を「ハイスコア部門」ボタン付きで丸ごと作り直す
+        new_buttons_html = """<div class="quick-filters">
+            <button class="quick-button active" onclick="showView('view-all')"><span>🏥</span> 病院全体</button>
+            <button class="quick-button" onclick="toggleTypeSelector('dept')"><span>🩺</span> 診療科別</button>
+            <button class="quick-button" onclick="toggleTypeSelector('ward')"><span>🏢</span> 病棟別</button>
+            <button class="quick-button" onclick="showView('view-high-score')"><span>🏆</span> ハイスコア部門</button>
+        </div>"""
+
+        # 6. 古いボタン部分を特定して、新しいものに置き換える
+        import re
+        # 正規表現で古いボタン部分を検索
+        pattern = re.compile(r'<div class="quick-filters">.*?</div>', re.DOTALL)
+        match = pattern.search(base_html)
+        
+        if match:
+            # マッチした古いHTMLを新しいものに置換
+            modified_html = base_html.replace(match.group(0), new_buttons_html)
+            logger.info("✅ ボタン部分をハイスコア対応版に置換しました。")
         else:
-            logger.error("❌ ボタンコンテナ ('quick-buttons' または 'quick-filters') が見つかりませんでした。")
-        
-        # 6. CSS追加
-        additional_css = """
-        /* ハイスコア部門専用スタイル */
-        .ranking-item {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
-            background: white;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border-left: 4px solid #D1D5DB;
-            transition: all 0.2s ease;
-        }
-        .ranking-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-        .ranking-item.rank-1 { 
-            border-left-color: #FFD700; 
-            background: linear-gradient(to right, rgba(255,215,0,0.1), white); 
-        }
-        .ranking-item.rank-2 { 
-            border-left-color: #C0C0C0; 
-            background: linear-gradient(to right, rgba(192,192,192,0.1), white); 
-        }
-        .ranking-item.rank-3 { 
-            border-left-color: #CD7F32; 
-            background: linear-gradient(to right, rgba(205,127,50,0.1), white); 
-        }
-        .medal { 
-            font-size: 1.8em; 
-            min-width: 50px;
-            text-align: center;
-        }
-        .ranking-info { 
-            flex: 1; 
-        }
-        .ranking-info .name { 
-            font-weight: bold; 
-            color: var(--gray-800);
-            margin-bottom: 4px;
-        }
-        .ranking-info .detail { 
-            font-size: 0.9em; 
-            color: var(--gray-600); 
-        }
-        .score { 
-            font-size: 1.6em; 
-            font-weight: bold; 
-            color: var(--primary-color); 
-            min-width: 70px;
-            text-align: center;
-        }
-        .ranking-section h3 {
-            color: var(--primary-color);
-            margin-bottom: 20px;
-            font-size: 1.2em;
-            text-align: center;
-            padding: 10px;
-            background: rgba(91, 95, 222, 0.1);
-            border-radius: 8px;
-        }
-        .ranking-list {
-            background: var(--gray-50);
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid var(--gray-200);
-        }
-        """
-        
-        style_end = modified_html.find('</style>')
-        if style_end > 0:
-            modified_html = (modified_html[:style_end] + 
-                           additional_css + '\n            ' +
-                           modified_html[style_end:])
-        
-        # 7. JavaScript修正（既存のshowView関数が適切に動作するよう確認）
-        # showView関数が正しく動作することを確認するためのログを追加
-        show_view_start = modified_html.find('function showView(viewId)')
-        if show_view_start > 0:
-            # showView関数の終了位置を見つける
-            func_end = modified_html.find('}', show_view_start)
-            brace_count = 1
-            pos = modified_html.find('{', show_view_start) + 1
-            
-            while brace_count > 0 and pos < len(modified_html):
-                if modified_html[pos] == '{':
-                    brace_count += 1
-                elif modified_html[pos] == '}':
-                    brace_count -= 1
-                    if brace_count == 0:
-                        func_end = pos
-                pos += 1
-            
-            # 既存の関数を保存
-            original_function = modified_html[show_view_start:func_end+1]
-            
-            # 新しいshowView関数を作成
-            new_show_view = """
-                function showView(viewId) {
-                    console.log('showView called with:', viewId);
-                    
-                    // 全てのビューを非表示
-                    document.querySelectorAll('.view-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    
-                    // 指定されたビューを表示
-                    const targetView = document.getElementById(viewId);
-                    if (targetView) {
-                        targetView.classList.add('active');
-                        
-                        // Plotlyチャートの再描画をトリガー
-                        setTimeout(function() {
-                            window.dispatchEvent(new Event('resize'));
-                            
-                            if (window.Plotly) {
-                                const plots = targetView.querySelectorAll('.plotly-graph-div');
-                                plots.forEach(plot => {
-                                    Plotly.Plots.resize(plot);
-                                });
-                            }
-                        }, 100);
-                    }
-                    
-                    // クイックボタンのアクティブ状態を更新
-                    document.querySelectorAll('.quick-button').forEach(btn => {
-                        btn.classList.remove('active');
-                    });
-                    
-                    // 対応するボタンをアクティブに
-                    if (viewId === 'view-all') {
-                        document.querySelector('.quick-button').classList.add('active');
-                        // セレクターを隠す
-                        document.getElementById('dept-selector-wrapper').style.display = 'none';
-                        document.getElementById('ward-selector-wrapper').style.display = 'none';
-                        document.getElementById('dept-selector').value = '';
-                        document.getElementById('ward-selector').value = '';
-                    } else if (viewId === 'view-high-score') {
-                        // ハイスコアボタンをアクティブに
-                        const buttons = document.querySelectorAll('.quick-button');
-                        buttons.forEach((btn, index) => {
-                            if (btn.textContent.includes('ハイスコア部門')) {
-                                btn.classList.add('active');
-                            }
-                        });
-                        // セレクターを隠す
-                        document.getElementById('dept-selector-wrapper').style.display = 'none';
-                        document.getElementById('ward-selector-wrapper').style.display = 'none';
-                    }
-                }"""
-            
-            # 関数を置換
-            modified_html = modified_html.replace(original_function, new_show_view)
-            
-        else:
-            # showView関数が見つからない場合は新規追加
-            complete_js = """
-            <script>
-                function showView(viewId) {
-                    console.log('showView called with:', viewId);
-                    
-                    // 全てのビューを非表示
-                    document.querySelectorAll('.view-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    
-                    // 指定されたビューを表示
-                    const targetView = document.getElementById(viewId);
-                    if (targetView) {
-                        targetView.classList.add('active');
-                        
-                        // Plotlyチャートの再描画
-                        setTimeout(function() {
-                            window.dispatchEvent(new Event('resize'));
-                            if (window.Plotly) {
-                                const plots = targetView.querySelectorAll('.plotly-graph-div');
-                                plots.forEach(plot => {
-                                    Plotly.Plots.resize(plot);
-                                });
-                            }
-                        }, 100);
-                    }
-                    
-                    // ボタンのアクティブ状態を更新
-                    updateActiveButtons(viewId);
-                }
-                
-                function updateActiveButtons(viewId) {
-                    // 全ボタンを非アクティブに
-                    document.querySelectorAll('.quick-button').forEach(btn => {
-                        btn.classList.remove('active');
-                    });
-                    
-                    // セレクターを隠す
-                    const deptWrapper = document.getElementById('dept-selector-wrapper');
-                    const wardWrapper = document.getElementById('ward-selector-wrapper');
-                    if (deptWrapper) deptWrapper.style.display = 'none';
-                    if (wardWrapper) wardWrapper.style.display = 'none';
-                    
-                    // 対応するボタンをアクティブに
-                    if (viewId === 'view-all') {
-                        document.querySelector('.quick-button').classList.add('active');
-                    } else if (viewId === 'view-high-score') {
-                        const buttons = document.querySelectorAll('.quick-button');
-                        buttons.forEach(btn => {
-                            if (btn.textContent.includes('ハイスコア部門')) {
-                                btn.classList.add('active');
-                            }
-                        });
-                    } else if (viewId.startsWith('view-dept-')) {
-                        const buttons = document.querySelectorAll('.quick-button');
-                        buttons.forEach(btn => {
-                            if (btn.textContent.includes('診療科別')) {
-                                btn.classList.add('active');
-                            }
-                        });
-                    } else if (viewId.startsWith('view-ward-')) {
-                        const buttons = document.querySelectorAll('.quick-button');
-                        buttons.forEach(btn => {
-                            if (btn.textContent.includes('病棟別')) {
-                                btn.classList.add('active');
-                            }
-                        });
-                    }
-                }
-                
-                function toggleTypeSelector(type) {
-                    // 病院全体ビューを非表示
-                    document.getElementById('view-all').classList.remove('active');
-                    document.getElementById('view-high-score').classList.remove('active');
-                    
-                    // セレクターの表示切替
-                    if (type === 'dept') {
-                        document.getElementById('dept-selector-wrapper').style.display = 'flex';
-                        document.getElementById('ward-selector-wrapper').style.display = 'none';
-                        document.getElementById('ward-selector').value = '';
-                    } else if (type === 'ward') {
-                        document.getElementById('dept-selector-wrapper').style.display = 'none';
-                        document.getElementById('ward-selector-wrapper').style.display = 'flex';
-                        document.getElementById('dept-selector').value = '';
-                    }
-                    
-                    // ボタンのアクティブ状態を更新
-                    document.querySelectorAll('.quick-button').forEach((btn, index) => {
-                        btn.classList.toggle('active', 
-                            (btn.textContent.includes('診療科別') && type === 'dept') || 
-                            (btn.textContent.includes('病棟別') && type === 'ward')
-                        );
-                    });
-                }
-                
-                function changeView(viewId) {
-                    if (viewId) {
-                        showView(viewId);
-                    }
-                }
-                
-                // ページ読み込み時の初期化
-                document.addEventListener('DOMContentLoaded', function() {
-                    console.log('DOM loaded - initializing views');
-                    
-                    // 初期表示の確認
-                    const activeView = document.querySelector('.view-content.active');
-                    if (activeView) {
-                        console.log('Initial active view:', activeView.id);
-                    }
-                    
-                    // ハイスコアビューの存在確認
-                    const highScoreView = document.getElementById('view-high-score');
-                    if (highScoreView) {
-                        console.log('✅ High score view found');
-                    } else {
-                        console.error('❌ High score view not found');
-                    }
-                });
-            </script>
-            """
-            
-            # </body>タグの前に挿入
-            body_end = modified_html.rfind('</body>')
-            if body_end > 0:
-                modified_html = modified_html[:body_end] + complete_js + '\n' + modified_html[body_end:]
-        
+            logger.error("❌ 置換対象のボタンコンテナが見つかりませんでした。HTML構造を確認してください。")
+            modified_html = base_html # 置換失敗時は元のHTMLを維持
+
+        # 7. CSSとJSは元のままでOKなので、ここでは処理を追加しない
+        # （base_htmlに既に入っているため）
+
+        logger.info("✅✅✅ ハイスコア統合レポートの生成が完了しました。")
         return modified_html
-        
+    
     except Exception as e:
-        logger.error(f"ハイスコア統合エラー: {e}", exc_info=True)
-        return base_html
+        logger.error(f"ハイスコア統合レポート生成中に致命的なエラーが発生しました: {e}", exc_info=True)
+        # エラーが発生した場合でも、基本HTMLがあればそれを返す
+        try:
+            return base_html
+        except NameError:
+            return "<html><body>レポート生成中にエラーが発生しました。</body></html>"
 
 def _generate_ranking_list_html(scores: List[Dict], entity_type: str) -> str:
     """ランキングリストHTML生成"""
