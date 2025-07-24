@@ -136,31 +136,21 @@ def execute_github_publish(period: str):
     target_data = st.session_state.get('target_data', pd.DataFrame())
 
     with st.spinner(f"🚀 統合レポート（ハイスコア機能付き）を生成・公開中... (期間: {period})"):
-        # === 修正箇所: ハイスコア機能付きレポート生成に変更 ===
+        # === 修正箇所: 新しい関数を直接呼び出す ===
         try:
-            # Phase1: ハイスコア機能付きレポート生成を試行
-            from html_export_functions import generate_all_in_one_html_report_with_high_score
-            html_content = generate_all_in_one_html_report_with_high_score(df, target_data, period)
+            # 常にハイスコア機能を含む新しい関数を呼び出す
+            from html_export_functions import generate_all_in_one_html_report
+            
+            html_content = generate_all_in_one_html_report(df, target_data, period)
             feature_description = "ハイスコア機能付き統合レポート"
             
-        except ImportError as e:
-            # フォールバック: 従来版を使用
-            st.warning("⚠️ ハイスコア機能がまだ実装されていません。従来版レポートを生成します。")
-            from html_export_functions import generate_all_in_one_html_report
-            html_content = generate_all_in_one_html_report(df, target_data, period)
-            feature_description = "統合レポート（従来版）"
-            
         except Exception as e:
-            # エラー時は従来版にフォールバック
-            st.error(f"⚠️ ハイスコア機能でエラーが発生しました: {e}")
-            st.info("従来版レポートで公開を続行します...")
-            from html_export_functions import generate_all_in_one_html_report
-            html_content = generate_all_in_one_html_report(df, target_data, period)
-            feature_description = "統合レポート（エラー回避版）"
+            st.error(f"⚠️ レポート生成中にエラーが発生しました: {e}")
+            logger.error(f"レポート生成エラー: {e}", exc_info=True)
+            html_content = None # エラー時はNoneにする
         
         # HTML生成成功時の処理
-        if html_content and "エラー" not in html_content:
-            # コミットメッセージにハイスコア情報を含める
+        if html_content:
             commit_message = f"Update {feature_description} ({period})"
             success, msg = publisher.upload_html_file(html_content, "docs/index.html", commit_message)
             
@@ -168,10 +158,7 @@ def execute_github_publish(period: str):
                 st.success(f"✅ {feature_description}の公開が完了しました！")
                 public_url = publisher.get_public_url()
                 
-                # ハイスコア機能の説明を追加
-                if "ハイスコア" in feature_description:
-                    st.info("🏆 ハイスコア機能が追加されました！レポートの「🏆 ハイスコア部門」ボタンから確認できます。")
-                
+                st.info("🏆 レポートの「🏆 ハイスコア部門」ボタンからランキングを確認できます。")
                 st.markdown(f"🌐 [**公開サイトを開く**]({public_url})", unsafe_allow_html=True)
             else:
                 st.error(f"❌ 公開に失敗: {msg}")

@@ -1317,82 +1317,72 @@ def _get_legacy_integrated_css():
 
 def calculate_high_score(df, target_data, entity_name, entity_type, start_date, end_date, group_col=None):
     """
-    診療科・病棟のハイスコアを計算（100点満点）
-    
-    Args:
-        df: データフレーム
-        target_data: 目標データ
-        entity_name: 診療科名/病棟名/病棟コード
-        entity_type: 'dept' or 'ward'
-        start_date, end_date: 分析期間
-        group_col: グループ化カラム
-    
-    Returns:
-        dict: スコア詳細 or None
+    診療科・病棟のハイスコアを計算（100点満点）【計算方法修正版】
     """
     try:
-        # 基本KPI取得（既存関数を活用）
+        # 基本KPI取得
         if entity_type == 'dept':
             kpi = calculate_department_kpis(df, target_data, entity_name, entity_name, start_date, end_date, group_col)
-        else:  # ward
+        else:
             kpi = calculate_ward_kpis(df, target_data, entity_name, entity_name, start_date, end_date, group_col)
         
-        if not kpi or not kpi.get('daily_census_target', 0):
+        if not kpi or not kpi.get('daily_census_target'):
             return None
+        
+        target_value = kpi['daily_census_target']
         
         # 対象データフィルタリング
-        if group_col and entity_name:
-            entity_df = df[df[group_col] == entity_name].copy()
-        else:
-            entity_df = df.copy()
-        
+        entity_df = df[df[group_col] == entity_name].copy() if group_col and entity_name else df.copy()
         if entity_df.empty:
             return None
+
+        # ★ 修正点 1: 「直近7日間」のデータを正確に切り出す
+        recent_week_end = end_date
+        recent_week_start = end_date - pd.Timedelta(days=6)
+        recent_week_df = entity_df[
+            (entity_df['日付'] >= recent_week_start) & 
+            (entity_df['日付'] <= recent_week_end)
+        ]
         
-        # 分析期間のデータ
-        period_df = entity_df[
+        if recent_week_df.empty:
+            return None # 直近週のデータがなければ計算不可
+            
+        # ★ 修正点 2: 「直近週の平均在院患者数」を7日間平均で計算
+        latest_week_avg_census = recent_week_df['在院患者数'].mean()
+
+        # 1. 直近週達成度（50点）- 新しい計算方法を適用
+        latest_achievement_rate = (latest_week_avg_census / target_value) * 100
+        achievement_score = _calculate_achievement_score(latest_achievement_rate)
+
+        # 2. 改善度（25点）- 比較対象期間を「直近週より前」に設定
+        period_before_recent_week_df = entity_df[
             (entity_df['日付'] >= start_date) & 
-            (entity_df['日付'] <= end_date)
-        ].copy()
+            (entity_df['日付'] < recent_week_start)
+        ]
         
-        if period_df.empty or len(period_df) < 7:  # 最低1週間必要
-            return None
+        improvement_rate = 0
+        if not period_before_recent_week_df.empty:
+            period_avg = period_before_recent_week_df['在院患者数'].mean()
+            if period_avg > 0:
+                improvement_rate = ((latest_week_avg_census - period_avg) / period_avg) * 100
+        improvement_score = _calculate_improvement_score(improvement_rate)
+
+        # --- 安定性・持続性のための週次データ作成（この部分は変更なし） ---
+        period_df = entity_df[(entity_df['日付'] >= start_date) & (entity_df['日付'] <= end_date)].copy()
+        if period_df.empty or len(period_df) < 7: return None
         
-        # 週次データ作成
         period_df['週番号'] = period_df['日付'].dt.isocalendar().week
         period_df['年'] = period_df['日付'].dt.year
         period_df['年週'] = period_df['年'].astype(str) + '-W' + period_df['週番号'].astype(str).str.zfill(2)
         
-        # 週次集計
-        weekly_data = period_df.groupby('年週').agg({
-            '在院患者数': 'mean',
-            '新入院患者数': 'sum',
-            '日付': 'max'  # 週の最終日
-        }).reset_index()
+        weekly_data = period_df.groupby('年週').agg(
+            {'在院患者数': 'mean', '日付': 'max'}
+        ).sort_values('日付').reset_index()
         
-        # 日付でソート
-        weekly_data = weekly_data.sort_values('日付').reset_index(drop=True)
-        
-        if len(weekly_data) < 2:
-            return None
-        
-        # 基本指標の取得
-        target_value = kpi['daily_census_target']
-        latest_week = weekly_data.iloc[-1]
-        period_avg = weekly_data['在院患者数'][:-1].mean() if len(weekly_data) > 1 else weekly_data['在院患者数'].mean()
-        
-        # 1. 直近週達成度（50点）
-        latest_achievement_rate = (latest_week['在院患者数'] / target_value) * 100
-        achievement_score = _calculate_achievement_score(latest_achievement_rate)
-        
-        # 2. 改善度（25点）
-        improvement_rate = 0
-        if period_avg > 0:
-            improvement_rate = ((latest_week['在院患者数'] - period_avg) / period_avg) * 100
-        improvement_score = _calculate_improvement_score(improvement_rate)
+        if len(weekly_data) < 2: return None
         
         # 3. 安定性（15点）
-        recent_3weeks = weekly_data['在院患者数'][-3:] if len(weekly_data) >= 3 else weekly_data['在院患者数']
+        recent_3weeks = weekly_data['在院患者数'].tail(3)
         stability_score = _calculate_stability_score(recent_3weeks)
         
         # 4. 持続性（10点）
@@ -1401,7 +1391,7 @@ def calculate_high_score(df, target_data, entity_name, entity_type, start_date, 
         # 5. 病棟特別項目（病棟のみ、5点）
         bed_efficiency_score = 0
         if entity_type == 'ward' and kpi.get('bed_count', 0) > 0:
-            bed_utilization = (latest_week['在院患者数'] / kpi['bed_count']) * 100
+            bed_utilization = (latest_week_avg_census / kpi['bed_count']) * 100
             bed_efficiency_score = _calculate_bed_efficiency_score(bed_utilization, latest_achievement_rate)
         
         # 総合スコア計算
@@ -1410,18 +1400,18 @@ def calculate_high_score(df, target_data, entity_name, entity_type, start_date, 
         return {
             'entity_name': entity_name,
             'entity_type': entity_type,
-            'total_score': min(105, max(0, total_score)),  # 0-105点の範囲
+            'total_score': min(105, max(0, total_score)),
             'achievement_score': achievement_score,
             'improvement_score': improvement_score,
             'stability_score': stability_score,
             'sustainability_score': sustainability_score,
             'bed_efficiency_score': bed_efficiency_score,
-            'latest_achievement_rate': latest_achievement_rate,
+            'latest_achievement_rate': latest_achievement_rate, # ★ 修正された値
             'improvement_rate': improvement_rate,
-            'latest_inpatients': latest_week['在院患者数'],
+            'latest_inpatients': latest_week_avg_census, # ★ 修正された値
             'target_inpatients': target_value,
-            'period_avg': period_avg,
-            'bed_utilization': (latest_week['在院患者数'] / kpi.get('bed_count', 1)) * 100 if entity_type == 'ward' else 0
+            'period_avg': period_avg if 'period_avg' in locals() else 0,
+            'bed_utilization': (latest_week_avg_census / kpi.get('bed_count', 1)) * 100 if entity_type == 'ward' else 0
         }
         
     except Exception as e:
@@ -1623,21 +1613,18 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
     """ハイスコア機能付き統合HTMLレポート（修正版）"""
     try:
         # 1. 基本レポート生成
-        from html_export_functions import generate_all_in_one_html_report
         base_html = generate_all_in_one_html_report(df, target_data, period)
         
         # 2. ハイスコアデータ計算
-        from html_export_functions import calculate_all_high_scores
         dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
         
-        # 3. ハイスコアHTMLを単純に挿入
+        # 3. ハイスコアHTMLを生成
         if not dept_scores and not ward_scores:
             return base_html
         
-        # ハイスコアセクションのHTML
+        # ハイスコアセクションのHTML（id変更：view-high-scoreに統一）
         high_score_section = f"""
-        <!-- ハイスコアセクション -->
-        <div id="high-score-section" style="display: none;">
+        <div id="view-high-score" class="view-content">
             <div class="section">
                 <h2>🏆 週間ハイスコア TOP3</h2>
                 <div class="ranking-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
@@ -1689,68 +1676,64 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
                 </div>
             </div>
         </div>
-        <!-- ハイスコアセクション終了 -->
         """
         
-        # 4. ボタンにハイスコアを追加（JavaScript内で処理）
-        enhanced_js = """
-        <script>
-        // ハイスコア表示切り替え
-        function toggleHighScore() {
-            // 全ビューを非表示
-            document.getElementById('view-all').style.display = 'none';
-            document.querySelectorAll('[id^="view-dept-"]').forEach(el => el.style.display = 'none');
-            document.querySelectorAll('[id^="view-ward-"]').forEach(el => el.style.display = 'none');
-            
-            // ハイスコアセクションを表示
-            var highScoreSection = document.getElementById('high-score-section');
-            if (highScoreSection) {
-                highScoreSection.style.display = 'block';
-            }
-            
-            // ボタンのアクティブ状態を更新
-            document.querySelectorAll('.quick-button').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            // セレクターを隠す
-            document.getElementById('dept-selector-wrapper').style.display = 'none';
-            document.getElementById('ward-selector-wrapper').style.display = 'none';
-        }
+        # 4. HTMLに組み込み（修正版：content-areaの直下に配置）
+        # content-areaの終了タグの直前に挿入
+        content_area_end = base_html.find('</div>', base_html.find('<div class="content-area">'))
         
-        // ページ読み込み後にハイスコアボタンを追加
-        window.addEventListener('DOMContentLoaded', function() {
-            // ハイスコアボタンを追加
-            var quickButtons = document.querySelector('.quick-buttons');
-            if (quickButtons && !document.querySelector('.high-score-button')) {
-                var highScoreButton = document.createElement('button');
-                highScoreButton.className = 'quick-button high-score-button';
-                highScoreButton.innerHTML = '<span>🏆</span> ハイスコア部門';
-                highScoreButton.onclick = toggleHighScore;
-                quickButtons.appendChild(highScoreButton);
-            }
-        });
-        </script>
-        """
+        # content-area内の最後のview-contentを見つける
+        last_view_content_end = -1
+        content_area_start = base_html.find('<div class="content-area">')
+        if content_area_start > 0:
+            # view-contentクラスを持つすべてのdivの終了位置を探す
+            search_pos = content_area_start
+            while True:
+                view_content_pos = base_html.find('class="view-content"', search_pos, content_area_end)
+                if view_content_pos == -1:
+                    break
+                # この view-content の終了タグを見つける
+                div_count = 1
+                pos = base_html.find('>', view_content_pos) + 1
+                while div_count > 0 and pos < content_area_end:
+                    if base_html[pos:pos+4] == '<div':
+                        div_count += 1
+                    elif base_html[pos:pos+6] == '</div>':
+                        div_count -= 1
+                        if div_count == 0:
+                            last_view_content_end = pos + 6
+                    pos += 1
+                search_pos = pos
         
-        # 5. HTMLに組み込み
-        # content-areaの最後に追加
-        content_end = base_html.find('</div>', base_html.find('<div class="content-area">'))
-        if content_end > 0:
-            modified_html = (base_html[:content_end] + 
-                           high_score_section + 
-                           base_html[content_end:])
+        # 挿入位置の決定
+        if last_view_content_end > 0:
+            insert_pos = last_view_content_end
         else:
-            modified_html = base_html
+            insert_pos = content_area_end
         
-        # JavaScriptを追加
-        body_end = modified_html.rfind('</body>')
-        if body_end > 0:
-            modified_html = (modified_html[:body_end] + 
-                           enhanced_js + 
-                           modified_html[body_end:])
+        modified_html = (base_html[:insert_pos] + 
+                       '\n                    ' + high_score_section + 
+                       base_html[insert_pos:])
         
-        # 6. CSS追加（ハイスコア用）
+        # 5. ボタンにハイスコアを追加
+        quick_buttons_pos = modified_html.find('<div class="quick-buttons">')
+        if quick_buttons_pos > 0:
+            # 病棟別ボタンの後ろに追加
+            ward_button_end = modified_html.find('</button>', 
+                modified_html.find('<span>🏢</span> 病棟別', quick_buttons_pos))
+            if ward_button_end > 0:
+                insert_pos = ward_button_end + len('</button>')
+                high_score_button = '''
+                        <button class="quick-button" onclick="showView('view-high-score')">
+                            <span>🏆</span> ハイスコア部門
+                        </button>'''
+                modified_html = (modified_html[:insert_pos] + 
+                               high_score_button + 
+                               modified_html[insert_pos:])
+        
+        # 6. CSS追加
         additional_css = """
+        /* ハイスコア部門専用スタイル */
         .ranking-item {
             display: flex;
             align-items: center;
@@ -1761,29 +1744,97 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
             margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             border-left: 4px solid #D1D5DB;
+            transition: all 0.2s ease;
         }
-        .ranking-item.rank-1 { border-left-color: #FFD700; background: linear-gradient(to right, rgba(255,215,0,0.1), white); }
-        .ranking-item.rank-2 { border-left-color: #C0C0C0; background: linear-gradient(to right, rgba(192,192,192,0.1), white); }
-        .ranking-item.rank-3 { border-left-color: #CD7F32; background: linear-gradient(to right, rgba(205,127,50,0.1), white); }
-        .medal { font-size: 1.8em; }
-        .ranking-info { flex: 1; }
-        .ranking-info .name { font-weight: bold; }
-        .ranking-info .detail { font-size: 0.9em; color: #666; }
-        .score { font-size: 1.6em; font-weight: bold; color: #5B5FDE; }
+        .ranking-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .ranking-item.rank-1 { 
+            border-left-color: #FFD700; 
+            background: linear-gradient(to right, rgba(255,215,0,0.1), white); 
+        }
+        .ranking-item.rank-2 { 
+            border-left-color: #C0C0C0; 
+            background: linear-gradient(to right, rgba(192,192,192,0.1), white); 
+        }
+        .ranking-item.rank-3 { 
+            border-left-color: #CD7F32; 
+            background: linear-gradient(to right, rgba(205,127,50,0.1), white); 
+        }
+        .medal { 
+            font-size: 1.8em; 
+            min-width: 50px;
+            text-align: center;
+        }
+        .ranking-info { 
+            flex: 1; 
+        }
+        .ranking-info .name { 
+            font-weight: bold; 
+            color: var(--gray-800);
+            margin-bottom: 4px;
+        }
+        .ranking-info .detail { 
+            font-size: 0.9em; 
+            color: var(--gray-600); 
+        }
+        .score { 
+            font-size: 1.6em; 
+            font-weight: bold; 
+            color: var(--primary-color); 
+            min-width: 70px;
+            text-align: center;
+        }
+        .ranking-section h3 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            text-align: center;
+            padding: 10px;
+            background: rgba(91, 95, 222, 0.1);
+            border-radius: 8px;
+        }
+        .ranking-list {
+            background: var(--gray-50);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--gray-200);
+        }
         """
         
         style_end = modified_html.find('</style>')
         if style_end > 0:
             modified_html = (modified_html[:style_end] + 
-                           additional_css + 
+                           additional_css + '\n            ' +
                            modified_html[style_end:])
+        
+        # 7. JavaScript修正（既存のshowView関数が適切に動作するよう確認）
+        # showView関数が正しく動作することを確認するためのログを追加
+        debug_js = """
+                // デバッグ: ハイスコアビューの存在確認
+                document.addEventListener('DOMContentLoaded', function() {
+                    const highScoreView = document.getElementById('view-high-score');
+                    if (highScoreView) {
+                        console.log('✅ ハイスコアビューが正しく配置されています');
+                        console.log('親要素:', highScoreView.parentElement.className);
+                    } else {
+                        console.error('❌ ハイスコアビューが見つかりません');
+                    }
+                });
+        """
+        
+        script_end = modified_html.rfind('</script>')
+        if script_end > 0:
+            modified_html = (modified_html[:script_end] + 
+                           debug_js + '\n            ' +
+                           modified_html[script_end:])
         
         return modified_html
         
     except Exception as e:
-        logger.error(f"ハイスコア統合エラー: {e}")
-        # エラー時は基本レポートを返す
-        return generate_all_in_one_html_report(df, target_data, period)
+        logger.error(f"ハイスコア統合エラー: {e}", exc_info=True)
+        return base_html
 
 def _generate_ranking_list_html(scores: List[Dict], entity_type: str) -> str:
     """ランキングリストHTML生成"""
