@@ -179,7 +179,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             ward_id = f"view-ward-{ward_code}"
             ward_options += f'<option value="{ward_id}">{ward_name}</option>'
         
-        # 既存の評価基準パネルのHTMLをそのまま使用（インデント修正）
+        # 評価基準パネルのHTML（完全版）
         info_panel_html = f"""
         <div id="info-panel" class="info-panel">
             <div class="info-content">
@@ -201,10 +201,6 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         <h4>✅ 低（直近週達成率98%以上）</h4>
                         <p>直近週で目標達成済み。現状維持を基本とし、さらなる効率化の余地を検討</p>
                     </div>
-                    <div class="emphasis-box">
-                        <strong>📍 重要：</strong>評価は<span style="color: #e91e63; font-weight: bold;">直近週の実績</span>を最重要視し、
-                        <span style="color: #5b5fde; font-weight: bold;">98%基準</span>で判定します
-                    </div>
                 </div>
                 
                 <div class="info-section">
@@ -218,12 +214,12 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         <tr class="grade-s">
                             <td><strong>S</strong></td>
                             <td>直近週目標達成＋大幅改善</td>
-                            <td>直近週達成率<span style="color: #10b981; font-weight: bold;">98%以上</span>かつ期間平均比+10%以上</td>
+                            <td>直近週達成率98%以上かつ期間平均比+10%以上</td>
                         </tr>
                         <tr class="grade-a">
                             <td><strong>A</strong></td>
                             <td>直近週目標達成＋改善傾向</td>
-                            <td>直近週達成率<span style="color: #3b82f6; font-weight: bold;">98%以上</span>かつ期間平均比+5%以上</td>
+                            <td>直近週達成率98%以上かつ期間平均比+5%以上</td>
                         </tr>
                         <tr class="grade-b">
                             <td><strong>B</strong></td>
@@ -241,107 +237,6 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             <td>期間平均比-5%以下</td>
                         </tr>
                     </table>
-                    <div class="attention-box">
-                        <span style="color: #92400e;">⚠️ 重要な変更点</span><br>
-                        • 目標達成基準を95%から<strong style="color: #e91e63;">98%</strong>に引き上げ<br>
-                        • 評価軸を期間平均から<strong style="color: #5b5fde;">直近週実績</strong>に変更<br>
-                        • 変化率は「直近週 vs 期間平均」で算出
-                    </div>
-                </div>
-                
-                <div class="info-section">
-                    <h3>📈 改善度評価（直近週 vs 期間平均）</h3>
-                    <ul class="criteria-list">
-                        <li><span class="badge excellent">大幅改善</span> 直近週が期間平均比+10%以上</li>
-                        <li><span class="badge good">改善</span> 直近週が期間平均比+5〜10%</li>
-                        <li><span class="badge stable">維持</span> 直近週が期間平均比±5%未満</li>
-                        <li><span class="badge warning">低下</span> 直近週が期間平均比-5〜-10%</li>
-                        <li><span class="badge danger">要注意</span> 直近週が期間平均比-10%以下</li>
-                    </ul>
-                    <div class="note-box">
-                        <strong>📝 注意：</strong>「期間平均比」は、分析対象期間（{period}）の平均値に対する直近週実績の変化率です
-                    </div>
-                </div>
-                
-                <div class="info-section">
-                    <h3>📅 平均在院日数の評価（直近週重視）</h3>
-                    <div class="los-criteria">
-                        <h4>🎯 直近週で目標達成時（達成率98%以上）</h4>
-                        <ul>
-                            <li>直近週で短縮 → <span class="badge excellent">効率的</span></li>
-                            <li>直近週で維持 → <span class="badge stable">安定</span></li>
-                            <li>直近週で延長 → <span class="badge warning">要確認</span></li>
-                        </ul>
-                        
-                        <h4>⚠️ 直近週で目標未達時（達成率98%未満）</h4>
-                        <ul>
-                            <li>直近週で短縮 → <span class="badge warning">要検討</span>（収益への影響確認）</li>
-                            <li>直近週で維持 → <span class="badge warning">要対策</span></li>
-                            <li>直近週で延長 → <span class="badge good">改善中</span>（病床稼働向上）</li>
-                        </ul>
-                    </div>
-                    <div class="emphasis-box">
-                        <strong>💡 ポイント：</strong>在院日数の評価も直近週の実績を中心に、期間平均との比較で判定
-                    </div>
-                </div>
-                
-                <div class="info-section">
-                    <h3>📖 用語説明（直近週重視版）</h3>
-                    <dl class="term-list">
-                        <dt>🔥 直近週（最重要指標）</dt>
-                        <dd>分析期間の最新1週間（月曜〜日曜）の実績値。<strong style="color: #e91e63;">アクション判定の主要評価軸</strong></dd>
-                        
-                        <dt>期間平均</dt>
-                        <dd>分析対象期間（{period}）全体の平均値。直近週との比較基準として使用</dd>
-                        
-                        <dt>🎯 直近週目標達成率（主要KPI）</dt>
-                        <dd>（直近週実績値 ÷ 目標値）× 100%。<strong style="color: #5b5fde;">98%以上で目標達成と判定</strong></dd>
-                        
-                        <dt>期間平均比</dt>
-                        <dd>（直近週の値 - 期間平均値）÷ 期間平均値 × 100%。改善傾向の判定に使用</dd>
-                        
-                        <dt>新入院目標</dt>
-                        <dd>各診療科・病棟に設定された週間新入院患者数の目標値。<strong>直近週実績</strong>で評価</dd>
-                        
-                        <dt>病床稼働率</dt>
-                        <dd>（在院患者数 ÷ 病床数）× 100%。直近週と期間平均の両方で算出</dd>
-                        
-                        <dt>🎯 エンドポイント</dt>
-                        <dd><strong style="color: #e91e63;">在院患者数の目標達成</strong>。全ての施策の最終目標</dd>
-                    </dl>
-                </div>
-                
-                <div class="info-section">
-                    <h3>🔄 アクション判定フロー</h3>
-                    <div class="flow-chart">
-                        <div class="flow-step">
-                            <div class="step-number">1</div>
-                            <div class="step-content">
-                                <strong>直近週の在院患者数達成率をチェック</strong><br>
-                                98%以上 → 現状維持系<br>
-                                90-98% → 改善系<br>
-                                90%未満 → 緊急対応系
-                            </div>
-                        </div>
-                        <div class="flow-arrow">↓</div>
-                        <div class="flow-step">
-                            <div class="step-number">2</div>
-                            <div class="step-content">
-                                <strong>直近週の新入院達成状況で詳細判定</strong><br>
-                                新入院も未達 → 新入院重視<br>
-                                新入院は達成 → 在院日数調整
-                            </div>
-                        </div>
-                        <div class="flow-arrow">↓</div>
-                        <div class="flow-step">
-                            <div class="step-number">3</div>
-                            <div class="step-content">
-                                <strong>期間平均比で改善傾向を考慮</strong><br>
-                                改善傾向 → 積極戦略<br>
-                                悪化傾向 → 防御的戦略
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -356,10 +251,100 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>統合パフォーマンスレポート（直近週重視版）</title>
             <style>
-                /* 既存のスタイルをそのまま使用 */
+                /* ベース設定 */
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                
+                :root {{
+                    --primary-color: #5B5FDE;
+                    --primary-dark: #4347B8;
+                    --primary-light: #7B7EE6;
+                    --secondary-color: #E91E63;
+                    --success-color: #10B981;
+                    --warning-color: #F59E0B;
+                    --danger-color: #EF4444;
+                    --info-color: #3B82F6;
+                    --gray-50: #F9FAFB;
+                    --gray-100: #F3F4F6;
+                    --gray-200: #E5E7EB;
+                    --gray-300: #D1D5DB;
+                    --gray-400: #9CA3AF;
+                    --gray-500: #6B7280;
+                    --gray-600: #4B5563;
+                    --gray-700: #374151;
+                    --gray-800: #1F2937;
+                    --gray-900: #111827;
+                }}
+                
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
+                    background-color: var(--gray-50);
+                    color: var(--gray-800);
+                    line-height: 1.6;
+                }}
+                
+                /* 重要: ビューの表示制御 */
+                .view-content {{
+                    display: none;
+                }}
+                
+                .view-content.active {{
+                    display: block;
+                }}
+                
+                /* 情報パネル */
+                .info-panel {{
+                    display: none;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    z-index: 1000;
+                    overflow-y: auto;
+                }}
+                
+                .info-panel.active {{
+                    display: block;
+                }}
+                
+                .info-content {{
+                    max-width: 900px;
+                    margin: 40px auto;
+                    background: white;
+                    border-radius: 16px;
+                    padding: 40px;
+                    position: relative;
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+                }}
+                
+                .close-button {{
+                    position: absolute;
+                    top: 20px;
+                    right: 20px;
+                    background: none;
+                    border: none;
+                    font-size: 1.5em;
+                    cursor: pointer;
+                    color: #666;
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 50%;
+                    transition: all 0.3s;
+                }}
+                
+                .close-button:hover {{
+                    background: #f0f0f0;
+                }}
+                
+                /* 既存のスタイルを追加 */
                 {_get_css_styles()}
                 
-                /* ハイスコア専用スタイル追加 */
+                /* ハイスコア専用スタイル */
                 .ranking-grid {{
                     display: grid;
                     grid-template-columns: 1fr 1fr;
@@ -452,6 +437,66 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     margin-bottom: 20px;
                     font-size: 0.95em;
                 }}
+                
+                /* 情報パネル専用スタイル */
+                .info-section {{
+                    margin-bottom: 35px;
+                }}
+                
+                .info-section h3 {{
+                    color: #4b5563;
+                    margin-bottom: 15px;
+                    font-size: 1.2em;
+                }}
+                
+                .priority-box {{
+                    background: rgba(91, 95, 222, 0.05);
+                    border: 1px solid rgba(91, 95, 222, 0.2);
+                    border-radius: 8px;
+                    padding: 15px;
+                    margin-bottom: 15px;
+                }}
+                
+                .priority-box.urgent {{
+                    background: rgba(239, 68, 68, 0.05);
+                    border-color: rgba(239, 68, 68, 0.2);
+                }}
+                
+                .priority-box.medium {{
+                    background: rgba(245, 158, 11, 0.05);
+                    border-color: rgba(245, 158, 11, 0.2);
+                }}
+                
+                .priority-box.low {{
+                    background: rgba(16, 185, 129, 0.05);
+                    border-color: rgba(16, 185, 129, 0.2);
+                }}
+                
+                .criteria-table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 15px;
+                }}
+                
+                .criteria-table th {{
+                    background: #f3f4f6;
+                    padding: 12px;
+                    text-align: left;
+                    font-weight: 600;
+                    color: #374151;
+                }}
+                
+                .criteria-table td {{
+                    padding: 12px;
+                    border-bottom: 1px solid #e5e7eb;
+                }}
+                
+                @media (max-width: 768px) {{
+                    .ranking-grid {{
+                        grid-template-columns: 1fr;
+                        gap: 20px;
+                    }}
+                }}
             </style>
         </head>
         <body>
@@ -503,9 +548,14 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             </div>
             {info_panel_html}
             <script>
+                // デバッグ用
+                console.log('Script loaded');
+                
                 let currentType = null;
                 
                 function showView(viewId) {{
+                    console.log('showView called with:', viewId);
+                    
                     // 全てのビューを非表示
                     document.querySelectorAll('.view-content').forEach(content => {{
                         content.classList.remove('active');
@@ -515,12 +565,12 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     const targetView = document.getElementById(viewId);
                     if (targetView) {{
                         targetView.classList.add('active');
+                        console.log('View activated:', viewId);
                         
                         // Plotlyチャートの再描画をトリガー
                         setTimeout(function() {{
                             window.dispatchEvent(new Event('resize'));
                             
-                            // Plotlyが存在する場合、各チャートを個別に再描画
                             if (window.Plotly) {{
                                 const plots = targetView.querySelectorAll('.plotly-graph-div');
                                 plots.forEach(plot => {{
@@ -528,6 +578,8 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                                 }});
                             }}
                         }}, 100);
+                    }} else {{
+                        console.error('View not found:', viewId);
                     }}
                     
                     // クイックボタンのアクティブ状態を更新
@@ -540,13 +592,15 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         // セレクターを隠す
                         document.getElementById('dept-selector-wrapper').style.display = 'none';
                         document.getElementById('ward-selector-wrapper').style.display = 'none';
-                        // セレクターの選択をリセット
                         document.getElementById('dept-selector').value = '';
                         document.getElementById('ward-selector').value = '';
                         currentType = null;
                     }} else if (viewId === 'view-high-score') {{
-                        // ハイスコアボタンをアクティブに
-                        document.querySelectorAll('.quick-button')[3].classList.add('active');
+                        // ハイスコアボタンをアクティブに（インデックスで指定）
+                        const buttons = document.querySelectorAll('.quick-button');
+                        if (buttons.length > 3) {{
+                            buttons[3].classList.add('active');
+                        }}
                         // セレクターを隠す
                         document.getElementById('dept-selector-wrapper').style.display = 'none';
                         document.getElementById('ward-selector-wrapper').style.display = 'none';
@@ -555,9 +609,12 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 }}
                 
                 function toggleTypeSelector(type) {{
-                    // 病院全体ビューを非表示
-                    document.getElementById('view-all').classList.remove('active');
-                    document.getElementById('view-high-score').classList.remove('active');
+                    console.log('toggleTypeSelector called with:', type);
+                    
+                    // 全てのビューを非表示
+                    document.querySelectorAll('.view-content').forEach(content => {{
+                        content.classList.remove('active');
+                    }});
                     
                     // セレクターの表示切替
                     if (type === 'dept') {{
@@ -582,25 +639,36 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 }}
                 
                 function changeView(viewId) {{
+                    console.log('changeView called with:', viewId);
                     if (viewId) {{
                         showView(viewId);
                     }}
                 }}
                 
                 function toggleInfoPanel() {{
+                    console.log('toggleInfoPanel called');
                     const panel = document.getElementById('info-panel');
-                    panel.classList.toggle('active');
+                    if (panel) {{
+                        panel.classList.toggle('active');
+                        console.log('Info panel toggled');
+                    }} else {{
+                        console.error('Info panel not found');
+                    }}
                 }}
                 
                 // パネル外クリックで閉じる
-                document.getElementById('info-panel').addEventListener('click', function(e) {{
-                    if (e.target === this) {{
-                        toggleInfoPanel();
+                document.addEventListener('DOMContentLoaded', function() {{
+                    console.log('DOM Content Loaded');
+                    
+                    const infoPanel = document.getElementById('info-panel');
+                    if (infoPanel) {{
+                        infoPanel.addEventListener('click', function(e) {{
+                            if (e.target === this) {{
+                                toggleInfoPanel();
+                            }}
+                        }});
                     }}
-                }});
-
-                // ページ読み込み時の初期化
-                window.onload = function() {{
+                    
                     // 初期表示時にPlotlyチャートを確実に表示
                     setTimeout(function() {{
                         window.dispatchEvent(new Event('resize'));
@@ -611,7 +679,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             }});
                         }}
                     }}, 300);
-                }};
+                }});
                 
                 // ブラウザのリサイズ時にもチャートを再描画
                 window.addEventListener('resize', function() {{
