@@ -1811,24 +1811,211 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
         
         # 7. JavaScript修正（既存のshowView関数が適切に動作するよう確認）
         # showView関数が正しく動作することを確認するためのログを追加
-        debug_js = """
-                // デバッグ: ハイスコアビューの存在確認
+        show_view_start = modified_html.find('function showView(viewId)')
+        if show_view_start > 0:
+            # showView関数の終了位置を見つける
+            func_end = modified_html.find('}', show_view_start)
+            brace_count = 1
+            pos = modified_html.find('{', show_view_start) + 1
+            
+            while brace_count > 0 and pos < len(modified_html):
+                if modified_html[pos] == '{':
+                    brace_count += 1
+                elif modified_html[pos] == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        func_end = pos
+                pos += 1
+            
+            # 既存の関数を保存
+            original_function = modified_html[show_view_start:func_end+1]
+            
+            # 新しいshowView関数を作成
+            new_show_view = """
+                function showView(viewId) {
+                    console.log('showView called with:', viewId);
+                    
+                    // 全てのビューを非表示
+                    document.querySelectorAll('.view-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // 指定されたビューを表示
+                    const targetView = document.getElementById(viewId);
+                    if (targetView) {
+                        targetView.classList.add('active');
+                        
+                        // Plotlyチャートの再描画をトリガー
+                        setTimeout(function() {
+                            window.dispatchEvent(new Event('resize'));
+                            
+                            if (window.Plotly) {
+                                const plots = targetView.querySelectorAll('.plotly-graph-div');
+                                plots.forEach(plot => {
+                                    Plotly.Plots.resize(plot);
+                                });
+                            }
+                        }, 100);
+                    }
+                    
+                    // クイックボタンのアクティブ状態を更新
+                    document.querySelectorAll('.quick-button').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    
+                    // 対応するボタンをアクティブに
+                    if (viewId === 'view-all') {
+                        document.querySelector('.quick-button').classList.add('active');
+                        // セレクターを隠す
+                        document.getElementById('dept-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector-wrapper').style.display = 'none';
+                        document.getElementById('dept-selector').value = '';
+                        document.getElementById('ward-selector').value = '';
+                    } else if (viewId === 'view-high-score') {
+                        // ハイスコアボタンをアクティブに
+                        const buttons = document.querySelectorAll('.quick-button');
+                        buttons.forEach((btn, index) => {
+                            if (btn.textContent.includes('ハイスコア部門')) {
+                                btn.classList.add('active');
+                            }
+                        });
+                        // セレクターを隠す
+                        document.getElementById('dept-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector-wrapper').style.display = 'none';
+                    }
+                }"""
+            
+            # 関数を置換
+            modified_html = modified_html.replace(original_function, new_show_view)
+            
+        else:
+            # showView関数が見つからない場合は新規追加
+            complete_js = """
+            <script>
+                function showView(viewId) {
+                    console.log('showView called with:', viewId);
+                    
+                    // 全てのビューを非表示
+                    document.querySelectorAll('.view-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // 指定されたビューを表示
+                    const targetView = document.getElementById(viewId);
+                    if (targetView) {
+                        targetView.classList.add('active');
+                        
+                        // Plotlyチャートの再描画
+                        setTimeout(function() {
+                            window.dispatchEvent(new Event('resize'));
+                            if (window.Plotly) {
+                                const plots = targetView.querySelectorAll('.plotly-graph-div');
+                                plots.forEach(plot => {
+                                    Plotly.Plots.resize(plot);
+                                });
+                            }
+                        }, 100);
+                    }
+                    
+                    // ボタンのアクティブ状態を更新
+                    updateActiveButtons(viewId);
+                }
+                
+                function updateActiveButtons(viewId) {
+                    // 全ボタンを非アクティブに
+                    document.querySelectorAll('.quick-button').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    
+                    // セレクターを隠す
+                    const deptWrapper = document.getElementById('dept-selector-wrapper');
+                    const wardWrapper = document.getElementById('ward-selector-wrapper');
+                    if (deptWrapper) deptWrapper.style.display = 'none';
+                    if (wardWrapper) wardWrapper.style.display = 'none';
+                    
+                    // 対応するボタンをアクティブに
+                    if (viewId === 'view-all') {
+                        document.querySelector('.quick-button').classList.add('active');
+                    } else if (viewId === 'view-high-score') {
+                        const buttons = document.querySelectorAll('.quick-button');
+                        buttons.forEach(btn => {
+                            if (btn.textContent.includes('ハイスコア部門')) {
+                                btn.classList.add('active');
+                            }
+                        });
+                    } else if (viewId.startsWith('view-dept-')) {
+                        const buttons = document.querySelectorAll('.quick-button');
+                        buttons.forEach(btn => {
+                            if (btn.textContent.includes('診療科別')) {
+                                btn.classList.add('active');
+                            }
+                        });
+                    } else if (viewId.startsWith('view-ward-')) {
+                        const buttons = document.querySelectorAll('.quick-button');
+                        buttons.forEach(btn => {
+                            if (btn.textContent.includes('病棟別')) {
+                                btn.classList.add('active');
+                            }
+                        });
+                    }
+                }
+                
+                function toggleTypeSelector(type) {
+                    // 病院全体ビューを非表示
+                    document.getElementById('view-all').classList.remove('active');
+                    document.getElementById('view-high-score').classList.remove('active');
+                    
+                    // セレクターの表示切替
+                    if (type === 'dept') {
+                        document.getElementById('dept-selector-wrapper').style.display = 'flex';
+                        document.getElementById('ward-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector').value = '';
+                    } else if (type === 'ward') {
+                        document.getElementById('dept-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector-wrapper').style.display = 'flex';
+                        document.getElementById('dept-selector').value = '';
+                    }
+                    
+                    // ボタンのアクティブ状態を更新
+                    document.querySelectorAll('.quick-button').forEach((btn, index) => {
+                        btn.classList.toggle('active', 
+                            (btn.textContent.includes('診療科別') && type === 'dept') || 
+                            (btn.textContent.includes('病棟別') && type === 'ward')
+                        );
+                    });
+                }
+                
+                function changeView(viewId) {
+                    if (viewId) {
+                        showView(viewId);
+                    }
+                }
+                
+                // ページ読み込み時の初期化
                 document.addEventListener('DOMContentLoaded', function() {
+                    console.log('DOM loaded - initializing views');
+                    
+                    // 初期表示の確認
+                    const activeView = document.querySelector('.view-content.active');
+                    if (activeView) {
+                        console.log('Initial active view:', activeView.id);
+                    }
+                    
+                    // ハイスコアビューの存在確認
                     const highScoreView = document.getElementById('view-high-score');
                     if (highScoreView) {
-                        console.log('✅ ハイスコアビューが正しく配置されています');
-                        console.log('親要素:', highScoreView.parentElement.className);
+                        console.log('✅ High score view found');
                     } else {
-                        console.error('❌ ハイスコアビューが見つかりません');
+                        console.error('❌ High score view not found');
                     }
                 });
-        """
-        
-        script_end = modified_html.rfind('</script>')
-        if script_end > 0:
-            modified_html = (modified_html[:script_end] + 
-                           debug_js + '\n            ' +
-                           modified_html[script_end:])
+            </script>
+            """
+            
+            # </body>タグの前に挿入
+            body_end = modified_html.rfind('</body>')
+            if body_end > 0:
+                modified_html = modified_html[:body_end] + complete_js + '\n' + modified_html[body_end:]
         
         return modified_html
         
