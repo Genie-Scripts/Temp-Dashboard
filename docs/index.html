@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏥 週報ダッシュボード</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
+            background: #f2f2f7;
+            color: #1c1c1e;
+        }
+        .header {
+            background: linear-gradient(180deg, #007AFF 0%, #5856D6 100%);
+            color: white;
+            padding: 60px 20px 40px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.2em;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .dashboard-list {
+            padding: 20px 16px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .dashboard-item {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            color: inherit;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            transition: all 0.2s ease;
+        }
+        .dashboard-item:active {
+            transform: scale(0.98);
+            background: #f2f2f7;
+        }
+        .item-icon {
+            font-size: 2em;
+            margin-right: 16px;
+            width: 50px;
+            text-align: center;
+        }
+        .item-content {
+            flex: 1;
+        }
+        .item-content h3 {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #1c1c1e;
+        }
+        .item-content p {
+            color: #8e8e93;
+            font-size: 0.9em;
+            line-height: 1.4;
+            margin-bottom: 6px;
+        }
+        .update-badge {
+            display: inline-block;
+            background: #007AFF;
+            color: white;
+            font-size: 0.75em;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+        .item-arrow {
+            font-size: 1.8em;
+            color: #c7c7cc;
+            margin-left: 10px;
+        }
+        .footer-note {
+            text-align: center;
+            padding: 40px 20px;
+            color: #8e8e93;
+            font-size: 0.9em;
+        }
+        @media (min-width: 768px) {
+            .header { padding: 80px 40px 60px; }
+            .dashboard-list { max-width: 600px; }
+            .dashboard-item:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏥 週報ダッシュボード</h1>
+        <p>入院/手術分析・スマートフォン横向き表示対応</p>
+    </div>
+    
+    <div class="dashboard-list">
+        
+            <a href="department_dashboard.html" class="dashboard-item">
+                <div class="item-icon">📊</div>
+                <div class="item-content">
+                    <h3>診療科別パフォーマンス</h3>
+                    <p>各診療科の入院患者数、新入院患者数、平均在院日数の実績と目標達成率</p>
+                    <span class="update-badge">最新: 2025/07/24</span>
+                </div>
+                <div class="item-arrow">›</div>
+            </a>
+            
+            <a href="ward_dashboard.html" class="dashboard-item">
+                <div class="item-icon">📊</div>
+                <div class="item-content">
+                    <h3>病棟別パフォーマンス</h3>
+                    <p>各病棟の入院患者数、新入院患者数、平均在院日数の実績と目標達成率</p>
+                    <span class="update-badge">最新: 2025/07/24</span>
+                </div>
+                <div class="item-arrow">›</div>
+            </a>
+            
+            <a href="surgery_analysis.html" class="dashboard-item">
+                <div class="item-icon">🔗</div>
+                <div class="item-content">
+                    <h3>全身麻酔手術分析</h3>
+                    <p>全身麻酔手術件数の分析結果</p>
+                    <span class="update-badge">最新: 2025/07/24 07:51</span>
+                </div>
+                <div class="item-arrow">›</div>
+            </a>
+            
+            <a href="comprehensive_report_90days.html" class="dashboard-item">
+                <div class="item-icon">🔗</div>
+                <div class="item-content">
+                    <h3>90日間総合レポート</h3>
+                    <p>全体・診療科・病棟別の詳細グラフ</p>
+                    <span class="update-badge">最新: 2025/07/24 07:52</span>
+                </div>
+                <div class="item-arrow">›</div>
+            </a>
+            
+    </div>
+    
+    <div class="footer-note">
+        <p>🏥 経営企画室</p>
+        
+        <p>最終更新: 2025年07月24日 07時52分</p>
+    </div>
+</body>
+</html>
