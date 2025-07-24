@@ -27,6 +27,159 @@ from config import EXCLUDED_WARDS
 
 logger = logging.getLogger(__name__)
 
+def generate_all_in_one_html_report(df, target_data, period="直近12週"):
+    """
+    全ての診療科・病棟データを含む、単一の統合HTMLレポートを生成する（ハイスコア機能統合版）
+    """
+    try:
+        from chart import create_interactive_patient_chart, create_interactive_alos_chart, create_interactive_dual_axis_chart
+        from mobile_report_generator import _generate_metric_cards_html, _generate_charts_html, _generate_action_plan_html, _adapt_kpi_for_html_generation
+        from ward_utils import calculate_ward_kpi_with_bed_metrics
+
+        start_date, end_date, period_desc = get_period_dates(df, period)
+        if not start_date:
+            return "<html><body>エラー: 分析期間を計算できませんでした。</body></html>"
+
+        hospital_targets = get_hospital_targets(target_data)
+        dept_col = '診療科名'
+        all_departments = sorted(df[dept_col].dropna().unique()) if dept_col in df.columns else []
+        all_wards = get_target_ward_list(target_data, EXCLUDED_WARDS)
+        
+        content_html = ""
+        
+        # --- 全体ビューの生成 ---
+        overall_df = df[(df['日付'] >= start_date) & (df['日付'] <= end_date)]
+        overall_kpi = calculate_department_kpis(df, target_data, '全体', '病院全体', start_date, end_date, None)
+        overall_feasibility = evaluate_feasibility(overall_kpi, overall_df, start_date, end_date)
+        overall_simulation = calculate_effect_simulation(overall_kpi)
+        overall_html_kpi = _adapt_kpi_for_html_generation(overall_kpi)
+        cards_all = _generate_metric_cards_html(overall_html_kpi, is_ward=False)
+        charts_all = _generate_charts_html(overall_df, overall_html_kpi)
+        analysis_all = _generate_action_plan_html(overall_html_kpi, overall_feasibility, overall_simulation, hospital_targets)
+        overall_content = cards_all + charts_all + analysis_all
+        content_html += f'<div id="view-all" class="view-content active">{overall_content}</div>'
+
+        # --- 診療科別ビューの生成 ---
+        for dept_name in all_departments:
+            dept_id = f"view-dept-{urllib.parse.quote(dept_name)}"
+            try:
+                df_dept = df[df[dept_col] == dept_name]
+                raw_kpi = calculate_department_kpis(df, target_data, dept_name, dept_name, start_date, end_date, dept_col)
+                if not raw_kpi: continue
+                
+                feasibility = evaluate_feasibility(raw_kpi, df_dept, start_date, end_date)
+                simulation = calculate_effect_simulation(raw_kpi)
+                html_kpi = _adapt_kpi_for_html_generation(raw_kpi)
+                cards = _generate_metric_cards_html(html_kpi, is_ward=False)
+                charts = _generate_charts_html(df_dept, html_kpi)
+                analysis = _generate_action_plan_html(html_kpi, feasibility, simulation, hospital_targets)
+                
+                full_dept_content = cards + charts + analysis
+                content_html += f'<div id="{dept_id}" class="view-content">{full_dept_content}</div>'
+            except Exception as e:
+                logger.error(f"診療科「{dept_name}」のレポート部品生成エラー: {e}")
+                content_html += f'<div id="{dept_id}" class="view-content"><p>エラー: {dept_name}のレポートを生成できませんでした。</p></div>'
+
+        # --- 病棟別ビューの生成 ---
+        for ward_code, ward_name in all_wards:
+            ward_id = f"view-ward-{ward_code}"
+            try:
+                df_ward = df[df['病棟コード'] == ward_code]
+                raw_kpi = calculate_ward_kpis(df, target_data, ward_code, ward_name, start_date, end_date, '病棟コード')
+                if not raw_kpi: continue
+
+                feasibility = evaluate_feasibility(raw_kpi, df_ward, start_date, end_date)
+                simulation = calculate_effect_simulation(raw_kpi)
+                html_kpi = _adapt_kpi_for_html_generation(raw_kpi)
+                final_kpi = calculate_ward_kpi_with_bed_metrics(html_kpi, raw_kpi.get('bed_count'))
+                cards = _generate_metric_cards_html(final_kpi, is_ward=True)
+                charts = _generate_charts_html(df_ward, final_kpi)
+                analysis = _generate_action_plan_html(final_kpi, feasibility, simulation, hospital_targets)
+                full_ward_content = cards + charts + analysis
+                content_html += f'<div id="{ward_id}" class="view-content">{full_ward_content}</div>'
+            except Exception as e:
+                logger.error(f"病棟「{ward_name}」のレポート部品生成エラー: {e}")
+                content_html += f'<div id="{ward_id}" class="view-content"><p>エラー: {ward_name}のレポートを生成できませんでした。</p></div>'
+
+        # --- ハイスコアビューの生成 ---
+        try:
+            dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
+            high_score_html = f"""
+            <div id="view-high-score" class="view-content">
+                <div class="section">
+                    <h2>🏆 週間ハイスコア TOP3</h2>
+                    <p class="period-info">評価期間: {period_desc}</p>
+                    <div class="ranking-grid">
+                        <div class="ranking-section">
+                            <h3>🩺 診療科部門</h3>
+                            <div class="ranking-list">
+            """
+            
+            if dept_scores:
+                for i, score in enumerate(dept_scores[:3]):
+                    medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
+                    high_score_html += f"""
+                                <div class="ranking-item rank-{i+1}">
+                                    <span class="medal">{medal}</span>
+                                    <div class="ranking-info">
+                                        <div class="name">{score['entity_name']}</div>
+                                        <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
+                                    </div>
+                                    <div class="score">{score['total_score']:.0f}点</div>
+                                </div>
+                    """
+            else:
+                high_score_html += "<p>データがありません</p>"
+            
+            high_score_html += """
+                            </div>
+                        </div>
+                        <div class="ranking-section">
+                            <h3>🏢 病棟部門</h3>
+                            <div class="ranking-list">
+            """
+            
+            if ward_scores:
+                for i, score in enumerate(ward_scores[:3]):
+                    medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
+                    ward_name = score.get('display_name', score['entity_name'])
+                    high_score_html += f"""
+                                <div class="ranking-item rank-{i+1}">
+                                    <span class="medal">{medal}</span>
+                                    <div class="ranking-info">
+                                        <div class="name">{ward_name}</div>
+                                        <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
+                                    </div>
+                                    <div class="score">{score['total_score']:.0f}点</div>
+                                </div>
+                    """
+            else:
+                high_score_html += "<p>データがありません</p>"
+            
+            high_score_html += """
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """
+            content_html += high_score_html
+        except Exception as e:
+            logger.error(f"ハイスコアビュー生成エラー: {e}")
+            content_html += '<div id="view-high-score" class="view-content"><div class="section"><h2>🏆 週間ハイスコア TOP3</h2><p>データの取得に失敗しました。</p></div></div>'
+
+        # 改善されたドロップダウンメニューの生成
+        dept_options = ""
+        for dept_name in all_departments:
+            dept_id = f"view-dept-{urllib.parse.quote(dept_name)}"
+            dept_options += f'<option value="{dept_id}">{dept_name}</option>'
+            
+        ward_options = ""
+        for ward_code, ward_name in all_wards:
+            ward_id = f"view-ward-{ward_code}"
+            ward_options += f'<option value="{ward_id}">{ward_name}</option>'
+        
+        # 既存の評価基準パネルのHTMLをそのまま使用（インデント修正）
         info_panel_html = f"""
         <div id="info-panel" class="info-panel">
             <div class="info-content">
@@ -193,6 +346,294 @@ logger = logging.getLogger(__name__)
             </div>
         </div>
         """
+        
+        # --- 最終的なHTMLの組み立て ---
+        final_html = f"""
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>統合パフォーマンスレポート（直近週重視版）</title>
+            <style>
+                /* 既存のスタイルをそのまま使用 */
+                {_get_css_styles()}
+                
+                /* ハイスコア専用スタイル追加 */
+                .ranking-grid {{
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 30px;
+                    margin-bottom: 30px;
+                }}
+                
+                .ranking-item {{
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                    padding: 15px;
+                    background: white;
+                    border-radius: 8px;
+                    margin-bottom: 10px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    border-left: 4px solid #D1D5DB;
+                    transition: all 0.2s ease;
+                }}
+                
+                .ranking-item:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+                }}
+                
+                .ranking-item.rank-1 {{
+                    border-left-color: #FFD700;
+                    background: linear-gradient(to right, rgba(255,215,0,0.1), white);
+                }}
+                
+                .ranking-item.rank-2 {{
+                    border-left-color: #C0C0C0;
+                    background: linear-gradient(to right, rgba(192,192,192,0.1), white);
+                }}
+                
+                .ranking-item.rank-3 {{
+                    border-left-color: #CD7F32;
+                    background: linear-gradient(to right, rgba(205,127,50,0.1), white);
+                }}
+                
+                .medal {{
+                    font-size: 1.8em;
+                    min-width: 50px;
+                    text-align: center;
+                }}
+                
+                .ranking-info {{
+                    flex: 1;
+                }}
+                
+                .ranking-info .name {{
+                    font-weight: bold;
+                    color: var(--gray-800);
+                    margin-bottom: 4px;
+                }}
+                
+                .ranking-info .detail {{
+                    font-size: 0.9em;
+                    color: var(--gray-600);
+                }}
+                
+                .score {{
+                    font-size: 1.6em;
+                    font-weight: bold;
+                    color: var(--primary-color);
+                    min-width: 70px;
+                    text-align: center;
+                }}
+                
+                .ranking-section h3 {{
+                    color: var(--primary-color);
+                    margin-bottom: 20px;
+                    font-size: 1.2em;
+                    text-align: center;
+                    padding: 10px;
+                    background: rgba(91, 95, 222, 0.1);
+                    border-radius: 8px;
+                }}
+                
+                .ranking-list {{
+                    background: var(--gray-50);
+                    border-radius: 12px;
+                    padding: 20px;
+                    border: 1px solid var(--gray-200);
+                }}
+                
+                .period-info {{
+                    text-align: center;
+                    color: var(--gray-600);
+                    margin-bottom: 20px;
+                    font-size: 0.95em;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>統合パフォーマンスレポート</h1>
+                    <p class="subtitle">期間: {period_desc} | 🔥 直近週重視版</p>
+                    <button class="info-button" onclick="toggleInfoPanel()">
+                        ℹ️ 評価基準・用語説明（直近週重視）
+                    </button>
+                </div>
+                <div class="controls">
+                    <div class="quick-buttons">
+                        <button class="quick-button active" onclick="showView('view-all')">
+                            <span>🏥</span> 病院全体
+                        </button>
+                        <button class="quick-button" onclick="toggleTypeSelector('dept')">
+                            <span>🩺</span> 診療科別
+                        </button>
+                        <button class="quick-button" onclick="toggleTypeSelector('ward')">
+                            <span>🏢</span> 病棟別
+                        </button>
+                        <button class="quick-button" onclick="showView('view-high-score')">
+                            <span>🏆</span> ハイスコア部門
+                        </button>
+                    </div>
+                    
+                    <div class="selector-group">
+                        <div class="selector-wrapper" id="dept-selector-wrapper" style="display: none;">
+                            <label class="selector-label" for="dept-selector">診療科</label>
+                            <select id="dept-selector" onchange="changeView(this.value)">
+                                <option value="">診療科を選択してください</option>
+                                {dept_options}
+                            </select>
+                        </div>
+                        
+                        <div class="selector-wrapper" id="ward-selector-wrapper" style="display: none;">
+                            <label class="selector-label" for="ward-selector">病棟</label>
+                            <select id="ward-selector" onchange="changeView(this.value)">
+                                <option value="">病棟を選択してください</option>
+                                {ward_options}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="content-area">
+                    {content_html}
+                </div>
+            </div>
+            {info_panel_html}
+            <script>
+                let currentType = null;
+                
+                function showView(viewId) {{
+                    // 全てのビューを非表示
+                    document.querySelectorAll('.view-content').forEach(content => {{
+                        content.classList.remove('active');
+                    }});
+                    
+                    // 指定されたビューを表示
+                    const targetView = document.getElementById(viewId);
+                    if (targetView) {{
+                        targetView.classList.add('active');
+                        
+                        // Plotlyチャートの再描画をトリガー
+                        setTimeout(function() {{
+                            window.dispatchEvent(new Event('resize'));
+                            
+                            // Plotlyが存在する場合、各チャートを個別に再描画
+                            if (window.Plotly) {{
+                                const plots = targetView.querySelectorAll('.plotly-graph-div');
+                                plots.forEach(plot => {{
+                                    Plotly.Plots.resize(plot);
+                                }});
+                            }}
+                        }}, 100);
+                    }}
+                    
+                    // クイックボタンのアクティブ状態を更新
+                    document.querySelectorAll('.quick-button').forEach(btn => {{
+                        btn.classList.remove('active');
+                    }});
+                    
+                    if (viewId === 'view-all') {{
+                        document.querySelector('.quick-button').classList.add('active');
+                        // セレクターを隠す
+                        document.getElementById('dept-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector-wrapper').style.display = 'none';
+                        // セレクターの選択をリセット
+                        document.getElementById('dept-selector').value = '';
+                        document.getElementById('ward-selector').value = '';
+                        currentType = null;
+                    }} else if (viewId === 'view-high-score') {{
+                        // ハイスコアボタンをアクティブに
+                        document.querySelectorAll('.quick-button')[3].classList.add('active');
+                        // セレクターを隠す
+                        document.getElementById('dept-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector-wrapper').style.display = 'none';
+                        currentType = null;
+                    }}
+                }}
+                
+                function toggleTypeSelector(type) {{
+                    // 病院全体ビューを非表示
+                    document.getElementById('view-all').classList.remove('active');
+                    document.getElementById('view-high-score').classList.remove('active');
+                    
+                    // セレクターの表示切替
+                    if (type === 'dept') {{
+                        document.getElementById('dept-selector-wrapper').style.display = 'flex';
+                        document.getElementById('ward-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector').value = '';
+                    }} else if (type === 'ward') {{
+                        document.getElementById('dept-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector-wrapper').style.display = 'flex';
+                        document.getElementById('dept-selector').value = '';
+                    }}
+                    
+                    currentType = type;
+                    
+                    // クイックボタンのアクティブ状態を更新
+                    document.querySelectorAll('.quick-button').forEach((btn, index) => {{
+                        btn.classList.toggle('active', 
+                            (index === 1 && type === 'dept') || 
+                            (index === 2 && type === 'ward')
+                        );
+                    }});
+                }}
+                
+                function changeView(viewId) {{
+                    if (viewId) {{
+                        showView(viewId);
+                    }}
+                }}
+                
+                function toggleInfoPanel() {{
+                    const panel = document.getElementById('info-panel');
+                    panel.classList.toggle('active');
+                }}
+                
+                // パネル外クリックで閉じる
+                document.getElementById('info-panel').addEventListener('click', function(e) {{
+                    if (e.target === this) {{
+                        toggleInfoPanel();
+                    }}
+                }});
+
+                // ページ読み込み時の初期化
+                window.onload = function() {{
+                    // 初期表示時にPlotlyチャートを確実に表示
+                    setTimeout(function() {{
+                        window.dispatchEvent(new Event('resize'));
+                        if (window.Plotly) {{
+                            const plots = document.querySelectorAll('#view-all .plotly-graph-div');
+                            plots.forEach(plot => {{
+                                Plotly.Plots.resize(plot);
+                            }});
+                        }}
+                    }}, 300);
+                }};
+                
+                // ブラウザのリサイズ時にもチャートを再描画
+                window.addEventListener('resize', function() {{
+                    if (window.Plotly) {{
+                        const activeView = document.querySelector('.view-content.active');
+                        if (activeView) {{
+                            const plots = activeView.querySelectorAll('.plotly-graph-div');
+                            plots.forEach(plot => {{
+                                Plotly.Plots.resize(plot);
+                            }});
+                        }}
+                    }}
+                }});
+            </script>
+        </body>
+        </html>
+        """
+        return final_html
+
+    except Exception as e:
+        logger.error(f"統合HTMLレポート生成エラー: {e}", exc_info=True)
+        return f"<html><body>レポート全体の生成でエラーが発生しました: {e}</body></html>"
 
 def _get_all_styles():
     """すべてのスタイルを統合して返す"""
@@ -638,437 +1079,6 @@ def calculate_all_high_scores(df, target_data, period="直近12週"):
     except Exception as e:
         logger.error(f"全ハイスコア計算エラー: {e}")
         return [], []
-
-def generate_all_in_one_html_report_with_high_score(df, target_data, period="直近12週"):
-    """ハイスコア機能付き統合HTMLレポート（修正版）"""
-    try:
-        logger.info("🏆 ハイスコア統合レポート生成開始")
-
-        # 1. 基本レポート生成
-        base_html = generate_all_in_one_html_report(df, target_data, period)
-        logger.info(f"📄 基本HTML生成完了: {len(base_html)}文字")
-
-        # 2. ハイスコアデータ計算
-        dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
-        logger.info(f"📊 スコア計算完了: 診療科{len(dept_scores)}件, 病棟{len(ward_scores)}件")
-        
-        # 3. ハイスコアHTMLを生成
-        if not dept_scores and not ward_scores:
-            logger.warning("⚠️ スコアデータなし")
-            return base_html
-        
-        # ハイスコアセクションのHTML（id変更：view-high-scoreに統一）
-        high_score_section = f"""
-        <div id="view-high-score" class="view-content">
-            <div class="section">
-                <h2>🏆 週間ハイスコア TOP3</h2>
-                <div class="ranking-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-                    <div class="ranking-section">
-                        <h3>🩺 診療科部門</h3>
-                        <div class="ranking-list">
-        """
-        
-        # 診療科ランキング
-        for i, score in enumerate(dept_scores[:3]):
-            medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
-            high_score_section += f"""
-                            <div class="ranking-item rank-{i+1}">
-                                <span class="medal">{medal}</span>
-                                <div class="ranking-info">
-                                    <div class="name">{score['entity_name']}</div>
-                                    <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
-                                </div>
-                                <div class="score">{score['total_score']:.0f}点</div>
-                            </div>
-            """
-        
-        high_score_section += """
-                        </div>
-                    </div>
-                    <div class="ranking-section">
-                        <h3>🏢 病棟部門</h3>
-                        <div class="ranking-list">
-        """
-        
-        # 病棟ランキング
-        for i, score in enumerate(ward_scores[:3]):
-            medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
-            ward_name = score.get('display_name', score['entity_name'])
-            high_score_section += f"""
-                            <div class="ranking-item rank-{i+1}">
-                                <span class="medal">{medal}</span>
-                                <div class="ranking-info">
-                                    <div class="name">{ward_name}</div>
-                                    <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
-                                </div>
-                                <div class="score">{score['total_score']:.0f}点</div>
-                            </div>
-            """
-        
-        high_score_section += """
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
-        
-        # 4. HTMLに組み込み（修正版：content-areaの直下に配置）
-        # content-areaの終了タグの直前に挿入
-        content_area_end = base_html.find('</div>', base_html.find('<div class="content-area">'))
-        
-        # content-area内の最後のview-contentを見つける
-        last_view_content_end = -1
-        content_area_start = base_html.find('<div class="content-area">')
-        if content_area_start > 0:
-            # view-contentクラスを持つすべてのdivの終了位置を探す
-            search_pos = content_area_start
-            while True:
-                view_content_pos = base_html.find('class="view-content"', search_pos, content_area_end)
-                if view_content_pos == -1:
-                    break
-                # この view-content の終了タグを見つける
-                div_count = 1
-                pos = base_html.find('>', view_content_pos) + 1
-                while div_count > 0 and pos < content_area_end:
-                    if base_html[pos:pos+4] == '<div':
-                        div_count += 1
-                    elif base_html[pos:pos+6] == '</div>':
-                        div_count -= 1
-                        if div_count == 0:
-                            last_view_content_end = pos + 6
-                    pos += 1
-                search_pos = pos
-        
-        # 挿入位置の決定
-        if last_view_content_end > 0:
-            insert_pos = last_view_content_end
-        else:
-            insert_pos = content_area_end
-        
-        modified_html = (base_html[:insert_pos] + 
-                       '\n                    ' + high_score_section + 
-                       base_html[insert_pos:])
-        
-        # 5. ボタンにハイスコアを追加
-        logger.info("ハイスコアボタンの追加処理を開始します。")
-        # ボタンを囲んでいるコンテナのクラス名を探します
-        # 注: 'quick-buttons' または 'quick-filters' のいずれかに対応します
-        buttons_container_tag = None
-        if modified_html.find('<div class="quick-buttons">') > -1:
-            buttons_container_tag = '<div class="quick-buttons">'
-        elif modified_html.find('<div class="quick-filters">') > -1:
-            buttons_container_tag = '<div class="quick-filters">'
-
-        if buttons_container_tag:
-            container_start_pos = modified_html.find(buttons_container_tag)
-            # ボタンコンテナの終了タグ(</div>)を、コンテナの開始位置以降で探します
-            insert_pos = modified_html.find('</div>', container_start_pos)
-            
-            if insert_pos > 0:
-                high_score_button = '''
-                <button class="quick-button" onclick="showView('view-high-score')">
-                    <span>🏆</span> ハイスコア部門
-                </button>'''
-                # </div> の直前にボタンを挿入します
-                modified_html = modified_html[:insert_pos] + high_score_button + modified_html[insert_pos:]
-                logger.info("✅ ハイスコアボタンの追加に成功しました。")
-            else:
-                logger.error("❌ ボタンコンテナの終了タグ(</div>)が見つかりませんでした。")
-        else:
-            logger.error("❌ ボタンコンテナ ('quick-buttons' または 'quick-filters') が見つかりませんでした。")
-        
-        # 6. CSS追加
-        additional_css = """
-        /* ハイスコア部門専用スタイル */
-        .ranking-item {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
-            background: white;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border-left: 4px solid #D1D5DB;
-            transition: all 0.2s ease;
-        }
-        .ranking-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
-        .ranking-item.rank-1 { 
-            border-left-color: #FFD700; 
-            background: linear-gradient(to right, rgba(255,215,0,0.1), white); 
-        }
-        .ranking-item.rank-2 { 
-            border-left-color: #C0C0C0; 
-            background: linear-gradient(to right, rgba(192,192,192,0.1), white); 
-        }
-        .ranking-item.rank-3 { 
-            border-left-color: #CD7F32; 
-            background: linear-gradient(to right, rgba(205,127,50,0.1), white); 
-        }
-        .medal { 
-            font-size: 1.8em; 
-            min-width: 50px;
-            text-align: center;
-        }
-        .ranking-info { 
-            flex: 1; 
-        }
-        .ranking-info .name { 
-            font-weight: bold; 
-            color: var(--gray-800);
-            margin-bottom: 4px;
-        }
-        .ranking-info .detail { 
-            font-size: 0.9em; 
-            color: var(--gray-600); 
-        }
-        .score { 
-            font-size: 1.6em; 
-            font-weight: bold; 
-            color: var(--primary-color); 
-            min-width: 70px;
-            text-align: center;
-        }
-        .ranking-section h3 {
-            color: var(--primary-color);
-            margin-bottom: 20px;
-            font-size: 1.2em;
-            text-align: center;
-            padding: 10px;
-            background: rgba(91, 95, 222, 0.1);
-            border-radius: 8px;
-        }
-        .ranking-list {
-            background: var(--gray-50);
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid var(--gray-200);
-        }
-        """
-        
-        style_end = modified_html.find('</style>')
-        if style_end > 0:
-            modified_html = (modified_html[:style_end] + 
-                           additional_css + '\n            ' +
-                           modified_html[style_end:])
-        
-        # 7. JavaScript修正（既存のshowView関数が適切に動作するよう確認）
-        # showView関数が正しく動作することを確認するためのログを追加
-        show_view_start = modified_html.find('function showView(viewId)')
-        if show_view_start > 0:
-            # showView関数の終了位置を見つける
-            func_end = modified_html.find('}', show_view_start)
-            brace_count = 1
-            pos = modified_html.find('{', show_view_start) + 1
-            
-            while brace_count > 0 and pos < len(modified_html):
-                if modified_html[pos] == '{':
-                    brace_count += 1
-                elif modified_html[pos] == '}':
-                    brace_count -= 1
-                    if brace_count == 0:
-                        func_end = pos
-                pos += 1
-            
-            # 既存の関数を保存
-            original_function = modified_html[show_view_start:func_end+1]
-            
-            # 新しいshowView関数を作成
-            new_show_view = """
-                function showView(viewId) {
-                    console.log('showView called with:', viewId);
-                    
-                    // 全てのビューを非表示
-                    document.querySelectorAll('.view-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    
-                    // 指定されたビューを表示
-                    const targetView = document.getElementById(viewId);
-                    if (targetView) {
-                        targetView.classList.add('active');
-                        
-                        // Plotlyチャートの再描画をトリガー
-                        setTimeout(function() {
-                            window.dispatchEvent(new Event('resize'));
-                            
-                            if (window.Plotly) {
-                                const plots = targetView.querySelectorAll('.plotly-graph-div');
-                                plots.forEach(plot => {
-                                    Plotly.Plots.resize(plot);
-                                });
-                            }
-                        }, 100);
-                    }
-                    
-                    // クイックボタンのアクティブ状態を更新
-                    document.querySelectorAll('.quick-button').forEach(btn => {
-                        btn.classList.remove('active');
-                    });
-                    
-                    // 対応するボタンをアクティブに
-                    if (viewId === 'view-all') {
-                        document.querySelector('.quick-button').classList.add('active');
-                        // セレクターを隠す
-                        document.getElementById('dept-selector-wrapper').style.display = 'none';
-                        document.getElementById('ward-selector-wrapper').style.display = 'none';
-                        document.getElementById('dept-selector').value = '';
-                        document.getElementById('ward-selector').value = '';
-                    } else if (viewId === 'view-high-score') {
-                        // ハイスコアボタンをアクティブに
-                        const buttons = document.querySelectorAll('.quick-button');
-                        buttons.forEach((btn, index) => {
-                            if (btn.textContent.includes('ハイスコア部門')) {
-                                btn.classList.add('active');
-                            }
-                        });
-                        // セレクターを隠す
-                        document.getElementById('dept-selector-wrapper').style.display = 'none';
-                        document.getElementById('ward-selector-wrapper').style.display = 'none';
-                    }
-                }"""
-            
-            # 関数を置換
-            modified_html = modified_html.replace(original_function, new_show_view)
-            
-        else:
-            # showView関数が見つからない場合は新規追加
-            complete_js = """
-            <script>
-                function showView(viewId) {
-                    console.log('showView called with:', viewId);
-                    
-                    // 全てのビューを非表示
-                    document.querySelectorAll('.view-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    
-                    // 指定されたビューを表示
-                    const targetView = document.getElementById(viewId);
-                    if (targetView) {
-                        targetView.classList.add('active');
-                        
-                        // Plotlyチャートの再描画
-                        setTimeout(function() {
-                            window.dispatchEvent(new Event('resize'));
-                            if (window.Plotly) {
-                                const plots = targetView.querySelectorAll('.plotly-graph-div');
-                                plots.forEach(plot => {
-                                    Plotly.Plots.resize(plot);
-                                });
-                            }
-                        }, 100);
-                    }
-                    
-                    // ボタンのアクティブ状態を更新
-                    updateActiveButtons(viewId);
-                }
-                
-                function updateActiveButtons(viewId) {
-                    // 全ボタンを非アクティブに
-                    document.querySelectorAll('.quick-button').forEach(btn => {
-                        btn.classList.remove('active');
-                    });
-                    
-                    // セレクターを隠す
-                    const deptWrapper = document.getElementById('dept-selector-wrapper');
-                    const wardWrapper = document.getElementById('ward-selector-wrapper');
-                    if (deptWrapper) deptWrapper.style.display = 'none';
-                    if (wardWrapper) wardWrapper.style.display = 'none';
-                    
-                    // 対応するボタンをアクティブに
-                    if (viewId === 'view-all') {
-                        document.querySelector('.quick-button').classList.add('active');
-                    } else if (viewId === 'view-high-score') {
-                        const buttons = document.querySelectorAll('.quick-button');
-                        buttons.forEach(btn => {
-                            if (btn.textContent.includes('ハイスコア部門')) {
-                                btn.classList.add('active');
-                            }
-                        });
-                    } else if (viewId.startsWith('view-dept-')) {
-                        const buttons = document.querySelectorAll('.quick-button');
-                        buttons.forEach(btn => {
-                            if (btn.textContent.includes('診療科別')) {
-                                btn.classList.add('active');
-                            }
-                        });
-                    } else if (viewId.startsWith('view-ward-')) {
-                        const buttons = document.querySelectorAll('.quick-button');
-                        buttons.forEach(btn => {
-                            if (btn.textContent.includes('病棟別')) {
-                                btn.classList.add('active');
-                            }
-                        });
-                    }
-                }
-                
-                function toggleTypeSelector(type) {
-                    // 病院全体ビューを非表示
-                    document.getElementById('view-all').classList.remove('active');
-                    document.getElementById('view-high-score').classList.remove('active');
-                    
-                    // セレクターの表示切替
-                    if (type === 'dept') {
-                        document.getElementById('dept-selector-wrapper').style.display = 'flex';
-                        document.getElementById('ward-selector-wrapper').style.display = 'none';
-                        document.getElementById('ward-selector').value = '';
-                    } else if (type === 'ward') {
-                        document.getElementById('dept-selector-wrapper').style.display = 'none';
-                        document.getElementById('ward-selector-wrapper').style.display = 'flex';
-                        document.getElementById('dept-selector').value = '';
-                    }
-                    
-                    // ボタンのアクティブ状態を更新
-                    document.querySelectorAll('.quick-button').forEach((btn, index) => {
-                        btn.classList.toggle('active', 
-                            (btn.textContent.includes('診療科別') && type === 'dept') || 
-                            (btn.textContent.includes('病棟別') && type === 'ward')
-                        );
-                    });
-                }
-                
-                function changeView(viewId) {
-                    if (viewId) {
-                        showView(viewId);
-                    }
-                }
-                
-                // ページ読み込み時の初期化
-                document.addEventListener('DOMContentLoaded', function() {
-                    console.log('DOM loaded - initializing views');
-                    
-                    // 初期表示の確認
-                    const activeView = document.querySelector('.view-content.active');
-                    if (activeView) {
-                        console.log('Initial active view:', activeView.id);
-                    }
-                    
-                    // ハイスコアビューの存在確認
-                    const highScoreView = document.getElementById('view-high-score');
-                    if (highScoreView) {
-                        console.log('✅ High score view found');
-                    } else {
-                        console.error('❌ High score view not found');
-                    }
-                });
-            </script>
-            """
-            
-            # </body>タグの前に挿入
-            body_end = modified_html.rfind('</body>')
-            if body_end > 0:
-                modified_html = modified_html[:body_end] + complete_js + '\n' + modified_html[body_end:]
-        
-        return modified_html
-        
-    except Exception as e:
-        logger.error(f"ハイスコア統合エラー: {e}", exc_info=True)
-        return base_html
 
 def _generate_ranking_list_html(scores: List[Dict], entity_type: str) -> str:
     """ランキングリストHTML生成"""
