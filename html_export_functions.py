@@ -1721,33 +1721,32 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
                        base_html[insert_pos:])
         
         # 5. ボタンにハイスコアを追加
-        quick_buttons_pos = modified_html.find('<div class="quick-buttons">')
-        logger.info(f"🔍 quick-buttons位置: {quick_buttons_pos}")
-        if quick_buttons_pos > 0:
-            ward_button_text = '<span>🏢</span> 病棟別'
-            ward_button_pos = modified_html.find(ward_button_text, quick_buttons_pos)
-            logger.info(f"🔍 病棟別ボタン位置: {ward_button_pos}")
+        logger.info("ハイスコアボタンの追加処理を開始します。")
+        # ボタンを囲んでいるコンテナのクラス名を探します
+        # 注: 'quick-buttons' または 'quick-filters' のいずれかに対応します
+        buttons_container_tag = None
+        if modified_html.find('<div class="quick-buttons">') > -1:
+            buttons_container_tag = '<div class="quick-buttons">'
+        elif modified_html.find('<div class="quick-filters">') > -1:
+            buttons_container_tag = '<div class="quick-filters">'
+
+        if buttons_container_tag:
+            container_start_pos = modified_html.find(buttons_container_tag)
+            # ボタンコンテナの終了タグ(</div>)を、コンテナの開始位置以降で探します
+            insert_pos = modified_html.find('</div>', container_start_pos)
             
-            if ward_button_pos > 0:
-                ward_button_end = modified_html.find('</button>', ward_button_pos)
-                logger.info(f"🔍 病棟別ボタン終了位置: {ward_button_end}")
-                
-                if ward_button_end > 0:
-                    insert_pos = ward_button_end + len('</button>')
-                    high_score_button = '''
-                        <button class="quick-button" onclick="showView('view-high-score')">
-                            <span>🏆</span> ハイスコア部門
-                        </button>'''
-                    modified_html = (modified_html[:insert_pos] + 
-                                   high_score_button + 
-                                   modified_html[insert_pos:])
-                    logger.info("✅ ハイスコアボタン追加完了")
-                else:
-                    logger.error("❌ 病棟別ボタンの終了タグが見つかりません")
+            if insert_pos > 0:
+                high_score_button = '''
+                <button class="quick-button" onclick="showView('view-high-score')">
+                    <span>🏆</span> ハイスコア部門
+                </button>'''
+                # </div> の直前にボタンを挿入します
+                modified_html = modified_html[:insert_pos] + high_score_button + modified_html[insert_pos:]
+                logger.info("✅ ハイスコアボタンの追加に成功しました。")
             else:
-                logger.error("❌ 病棟別ボタンが見つかりません")
+                logger.error("❌ ボタンコンテナの終了タグ(</div>)が見つかりませんでした。")
         else:
-            logger.error("❌ quick-buttonsが見つかりません")
+            logger.error("❌ ボタンコンテナ ('quick-buttons' または 'quick-filters') が見つかりませんでした。")
         
         # 6. CSS追加
         additional_css = """
