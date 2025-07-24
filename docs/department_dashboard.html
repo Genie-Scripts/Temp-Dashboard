@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <!-- Progressive Web App対応 -->
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="theme-color" content="#7fb069">
+        <meta name="description" content="病院経営 department別パフォーマンス">
+        <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏥</text></svg>">
+        
+        <!-- Open Graph -->
+        <meta property="og:title" content="department別パフォーマンス">
+        <meta property="og:description" content="データに基づく科学的な改善提案 - 直近12週間 (05/01～07/23)">
+        <meta property="og:type" content="website">
+        
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>診療科別パフォーマンス - 直近12週間 (05/01～07/23)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #f5f7fa; font-family: 'Noto Sans JP', Meiryo, sans-serif; padding: 20px; line-height: 1.6; }
+        .container { max-width: 1920px; margin: 0 auto; }
+        h1 { text-align: center; color: #293a27; margin-bottom: 10px; font-size: 2em; }
+        .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 1.1em; }
+        
+        /* タブスタイル */
+        .tab-navigation { display: flex; justify-content: center; margin-bottom: 30px; border-bottom: 2px solid #e0e0e0; }
+        .tab-button { 
+            background: none; border: none; padding: 12px 24px; cursor: pointer; 
+            font-size: 1em; color: #666; border-bottom: 3px solid transparent; 
+            transition: all 0.3s ease; margin: 0 5px;
+        }
+        .tab-button:hover { color: #293a27; background: #f0f0f0; }
+        .tab-button.active { color: #293a27; border-bottom-color: #7fb069; font-weight: 600; }
+        
+        .tab-content { display: none; }
+        .grid-container { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+        .metric-card { 
+            background: white; border-radius: 12px; border-left: 6px solid #ccc; 
+            padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s ease; 
+        }
+        .metric-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
+        .metric-card h5 { color: #293a27; font-size: 1.2em; margin-bottom: 12px; }
+        .metric-line { margin-bottom: 8px; font-size: 0.95em; }
+        .achievement { margin-top: 12px; font-size: 1.1em; }
+        
+        /* アクションカードスタイル */
+        .action-card { 
+            background: white; border-radius: 12px; border-left: 6px solid #ccc; 
+            padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; 
+        }
+        .action-card h5 { color: #293a27; margin-bottom: 10px; }
+        .action-summary { margin-bottom: 10px; font-size: 0.9em; }
+        .action-details { font-size: 0.85em; color: #666; }
+        
+        /* FABホームボタン */
+        .fab-home {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            z-index: 9999;
+            cursor: pointer;
+        }
+        
+        .fab-home:hover {
+            transform: scale(1.1) translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+        
+        .fab-home:active {
+            transform: scale(0.95);
+        }
+        
+        .fab-home .fab-icon {
+            font-size: 1.8em;
+            line-height: 1;
+        }
+        
+        /* ツールチップ */
+        .fab-home::before {
+            content: "ホームに戻る";
+            position: absolute;
+            right: 70px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .fab-home:hover::before {
+            opacity: 1;
+        }
+        
+        /* モバイル対応 */
+        @media (max-width: 768px) { 
+            .tab-navigation { flex-wrap: wrap; }
+            .tab-button { flex: 1; min-width: 120px; font-size: 0.9em; padding: 10px 16px; }
+            .grid-container { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+            .metric-card { padding: 15px; }
+            .metric-card h5 { font-size: 1em; }
+            .metric-line { font-size: 0.85em; }
+            
+            .fab-home {
+                bottom: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+            }
+            
+            .fab-home .fab-icon {
+                font-size: 1.5em;
+            }
+            
+            .fab-home::before {
+                display: none;
+            }
+        }
+        
+        @media print { 
+            .tab-navigation { display: none; }
+            .tab-content { display: block !important; }
+            .metric-card, .action-card { break-inside: avoid; }
+            .fab-home { display: none; }
+        }
+    </style>
+    <script>
+        function showTab(tabId) {
+            // すべてのタブを非表示
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(tab => tab.style.display = 'none');
+            
+            // すべてのボタンからactiveクラスを削除
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            
+            // 選択されたタブを表示
+            document.getElementById(tabId).style.display = 'block';
+            
+            // 選択されたボタンにactiveクラスを追加
+            event.target.classList.add('active');
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 診療科別パフォーマンス</h1>
+        <p class="subtitle">期間: 直近12週間 (05/01～07/23)</p>
+        
+        <div class="tab-navigation">
+            <button class="tab-button active" onclick="showTab('tab-日平均在院患者数')">日平均在院患者数</button><button class="tab-button " onclick="showTab('tab-週合計新入院患者数')">週合計新入院患者数</button><button class="tab-button " onclick="showTab('tab-alos-trend')">平均在院日数（トレンド分析）</button><button class="tab-button " onclick="showTab('tab-action')">アクション提案（詳細）</button>
+        </div>
+        
+        <div id="tab-日平均在院患者数" class="tab-content" style="display: block;"><div class="grid-container">
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>眼科</h5>
+                <div class="metric-line">期間平均: <strong>6.1 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>5.4 人</strong></div>
+                <div class="metric-line">目標: <strong>5.3 人</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>102.4%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>リウマチ膠原病内科</h5>
+                <div class="metric-line">期間平均: <strong>13.4 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>18.4 人</strong></div>
+                <div class="metric-line">目標: <strong>12.0 人</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>153.6%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>血液内科</h5>
+                <div class="metric-line">期間平均: <strong>27.0 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>24.4 人</strong></div>
+                <div class="metric-line">目標: <strong>25.0 人</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>97.7%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>循環器内科</h5>
+                <div class="metric-line">期間平均: <strong>32.1 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>33.9 人</strong></div>
+                <div class="metric-line">目標: <strong>30.0 人</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>112.9%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>消化器内科</h5>
+                <div class="metric-line">期間平均: <strong>41.2 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>44.1 人</strong></div>
+                <div class="metric-line">目標: <strong>41.0 人</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>107.7%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>心臓血管外科</h5>
+                <div class="metric-line">期間平均: <strong>6.9 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>4.7 人</strong></div>
+                <div class="metric-line">目標: <strong>7.0 人</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>67.3%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>内科救急</h5>
+                <div class="metric-line">期間平均: <strong>7.9 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>15.1 人</strong></div>
+                <div class="metric-line">目標: <strong>8.0 人</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>189.3%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>一般消化器外科</h5>
+                <div class="metric-line">期間平均: <strong>39.1 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>25.4 人</strong></div>
+                <div class="metric-line">目標: <strong>40.0 人</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>63.6%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>呼吸器内科</h5>
+                <div class="metric-line">期間平均: <strong>43.2 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>40.1 人</strong></div>
+                <div class="metric-line">目標: <strong>45.0 人</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>89.2%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>脳神経外科</h5>
+                <div class="metric-line">期間平均: <strong>14.3 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>15.7 人</strong></div>
+                <div class="metric-line">目標: <strong>15.0 人</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>104.8%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>整形外科</h5>
+                <div class="metric-line">期間平均: <strong>57.2 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>67.7 人</strong></div>
+                <div class="metric-line">目標: <strong>60.0 人</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>112.9%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>産婦人科</h5>
+                <div class="metric-line">期間平均: <strong>29.7 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>30.4 人</strong></div>
+                <div class="metric-line">目標: <strong>32.0 人</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>95.1%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>形成外科</h5>
+                <div class="metric-line">期間平均: <strong>4.6 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>5.4 人</strong></div>
+                <div class="metric-line">目標: <strong>5.0 人</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>108.6%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>皮膚科</h5>
+                <div class="metric-line">期間平均: <strong>4.4 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>6.4 人</strong></div>
+                <div class="metric-line">目標: <strong>5.0 人</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>128.6%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>泌尿器科</h5>
+                <div class="metric-line">期間平均: <strong>25.7 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>25.0 人</strong></div>
+                <div class="metric-line">目標: <strong>30.0 人</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>83.3%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>腎内科</h5>
+                <div class="metric-line">期間平均: <strong>12.3 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>12.9 人</strong></div>
+                <div class="metric-line">目標: <strong>15.0 人</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>85.7%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>小児科</h5>
+                <div class="metric-line">期間平均: <strong>14.7 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>12.1 人</strong></div>
+                <div class="metric-line">目標: <strong>18.0 人</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>67.5%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>乳腺外科</h5>
+                <div class="metric-line">期間平均: <strong>10.2 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>9.7 人</strong></div>
+                <div class="metric-line">目標: <strong>12.5 人</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>77.7%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>総合内科（内科救急除く）</h5>
+                <div class="metric-line">期間平均: <strong>88.1 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>86.3 人</strong></div>
+                <div class="metric-line">目標: <strong>110.0 人</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>78.4%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>歯科口腔外科</h5>
+                <div class="metric-line">期間平均: <strong>3.2 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>3.6 人</strong></div>
+                <div class="metric-line">目標: <strong>4.0 人</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>89.3%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>救急科</h5>
+                <div class="metric-line">期間平均: <strong>19.5 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>16.6 人</strong></div>
+                <div class="metric-line">目標: <strong>25.0 人</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>66.3%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>脳神経内科</h5>
+                <div class="metric-line">期間平均: <strong>13.9 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>10.1 人</strong></div>
+                <div class="metric-line">目標: <strong>20.0 人</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>50.7%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>呼吸器外科</h5>
+                <div class="metric-line">期間平均: <strong>3.8 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>2.7 人</strong></div>
+                <div class="metric-line">目標: <strong>6.0 人</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>45.2%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>耳鼻咽喉科</h5>
+                <div class="metric-line">期間平均: <strong>9.4 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>11.4 人</strong></div>
+                <div class="metric-line">目標: <strong>15.0 人</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>76.2%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>その他</h5>
+                <div class="metric-line">期間平均: <strong>0.1 人</strong></div>
+                <div class="metric-line">直近週実績: <strong>0.0 人</strong></div>
+                <div class="metric-line">目標: <strong>-- 人</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>0.0%</strong></div>
+                
+            </div>
+            </div></div><div id="tab-週合計新入院患者数" class="tab-content" style="display: none;"><div class="grid-container">
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>形成外科</h5>
+                <div class="metric-line">期間平均: <strong>4.3 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>3.0 件</strong></div>
+                <div class="metric-line">目標: <strong>3.0 件</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>144.4%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>血液内科</h5>
+                <div class="metric-line">期間平均: <strong>11.1 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>9.0 件</strong></div>
+                <div class="metric-line">目標: <strong>8.1 件</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>136.8%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>眼科</h5>
+                <div class="metric-line">期間平均: <strong>20.6 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>20.0 件</strong></div>
+                <div class="metric-line">目標: <strong>17.5 件</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>117.6%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>一般消化器外科</h5>
+                <div class="metric-line">期間平均: <strong>24.2 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>20.0 件</strong></div>
+                <div class="metric-line">目標: <strong>21.2 件</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>114.4%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>整形外科</h5>
+                <div class="metric-line">期間平均: <strong>27.4 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>24.0 件</strong></div>
+                <div class="metric-line">目標: <strong>24.2 件</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>113.3%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>小児科</h5>
+                <div class="metric-line">期間平均: <strong>24.3 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>21.0 件</strong></div>
+                <div class="metric-line">目標: <strong>21.9 件</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>111.1%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>呼吸器内科</h5>
+                <div class="metric-line">期間平均: <strong>16.4 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>14.0 件</strong></div>
+                <div class="metric-line">目標: <strong>15.0 件</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>109.4%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #7fb069;">
+                <h5>皮膚科</h5>
+                <div class="metric-line">期間平均: <strong>3.6 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>5.0 件</strong></div>
+                <div class="metric-line">目標: <strong>3.5 件</strong></div>
+                <div class="achievement" style="color: #7fb069;">達成率: <strong>102.4%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>産婦人科</h5>
+                <div class="metric-line">期間平均: <strong>30.5 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>28.0 件</strong></div>
+                <div class="metric-line">目標: <strong>30.5 件</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>100.0%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>泌尿器科</h5>
+                <div class="metric-line">期間平均: <strong>29.9 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>22.0 件</strong></div>
+                <div class="metric-line">目標: <strong>30.5 件</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>98.1%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>呼吸器外科</h5>
+                <div class="metric-line">期間平均: <strong>2.7 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>2.0 件</strong></div>
+                <div class="metric-line">目標: <strong>2.8 件</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>95.2%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>循環器内科</h5>
+                <div class="metric-line">期間平均: <strong>23.5 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>28.0 件</strong></div>
+                <div class="metric-line">目標: <strong>24.9 件</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>94.4%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>乳腺外科</h5>
+                <div class="metric-line">期間平均: <strong>12.8 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>13.0 件</strong></div>
+                <div class="metric-line">目標: <strong>14.3 件</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>89.2%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>腎内科</h5>
+                <div class="metric-line">期間平均: <strong>7.9 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>6.0 件</strong></div>
+                <div class="metric-line">目標: <strong>9.0 件</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>88.0%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>脳神経外科</h5>
+                <div class="metric-line">期間平均: <strong>3.7 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>3.0 件</strong></div>
+                <div class="metric-line">目標: <strong>4.2 件</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>87.3%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #f5d76e;">
+                <h5>消化器内科</h5>
+                <div class="metric-line">期間平均: <strong>22.8 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>23.0 件</strong></div>
+                <div class="metric-line">目標: <strong>27.7 件</strong></div>
+                <div class="achievement" style="color: #f5d76e;">達成率: <strong>82.1%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>救急科</h5>
+                <div class="metric-line">期間平均: <strong>26.2 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>28.0 件</strong></div>
+                <div class="metric-line">目標: <strong>32.8 件</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>79.8%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>耳鼻咽喉科</h5>
+                <div class="metric-line">期間平均: <strong>9.8 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>6.0 件</strong></div>
+                <div class="metric-line">目標: <strong>12.9 件</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>75.6%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>内科救急</h5>
+                <div class="metric-line">期間平均: <strong>29.6 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>44.0 件</strong></div>
+                <div class="metric-line">目標: <strong>40.0 件</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>74.0%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>リウマチ膠原病内科</h5>
+                <div class="metric-line">期間平均: <strong>2.6 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>2.0 件</strong></div>
+                <div class="metric-line">目標: <strong>3.5 件</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>73.8%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>脳神経内科</h5>
+                <div class="metric-line">期間平均: <strong>2.6 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>1.0 件</strong></div>
+                <div class="metric-line">目標: <strong>3.7 件</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>69.8%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>歯科口腔外科</h5>
+                <div class="metric-line">期間平均: <strong>2.7 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>4.0 件</strong></div>
+                <div class="metric-line">目標: <strong>4.3 件</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>62.0%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>心臓血管外科</h5>
+                <div class="metric-line">期間平均: <strong>1.4 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>2.0 件</strong></div>
+                <div class="metric-line">目標: <strong>2.8 件</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>50.6%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>総合内科（内科救急除く）</h5>
+                <div class="metric-line">期間平均: <strong>17.9 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>22.0 件</strong></div>
+                <div class="metric-line">目標: <strong>50.8 件</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>35.3%</strong></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #e08283;">
+                <h5>その他</h5>
+                <div class="metric-line">期間平均: <strong>1.3 件</strong></div>
+                <div class="metric-line">直近週実績: <strong>0.0 件</strong></div>
+                <div class="metric-line">目標: <strong>-- 件</strong></div>
+                <div class="achievement" style="color: #e08283;">達成率: <strong>0.0%</strong></div>
+                
+            </div>
+            </div></div><div id="tab-alos-trend" class="tab-content" style="display: none;"><div class="grid-container">
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>循環器内科</h5>
+                <div class="metric-line">期間平均: <strong>9.9 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>16.9 日</strong></div>
+                <div class="metric-line">変化: <strong>+7.0 日 (+71.4%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.6-12.1日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>呼吸器内科</h5>
+                <div class="metric-line">期間平均: <strong>16.1 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>31.2 日</strong></div>
+                <div class="metric-line">変化: <strong>+15.2 日 (+94.3%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.1-14.4日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>消化器内科</h5>
+                <div class="metric-line">期間平均: <strong>10.1 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>10.7 日</strong></div>
+                <div class="metric-line">変化: <strong>+0.5 日 (+5.2%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#4CAF50;">✅ 適正範囲内</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.1-11.3日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>整形外科</h5>
+                <div class="metric-line">期間平均: <strong>14.9 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>26.3 日</strong></div>
+                <div class="metric-line">変化: <strong>+11.4 日 (+76.3%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.8-17.6日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>泌尿器科</h5>
+                <div class="metric-line">期間平均: <strong>6.2 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>6.7 日</strong></div>
+                <div class="metric-line">変化: <strong>+0.6 日 (+9.0%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#4CAF50;">✅ 適正範囲内</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.1-7.5日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>耳鼻咽喉科</h5>
+                <div class="metric-line">期間平均: <strong>6.5 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>10.0 日</strong></div>
+                <div class="metric-line">変化: <strong>+3.5 日 (+53.0%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.5-5.0日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>リウマチ膠原病内科</h5>
+                <div class="metric-line">期間平均: <strong>29.6 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>43.0 日</strong></div>
+                <div class="metric-line">変化: <strong>+13.4 日 (+45.5%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.7-6.6日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>腎内科</h5>
+                <div class="metric-line">期間平均: <strong>10.1 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>15.0 日</strong></div>
+                <div class="metric-line">変化: <strong>+4.9 日 (+49.0%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.8-5.7日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>乳腺外科</h5>
+                <div class="metric-line">期間平均: <strong>5.8 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>6.2 日</strong></div>
+                <div class="metric-line">変化: <strong>+0.4 日 (+6.4%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.0-6.2日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>内科救急</h5>
+                <div class="metric-line">期間平均: <strong>26.4 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>53.0 日</strong></div>
+                <div class="metric-line">変化: <strong>+26.6 日 (+100.5%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.8-2.8日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #FFC107;">
+                <h5>皮膚科</h5>
+                <div class="metric-line">期間平均: <strong>8.9 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>9.0 日</strong></div>
+                <div class="metric-line">変化: <strong>+0.1 日 (+1.3%)</strong></div>
+                <div class="achievement" style="color: #FFC107;">🟡 安定</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.6-2.6日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>脳神経内科</h5>
+                <div class="metric-line">期間平均: <strong>18.5 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>0.0 日</strong></div>
+                <div class="metric-line">変化: <strong>-18.5 日 (-100.0%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#999;"></div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 3.7-12.5日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>形成外科</h5>
+                <div class="metric-line">期間平均: <strong>6.1 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>4.8 日</strong></div>
+                <div class="metric-line">変化: <strong>-1.3 日 (-22.1%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.3-2.7日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>脳神経外科</h5>
+                <div class="metric-line">期間平均: <strong>21.9 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>15.7 日</strong></div>
+                <div class="metric-line">変化: <strong>-6.2 日 (-28.3%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 4.8-12.0日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>総合内科（内科救急除く）</h5>
+                <div class="metric-line">期間平均: <strong>20.3 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>19.5 日</strong></div>
+                <div class="metric-line">変化: <strong>-0.8 日 (-3.9%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.6-12.9日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>救急科</h5>
+                <div class="metric-line">期間平均: <strong>15.3 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>12.9 日</strong></div>
+                <div class="metric-line">変化: <strong>-2.4 日 (-15.8%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.2-4.4日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>産婦人科</h5>
+                <div class="metric-line">期間平均: <strong>6.9 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>6.5 日</strong></div>
+                <div class="metric-line">変化: <strong>-0.4 日 (-5.8%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#4CAF50;">✅ 適正範囲内</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 2.5-11.4日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>一般消化器外科</h5>
+                <div class="metric-line">期間平均: <strong>10.8 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>7.7 日</strong></div>
+                <div class="metric-line">変化: <strong>-3.1 日 (-28.5%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#4CAF50;">✅ 適正範囲内</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 2.0-12.4日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>心臓血管外科</h5>
+                <div class="metric-line">期間平均: <strong>25.2 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>16.5 日</strong></div>
+                <div class="metric-line">変化: <strong>-8.7 日 (-34.5%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 3.0-6.0日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>小児科</h5>
+                <div class="metric-line">期間平均: <strong>4.1 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>3.1 日</strong></div>
+                <div class="metric-line">変化: <strong>-1.0 日 (-23.6%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#4CAF50;">✅ 適正範囲内</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.9-5.0日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>呼吸器外科</h5>
+                <div class="metric-line">期間平均: <strong>8.6 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>6.3 日</strong></div>
+                <div class="metric-line">変化: <strong>-2.3 日 (-26.8%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.6-4.1日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>歯科口腔外科</h5>
+                <div class="metric-line">期間平均: <strong>7.8 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>5.0 日</strong></div>
+                <div class="metric-line">変化: <strong>-2.8 日 (-36.1%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.5-2.6日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>眼科</h5>
+                <div class="metric-line">期間平均: <strong>2.1 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>1.9 日</strong></div>
+                <div class="metric-line">変化: <strong>-0.2 日 (-10.0%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#4CAF50;">✅ 適正範囲内</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.3-2.9日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>血液内科</h5>
+                <div class="metric-line">期間平均: <strong>14.7 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>9.0 日</strong></div>
+                <div class="metric-line">変化: <strong>-5.7 日 (-38.9%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#4CAF50;">✅ 適正範囲内</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 4.5-20.0日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>その他</h5>
+                <div class="metric-line">期間平均: <strong>1.0 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>0.0 日</strong></div>
+                <div class="metric-line">変化: <strong>-1.0 日 (-100.0%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#999;"></div>
+                
+            </div>
+            </div></div><div id="tab-action" class="tab-content" style="display: none;"><div class="hospital-summary">
+            <div class="summary-card" style="border-left-color: #f5d76e;">
+                <div class="summary-header">在院患者数</div>
+                <div class="summary-content">580人目標 → 528.0人実績 (91.0%) -52.0人</div>
+            </div>
+            <div class="summary-card" style="border-left-color: #e08283;">
+                <div class="summary-header">新入院患者数</div>
+                <div class="summary-content">80人/日目標 → 51.4人/日実績 (64.2%) -28.6人/日</div>
+            </div>
+        </div>
+        
+        <div class="actions-grid">
+            
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>総合内科（内科救急除く）</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 両方検討</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>救急科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 両方検討</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>小児科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 両方検討</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>脳神経内科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 両方検討</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>腎内科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 両方検討</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>乳腺外科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 両方検討</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>耳鼻咽喉科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 両方検討</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>呼吸器外科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 両方検討</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>歯科口腔外科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 両方検討</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>その他</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 両方検討</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>産婦人科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 在院日数調整</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>泌尿器科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 新入院重視</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>形成外科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 在院日数調整</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>皮膚科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 新入院重視</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>整形外科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>呼吸器内科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>消化器内科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>一般消化器外科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>循環器内科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>血液内科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>脳神経外科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>リウマチ膠原病内科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>内科救急</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>心臓血管外科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #e08283;">
+                    <div class="card-header">
+                        <h3>眼科</h3>
+                        <div class="effort-status-main" style="color: #e08283;">❓ 評価エラー</div>
+                    </div>
+                    <div class="analysis-section">
+                        <h4>エラー</h4>
+                        <div class="metric-line">詳細表示でエラーが発生しました</div>
+                        <div class="metric-line">基本情報: 現状維持</div>
+                    </div>
+                </div>
+                
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px; color: #666; font-size: 0.9em;">
+            <p>✨目標突破中 🎯達成継続 💪追い上げ中 📈要努力 🚨要改善</p>
+            <p>生成日時:  | 目標達成努力度に基づく評価</p>
+        </div>
+    </div>
+</div>
+        
+        <footer style="text-align: center; margin-top: 40px; color: #999; border-top: 1px solid #eee; padding-top: 20px;">
+            <p>生成日時: 2025年07月24日 07:51:41</p>
+            <p>🏥 経営企画室</p>
+        </footer>
+    </div>
+    
+    <a href="./index.html" class="fab-home" aria-label="ホームに戻る">
+        <span class="fab-icon">🏠</span>
+    </a>
+<style>
+            
+            /* モバイル最適化CSS */
+            @media (max-width: 768px) {
+                .actions-grid {
+                    grid-template-columns: 1fr !important;
+                    gap: 15px !important;
+                }
+                
+                .action-card {
+                    padding: 15px !important;
+                    margin-bottom: 10px !important;
+                }
+                
+                .card-header h3 {
+                    font-size: 1.1em !important;
+                }
+                
+                .hospital-summary {
+                    grid-template-columns: 1fr !important;
+                }
+            }
+            
+            /* ダークモード対応 */
+            @media (prefers-color-scheme: dark) {
+                body {
+                    background: #1a1a1a !important;
+                    color: #e0e0e0 !important;
+                }
+                
+                .action-card {
+                    background: #2d2d2d !important;
+                    color: #e0e0e0 !important;
+                }
+            }
+            </style></body>
+</html>
