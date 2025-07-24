@@ -858,15 +858,6 @@ def calculate_high_score(df, target_data, entity_name, entity_type, start_date, 
     """
     診療科・病棟のハイスコアを計算（100点満点）【計算方法修正版】
     """
-
-    print("▼デバッグ用-------------------------")
-    print("診療科/病棟名:", entity_name)
-    print("直近7日間の在院患者数df:", recent_week_df[['日付','在院患者数']])
-    print("直近週平均:", latest_week_avg_census)
-    print("目標値:", target_value)
-    print("達成率:", (latest_week_avg_census / target_value) * 100)
-    print("-------------------------------------")
-
     try:
         # 基本KPI取得
         if entity_type == 'dept':
@@ -944,7 +935,15 @@ def calculate_high_score(df, target_data, entity_name, entity_type, start_date, 
         
         # 総合スコア計算
         total_score = achievement_score + improvement_score + stability_score + sustainability_score + bed_efficiency_score
-        
+
+        print("▼デバッグ用-------------------------")
+        print("診療科/病棟名:", entity_name)
+        print("直近7日間の在院患者数df:", recent_week_df[['日付','在院患者数']])
+        print("直近週平均:", latest_week_avg_census)
+        print("目標値:", target_value)
+        print("達成率:", (latest_week_avg_census / target_value) * 100)
+        print("-------------------------------------")
+
         return {
             'entity_name': entity_name,
             'entity_type': entity_type,
