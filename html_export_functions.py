@@ -1612,14 +1612,19 @@ def calculate_all_high_scores(df, target_data, period="直近12週"):
 def generate_all_in_one_html_report_with_high_score(df, target_data, period="直近12週"):
     """ハイスコア機能付き統合HTMLレポート（修正版）"""
     try:
+        logger.info("🏆 ハイスコア統合レポート生成開始")
+
         # 1. 基本レポート生成
         base_html = generate_all_in_one_html_report(df, target_data, period)
-        
+        logger.info(f"📄 基本HTML生成完了: {len(base_html)}文字")
+
         # 2. ハイスコアデータ計算
         dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
+        logger.info(f"📊 スコア計算完了: 診療科{len(dept_scores)}件, 病棟{len(ward_scores)}件")
         
         # 3. ハイスコアHTMLを生成
         if not dept_scores and not ward_scores:
+            logger.warning("⚠️ スコアデータなし")
             return base_html
         
         # ハイスコアセクションのHTML（id変更：view-high-scoreに統一）
@@ -1717,19 +1722,32 @@ def generate_all_in_one_html_report_with_high_score(df, target_data, period="直
         
         # 5. ボタンにハイスコアを追加
         quick_buttons_pos = modified_html.find('<div class="quick-buttons">')
+        logger.info(f"🔍 quick-buttons位置: {quick_buttons_pos}")
         if quick_buttons_pos > 0:
-            # 病棟別ボタンの後ろに追加
-            ward_button_end = modified_html.find('</button>', 
-                modified_html.find('<span>🏢</span> 病棟別', quick_buttons_pos))
-            if ward_button_end > 0:
-                insert_pos = ward_button_end + len('</button>')
-                high_score_button = '''
+            ward_button_text = '<span>🏢</span> 病棟別'
+            ward_button_pos = modified_html.find(ward_button_text, quick_buttons_pos)
+            logger.info(f"🔍 病棟別ボタン位置: {ward_button_pos}")
+            
+            if ward_button_pos > 0:
+                ward_button_end = modified_html.find('</button>', ward_button_pos)
+                logger.info(f"🔍 病棟別ボタン終了位置: {ward_button_end}")
+                
+                if ward_button_end > 0:
+                    insert_pos = ward_button_end + len('</button>')
+                    high_score_button = '''
                         <button class="quick-button" onclick="showView('view-high-score')">
                             <span>🏆</span> ハイスコア部門
                         </button>'''
-                modified_html = (modified_html[:insert_pos] + 
-                               high_score_button + 
-                               modified_html[insert_pos:])
+                    modified_html = (modified_html[:insert_pos] + 
+                                   high_score_button + 
+                                   modified_html[insert_pos:])
+                    logger.info("✅ ハイスコアボタン追加完了")
+                else:
+                    logger.error("❌ 病棟別ボタンの終了タグが見つかりません")
+            else:
+                logger.error("❌ 病棟別ボタンが見つかりません")
+        else:
+            logger.error("❌ quick-buttonsが見つかりません")
         
         # 6. CSS追加
         additional_css = """
