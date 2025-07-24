@@ -425,7 +425,7 @@ def generate_metric_tab_content(kpi_data_list, metric_name, dashboard_type):
             target_val = kpi.get(opt['target'])
             achievement = kpi.get(opt['ach'], 0)
             # ★ここを修正
-            if selected_metric in ["日平均在院患者数", "週合計新入院患者数"]:
+            if metric_name in ["日平均在院患者数", "週合計新入院患者数"]:
                 recent_val = kpi.get(opt['recent'], 0)
                 if target_val and target_val > 0:
                     achievement = (recent_val / target_val) * 100
