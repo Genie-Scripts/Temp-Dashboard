@@ -27,20 +27,26 @@ from config import EXCLUDED_WARDS
 
 logger = logging.getLogger(__name__)
 
-def generate_all_in_one_html_report(df, target_data, period="直近12週"):
+def generate_all_in_one_html_report(
+    df, 
+    target_data, 
+    period="直近12週", 
+    high_score_html=None  # ★【追加】ハイスコアのHTMLをオプションの引数として受け取ります
+):
     """
     全ての診療科・病棟データを含む、単一の統合HTMLレポートを生成する（直近週重視版）
     
     修正内容：
-    - 評価基準説明を直近週重視に更新
-    - 98%基準の強調
-    - 用語説明の明確化
+    - UIとアピアランスを完全に維持しつつ、ハイスコア部門を正式にサポート。
+    - 不安定な文字列操作を撤廃し、引数で機能拡張を実現。
     """
     try:
+        # --- 必要な関数のインポート (変更なし) ---
         from chart import create_interactive_patient_chart, create_interactive_alos_chart, create_interactive_dual_axis_chart
         from mobile_report_generator import _generate_metric_cards_html, _generate_charts_html, _generate_action_plan_html, _adapt_kpi_for_html_generation
         from ward_utils import calculate_ward_kpi_with_bed_metrics
 
+        # --- データ準備 (変更なし) ---
         start_date, end_date, period_desc = get_period_dates(df, period)
         if not start_date:
             return "<html><body>エラー: 分析期間を計算できませんでした。</body></html>"
@@ -50,9 +56,11 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         all_departments = sorted(df[dept_col].dropna().unique()) if dept_col in df.columns else []
         all_wards = get_target_ward_list(target_data, EXCLUDED_WARDS)
         
-        content_html = ""
+        # --- 各ビューのHTMLコンテンツ生成 (変更なし) ---
+        # この部分は元のロジックをそのまま維持します
+        content_html_parts = []
         
-        # --- 全体ビューの生成 ---
+        # --- 全体ビューの生成 (変更なし) ---
         overall_df = df[(df['日付'] >= start_date) & (df['日付'] <= end_date)]
         overall_kpi = calculate_department_kpis(df, target_data, '全体', '病院全体', start_date, end_date, None)
         overall_feasibility = evaluate_feasibility(overall_kpi, overall_df, start_date, end_date)
@@ -62,9 +70,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         charts_all = _generate_charts_html(overall_df, overall_html_kpi)
         analysis_all = _generate_action_plan_html(overall_html_kpi, overall_feasibility, overall_simulation, hospital_targets)
         overall_content = cards_all + charts_all + analysis_all
-        content_html += f'<div id="view-all" class="view-content active">{overall_content}</div>'
+        content_html_parts.append(f'<div id="view-all" class="view-content active">{overall_content}</div>')
 
-        # --- 診療科別ビューの生成 ---
+        # --- 診療科別ビューの生成 (変更なし) ---
         for dept_name in all_departments:
             dept_id = f"view-dept-{urllib.parse.quote(dept_name)}"
             try:
@@ -80,12 +88,12 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 analysis = _generate_action_plan_html(html_kpi, feasibility, simulation, hospital_targets)
                 
                 full_dept_content = cards + charts + analysis
-                content_html += f'<div id="{dept_id}" class="view-content">{full_dept_content}</div>'
+                content_html_parts.append(f'<div id="{dept_id}" class="view-content">{full_dept_content}</div>')
             except Exception as e:
                 logger.error(f"診療科「{dept_name}」のレポート部品生成エラー: {e}")
-                content_html += f'<div id="{dept_id}" class="view-content"><p>エラー: {dept_name}のレポートを生成できませんでした。</p></div>'
+                content_html_parts.append(f'<div id="{dept_id}" class="view-content"><p>エラー: {dept_name}のレポートを生成できませんでした。</p></div>')
 
-        # --- 病棟別ビューの生成 ---
+        # --- 病棟別ビューの生成 (変更なし) ---
         for ward_code, ward_name in all_wards:
             ward_id = f"view-ward-{ward_code}"
             try:
@@ -101,12 +109,18 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 charts = _generate_charts_html(df_ward, final_kpi)
                 analysis = _generate_action_plan_html(final_kpi, feasibility, simulation, hospital_targets)
                 full_ward_content = cards + charts + analysis
-                content_html += f'<div id="{ward_id}" class="view-content">{full_ward_content}</div>'
+                content_html_parts.append(f'<div id="{ward_id}" class="view-content">{full_ward_content}</div>')
             except Exception as e:
                 logger.error(f"病棟「{ward_name}」のレポート部品生成エラー: {e}")
-                content_html += f'<div id="{ward_id}" class="view-content"><p>エラー: {ward_name}のレポートを生成できませんでした。</p></div>'
+                content_html_parts.append(f'<div id="{ward_id}" class="view-content"><p>エラー: {ward_name}のレポートを生成できませんでした。</p></div>')
 
-        # 改善されたドロップダウンメニューの生成（従来通り）
+        # ★【追加】引数で渡されたハイスコアHTMLをコンテンツリストに追加
+        if high_score_html:
+            content_html_parts.append(high_score_html)
+        
+        content_html = "\n".join(content_html_parts)
+
+        # --- ドロップダウンメニュー生成 (変更なし) ---
         dept_options = ""
         for dept_name in all_departments:
             dept_id = f"view-dept-{urllib.parse.quote(dept_name)}"
@@ -117,7 +131,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             ward_id = f"view-ward-{ward_code}"
             ward_options += f'<option value="{ward_id}">{ward_name}</option>'
         
-        # ===== 🔥 評価基準パネルのHTML（直近週重視版に更新） =====
+        # --- 評価基準パネル生成 (変更なし) ---
         info_panel_html = f"""
         <div id="info-panel" class="info-panel">
             <div class="info-content">
@@ -284,8 +298,21 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             </div>
         </div>
         """
+
+        # ★【修正】ボタン部分を動的に生成
+        buttons = [
+            '<button class="quick-button active" onclick="showView(\'view-all\')"><span>🏥</span> 病院全体</button>',
+            '<button class="quick-button" onclick="toggleTypeSelector(\'dept\')"><span>🩺</span> 診療科別</button>',
+            '<button class="quick-button" onclick="toggleTypeSelector(\'ward\')"><span>🏢</span> 病棟別</button>'
+        ]
+        # high_score_htmlが引数として渡された場合のみ、ハイスコアボタンを追加
+        if high_score_html:
+            buttons.append('<button class="quick-button" onclick="showView(\'view-high-score\')"><span>🏆</span> ハイスコア部門</button>')
         
-        # --- 最終的なHTMLの組み立て（従来通りだが、タイトルを直近週重視に更新） ---
+        quick_buttons_html = "\n".join(buttons)
+
+
+        # --- 最終的なHTMLの組み立て (UIを維持し、ボタン部分のみ動的に) ---
         final_html = f"""
         <!DOCTYPE html>
         <html lang="ja">
@@ -1609,121 +1636,37 @@ def calculate_all_high_scores(df, target_data, period="直近12週"):
         logger.error(f"全ハイスコア計算エラー: {e}")
         return [], []
 
-# ご自身のファイル内で、この関数をまるごと下記コードに置き換えてください。
 def generate_all_in_one_html_report_with_high_score(df, target_data, period="直近12週"):
-    """ハイスコア機能付き統合HTMLレポート（修正版）"""
+    """
+    ハイスコア機能付き統合HTMLレポートを生成する（新方式のラッパー関数）
+    不安定なHTMLの書き換えを完全に撤廃。
+    """
     try:
-        logger.info("🏆 ハイスコア統合レポート生成開始")
+        logger.info("🏆 [新方式]ハイスコア統合レポート生成開始")
 
-        # 1. 基本レポート生成
-        # ボタン部分は後で置き換えるので、一旦オリジナルのHTMLを生成
-        base_html = generate_all_in_one_html_report(df, target_data, period)
-        logger.info(f"📄 基本HTML生成完了: {len(base_html)}文字")
-
-        # 2. ハイスコアデータ計算
+        # 1. ハイスコアデータを計算
         dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
         logger.info(f"📊 スコア計算完了: 診療科{len(dept_scores)}件, 病棟{len(ward_scores)}件")
 
-        # 3. ハイスコアHTMLを生成
-        if not dept_scores and not ward_scores:
-            logger.warning("⚠️ スコアデータなし、基本レポートのみ返します")
-            return base_html
-        
-        # ハイスコア表示部分のHTMLを作成
-        high_score_section = f"""
-        <div id="view-high-score" class="view-content" style="display: none;">
-            <div class="section">
-                <h2>🏆 週間ハイスコア TOP3</h2>
-                <div class="ranking-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-                    <div class="ranking-section">
-                        <h3>🩺 診療科部門</h3>
-                        <div class="ranking-list">
-        """
-        for i, score in enumerate(dept_scores[:3]):
-            medal = ["🥇", "🥈", "🥉"][i]
-            high_score_section += f"""
-                            <div class="ranking-item rank-{i+1}">
-                                <span class="medal">{medal}</span>
-                                <div class="ranking-info">
-                                    <div class="name">{score['entity_name']}</div>
-                                    <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
-                                </div>
-                                <div class="score">{score['total_score']:.0f}点</div>
-                            </div>"""
-        high_score_section += """
-                        </div>
-                    </div>
-                    <div class="ranking-section">
-                        <h3>🏢 病棟部門</h3>
-                        <div class="ranking-list">
-        """
-        for i, score in enumerate(ward_scores[:3]):
-            medal = ["🥇", "🥈", "🥉"][i]
-            ward_name = score.get('display_name', score['entity_name'])
-            high_score_section += f"""
-                            <div class="ranking-item rank-{i+1}">
-                                <span class="medal">{medal}</span>
-                                <div class="ranking-info">
-                                    <div class="name">{ward_name}</div>
-                                    <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
-                                </div>
-                                <div class="score">{score['total_score']:.0f}点</div>
-                            </div>"""
-        high_score_section += """
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
+        # 2. ハイスコアのHTMLコンテンツを生成
+        high_score_html = create_high_score_html_section(dept_scores, ward_scores)
+        if high_score_html:
+            logger.info("✅ ハイスコアのHTMLセクションを生成しました。")
 
-        # 4. ハイスコアの「コンテンツ」をHTMLに追加
-        # content-areaの終了タグ </div> の直前に挿入
-        content_area_str = '<div class="content-area">'
-        content_area_start = base_html.find(content_area_str)
-        if content_area_start != -1:
-            # content-areaの終了位置を見つける
-            content_area_end = base_html.find('</div>', content_area_start + len(content_area_str))
-            if content_area_end != -1:
-                 # content-area の閉じタグの直前にハイスコアセクションを挿入
-                base_html = base_html[:content_area_end] + high_score_section + base_html[content_area_end:]
-                logger.info("✅ ハイスコアのコンテンツ部分を追加しました。")
+        # 3. 修正されたメイン関数を呼び出し、ハイスコアHTMLを引数として渡すだけ！
+        final_html = generate_all_in_one_html_report(
+            df,
+            target_data,
+            period,
+            high_score_html=high_score_html # ★ここで生成したHTMLを渡します
+        )
 
-        # 5. ボタン部分を「ハイスコア部門」ボタン付きで丸ごと作り直す
-        new_buttons_html = """<div class="quick-filters">
-            <button class="quick-button active" onclick="showView('view-all')"><span>🏥</span> 病院全体</button>
-            <button class="quick-button" onclick="toggleTypeSelector('dept')"><span>🩺</span> 診療科別</button>
-            <button class="quick-button" onclick="toggleTypeSelector('ward')"><span>🏢</span> 病棟別</button>
-            <button class="quick-button" onclick="showView('view-high-score')"><span>🏆</span> ハイスコア部門</button>
-        </div>"""
+        logger.info("✅✅✅ [新方式]統合レポートの生成が完了しました。")
+        return final_html
 
-        # 6. 古いボタン部分を特定して、新しいものに置き換える
-        import re
-        # 正規表現で古いボタン部分を検索
-        pattern = re.compile(r'<div class="quick-filters">.*?</div>', re.DOTALL)
-        match = pattern.search(base_html)
-        
-        if match:
-            # マッチした古いHTMLを新しいものに置換
-            modified_html = base_html.replace(match.group(0), new_buttons_html)
-            logger.info("✅ ボタン部分をハイスコア対応版に置換しました。")
-        else:
-            logger.error("❌ 置換対象のボタンコンテナが見つかりませんでした。HTML構造を確認してください。")
-            modified_html = base_html # 置換失敗時は元のHTMLを維持
-
-        # 7. CSSとJSは元のままでOKなので、ここでは処理を追加しない
-        # （base_htmlに既に入っているため）
-
-        logger.info("✅✅✅ ハイスコア統合レポートの生成が完了しました。")
-        return modified_html
-    
     except Exception as e:
-        logger.error(f"ハイスコア統合レポート生成中に致命的なエラーが発生しました: {e}", exc_info=True)
-        # エラーが発生した場合でも、基本HTMLがあればそれを返す
-        try:
-            return base_html
-        except NameError:
-            return "<html><body>レポート生成中にエラーが発生しました。</body></html>"
+        logger.error(f"[新方式]ハイスコア統合レポート生成中にエラー: {e}", exc_info=True)
+        return "<html><body>レポート生成中にエラーが発生しました。</body></html>"
 
 def _generate_ranking_list_html(scores: List[Dict], entity_type: str) -> str:
     """ランキングリストHTML生成"""
