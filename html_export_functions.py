@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 def generate_all_in_one_html_report(df, target_data, period="直近12週"):
     """
-    全ての診療科・病棟データを含む、単一の統合HTMLレポートを生成する（ハイスコア機能統合版）
+    全ての診療科・病棟データを含む、単一の統合HTMLレポートを生成する（デザイン改善版）
     """
     try:
         from chart import create_interactive_patient_chart, create_interactive_alos_chart, create_interactive_dual_axis_chart
@@ -240,9 +240,8 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 </div>
             </div>
         </div>
-        """
-        
-        # --- 最終的なHTMLの組み立て ---
+        """        
+        # --- 最終的なHTMLの組み立て（デザイン改善版） ---
         final_html = f"""
         <!DOCTYPE html>
         <html lang="ja">
@@ -259,6 +258,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 }}
                 
                 :root {{
+                    /* カラーパレット */
                     --primary-color: #5B5FDE;
                     --primary-dark: #4347B8;
                     --primary-light: #7B7EE6;
@@ -267,6 +267,8 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     --warning-color: #F59E0B;
                     --danger-color: #EF4444;
                     --info-color: #3B82F6;
+                    
+                    /* グレースケール */
                     --gray-50: #F9FAFB;
                     --gray-100: #F3F4F6;
                     --gray-200: #E5E7EB;
@@ -277,25 +279,400 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     --gray-700: #374151;
                     --gray-800: #1F2937;
                     --gray-900: #111827;
+                    
+                    /* シャドウ */
+                    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+                    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+                    
+                    /* トランジション */
+                    --transition-fast: 150ms ease-in-out;
+                    --transition-normal: 300ms ease-in-out;
                 }}
                 
                 body {{
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
-                    background-color: var(--gray-50);
+                    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+                    min-height: 100vh;
                     color: var(--gray-800);
                     line-height: 1.6;
+                    -webkit-font-smoothing: antialiased;
+                    -moz-osx-font-smoothing: grayscale;
                 }}
                 
-                /* 重要: ビューの表示制御 */
+                /* コンテナ */
+                .container {{
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    background: white;
+                    box-shadow: var(--shadow-xl);
+                    border-radius: 16px;
+                    overflow: hidden;
+                    margin-top: 20px;
+                    margin-bottom: 20px;
+                }}
+                
+                /* ヘッダー */
+                .header {{
+                    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+                    color: white;
+                    padding: 40px 30px;
+                    text-align: center;
+                    position: relative;
+                    overflow: hidden;
+                }}
+                
+                .header::before {{
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,112C672,96,768,96,864,112C960,128,1056,160,1152,160C1248,160,1344,128,1392,112L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>');
+                    background-size: cover;
+                    opacity: 0.3;
+                }}
+                
+                h1 {{
+                    margin: 0;
+                    font-size: 2.5em;
+                    font-weight: 700;
+                    letter-spacing: -0.02em;
+                    position: relative;
+                    z-index: 1;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }}
+                
+                .subtitle {{
+                    opacity: 0.95;
+                    margin-top: 8px;
+                    font-size: 1.1em;
+                    position: relative;
+                    z-index: 1;
+                }}
+                
+                /* 改善された情報ボタン */
+                .info-button {{
+                    position: absolute;
+                    top: 20px;
+                    right: 20px;
+                    background: rgba(255, 255, 255, 0.2);
+                    border: 2px solid rgba(255, 255, 255, 0.5);
+                    color: white;
+                    padding: 10px 20px;
+                    border-radius: 25px;
+                    cursor: pointer;
+                    font-size: 0.9em;
+                    font-weight: 600;
+                    transition: all 0.3s ease;
+                    backdrop-filter: blur(10px);
+                    z-index: 2;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }}
+                
+                .info-button:hover {{
+                    background: rgba(255, 255, 255, 0.3);
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                }}
+                
+                .info-button:active {{
+                    transform: translateY(0);
+                }}
+                
+                /* コントロール部分 */
+                .controls {{
+                    padding: 30px;
+                    background: linear-gradient(to bottom, var(--gray-50), white);
+                    border-bottom: 1px solid var(--gray-200);
+                }}
+                
+                /* クイックボタン（改善版） */
+                .quick-buttons {{
+                    display: flex;
+                    justify-content: center;
+                    gap: 12px;
+                    margin-bottom: 25px;
+                    flex-wrap: wrap;
+                }}
+                
+                .quick-button {{
+                    padding: 12px 24px;
+                    background: white;
+                    color: var(--gray-700);
+                    border: 2px solid var(--gray-200);
+                    border-radius: 12px;
+                    cursor: pointer;
+                    font-size: 0.95em;
+                    font-weight: 600;
+                    transition: all var(--transition-normal);
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    box-shadow: var(--shadow-sm);
+                    position: relative;
+                    overflow: hidden;
+                }}
+                
+                .quick-button::before {{
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: -100%;
+                    width: 100%;
+                    height: 100%;
+                    background: linear-gradient(90deg, transparent, rgba(91, 95, 222, 0.1), transparent);
+                    transition: left 0.5s;
+                }}
+                
+                .quick-button:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: var(--shadow-md);
+                    border-color: var(--primary-color);
+                    color: var(--primary-color);
+                }}
+                
+                .quick-button:hover::before {{
+                    left: 100%;
+                }}
+                
+                .quick-button.active {{
+                    background: var(--primary-color);
+                    color: white;
+                    border-color: var(--primary-color);
+                    box-shadow: 0 4px 12px rgba(91, 95, 222, 0.3);
+                    transform: translateY(-1px);
+                }}
+                
+                .quick-button.active:hover {{
+                    transform: translateY(-3px);
+                    box-shadow: 0 6px 16px rgba(91, 95, 222, 0.4);
+                }}
+                
+                .quick-button span {{
+                    font-size: 1.2em;
+                    display: inline-block;
+                    transition: transform 0.3s;
+                }}
+                
+                .quick-button:hover span {{
+                    transform: scale(1.1);
+                }}
+                
+                /* セレクターグループ（改善版） */
+                .selector-group {{
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 20px;
+                    flex-wrap: wrap;
+                }}
+                
+                .selector-wrapper {{
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    background: white;
+                    padding: 8px 16px 8px 20px;
+                    border-radius: 50px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                    transition: all 0.3s ease;
+                }}
+                
+                .selector-wrapper:hover {{
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+                }}
+                
+                .selector-label {{
+                    font-weight: 600;
+                    color: var(--gray-600);
+                    font-size: 0.95em;
+                    white-space: nowrap;
+                }}
+                
+                /* カスタムセレクト（改善版） */
+                select {{
+                    padding: 10px 40px 10px 16px;
+                    font-size: 0.95em;
+                    border-radius: 25px;
+                    border: 2px solid var(--gray-200);
+                    background-color: white;
+                    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><path fill="%236B7280" d="M6 9L1 4h10z"/></svg>');
+                    background-repeat: no-repeat;
+                    background-position: right 16px center;
+                    cursor: pointer;
+                    transition: all var(--transition-fast);
+                    min-width: 250px;
+                    font-weight: 500;
+                    color: var(--gray-700);
+                    appearance: none;
+                    -webkit-appearance: none;
+                    -moz-appearance: none;
+                }}
+                
+                select:hover {{
+                    border-color: var(--primary-light);
+                    background-color: var(--gray-50);
+                }}
+                
+                select:focus {{
+                    outline: 0;
+                    border-color: var(--primary-color);
+                    box-shadow: 0 0 0 3px rgba(91, 95, 222, 0.1);
+                }}
+                
+                /* コンテンツエリア */
+                .content-area {{
+                    padding: 30px;
+                    background: var(--gray-50);
+                }}
+                
+                /* ビューコンテンツ */
                 .view-content {{
                     display: none;
+                    animation: fadeIn 0.3s ease-in-out;
                 }}
                 
                 .view-content.active {{
                     display: block;
                 }}
                 
-                /* 情報パネル */
+                @keyframes fadeIn {{
+                    from {{
+                        opacity: 0;
+                        transform: translateY(10px);
+                    }}
+                    to {{
+                        opacity: 1;
+                        transform: translateY(0);
+                    }}
+                }}
+                
+                /* セクション（改善版） */
+                .section {{
+                    background: white;
+                    border-radius: 16px;
+                    padding: 32px;
+                    margin-bottom: 24px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                    border: 1px solid rgba(0,0,0,0.05);
+                    transition: all 0.3s ease;
+                }}
+                
+                .section:hover {{
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                }}
+                
+                .section h2 {{
+                    color: var(--gray-800);
+                    font-size: 1.5em;
+                    margin-bottom: 24px;
+                    padding-bottom: 12px;
+                    border-bottom: 2px solid var(--gray-100);
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-weight: 700;
+                }}
+                
+                /* メトリクスカード */
+                .summary-cards {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }}
+                
+                .summary-card {{
+                    background: white;
+                    border-radius: 16px;
+                    padding: 24px;
+                    text-align: center;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                    transition: all var(--transition-normal);
+                    border: 1px solid var(--gray-100);
+                    position: relative;
+                    overflow: hidden;
+                }}
+                
+                .summary-card::before {{
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 4px;
+                    background: var(--gray-200);
+                    transition: all 0.3s ease;
+                }}
+                
+                .summary-card.card-good::before {{
+                    background: linear-gradient(90deg, var(--success-color), #22d3ee);
+                }}
+                
+                .summary-card.card-warning::before {{
+                    background: linear-gradient(90deg, var(--warning-color), #fbbf24);
+                }}
+                
+                .summary-card.card-danger::before {{
+                    background: linear-gradient(90deg, var(--danger-color), #f87171);
+                }}
+                
+                .summary-card.card-info::before {{
+                    background: linear-gradient(90deg, var(--info-color), #60a5fa);
+                }}
+                
+                .summary-card:hover {{
+                    transform: translateY(-4px);
+                    box-shadow: 0 8px 16px rgba(0,0,0,0.12);
+                }}
+                
+                .summary-card h3 {{
+                    font-size: 0.9em;
+                    color: var(--gray-600);
+                    margin-bottom: 12px;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }}
+                
+                .summary-card .value {{
+                    font-size: 2.2em;
+                    font-weight: 700;
+                    margin-bottom: 8px;
+                    letter-spacing: -0.02em;
+                    background: linear-gradient(135deg, var(--gray-800), var(--gray-600));
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }}
+                
+                .summary-card.card-good .value {{
+                    background: linear-gradient(135deg, var(--success-color), #10b981);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }}
+                
+                .summary-card.card-warning .value {{
+                    background: linear-gradient(135deg, var(--warning-color), #f59e0b);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }}
+                
+                .summary-card.card-danger .value {{
+                    background: linear-gradient(135deg, var(--danger-color), #ef4444);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }}
+                
+                /* 情報パネル（改善版） */
                 .info-panel {{
                     display: none;
                     position: fixed;
@@ -303,9 +680,11 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     left: 0;
                     right: 0;
                     bottom: 0;
-                    background: rgba(0, 0, 0, 0.5);
+                    background: rgba(0, 0, 0, 0.6);
+                    backdrop-filter: blur(4px);
                     z-index: 1000;
                     overflow-y: auto;
+                    animation: fadeIn 0.3s ease-out;
                 }}
                 
                 .info-panel.active {{
@@ -316,35 +695,162 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     max-width: 900px;
                     margin: 40px auto;
                     background: white;
-                    border-radius: 16px;
+                    border-radius: 20px;
                     padding: 40px;
                     position: relative;
-                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+                    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+                    animation: slideIn 0.3s ease-out;
+                    max-height: 90vh;
+                    overflow-y: auto;
+                }}
+                
+                @keyframes slideIn {{
+                    from {{
+                        opacity: 0;
+                        transform: translateY(-20px);
+                    }}
+                    to {{
+                        opacity: 1;
+                        transform: translateY(0);
+                    }}
                 }}
                 
                 .close-button {{
                     position: absolute;
                     top: 20px;
                     right: 20px;
-                    background: none;
+                    background: var(--gray-100);
                     border: none;
                     font-size: 1.5em;
                     cursor: pointer;
-                    color: #666;
+                    color: var(--gray-600);
                     width: 40px;
                     height: 40px;
                     border-radius: 50%;
                     transition: all 0.3s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }}
                 
                 .close-button:hover {{
-                    background: #f0f0f0;
+                    background: var(--gray-200);
+                    transform: rotate(90deg);
                 }}
                 
-                /* 既存のスタイルを追加 */
-                {_get_css_styles()}
+                .info-content h2 {{
+                    color: var(--gray-800);
+                    margin-bottom: 30px;
+                    font-size: 1.8em;
+                    border-bottom: 3px solid var(--primary-color);
+                    padding-bottom: 15px;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }}
                 
-                /* ハイスコア専用スタイル */
+                .info-section {{
+                    margin-bottom: 35px;
+                }}
+                
+                .info-section h3 {{
+                    color: var(--gray-700);
+                    margin-bottom: 15px;
+                    font-size: 1.3em;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }}
+                
+                /* 優先度ボックス（改善版） */
+                .priority-box {{
+                    background: white;
+                    border: 2px solid var(--gray-200);
+                    border-radius: 12px;
+                    padding: 20px;
+                    margin-bottom: 15px;
+                    transition: all 0.3s ease;
+                    position: relative;
+                    overflow: hidden;
+                }}
+                
+                .priority-box::before {{
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 5px;
+                    height: 100%;
+                    background: var(--gray-300);
+                }}
+                
+                .priority-box.urgent {{
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(239, 68, 68, 0.02) 100%);
+                    border-color: rgba(239, 68, 68, 0.3);
+                }}
+                
+                .priority-box.urgent::before {{
+                    background: var(--danger-color);
+                }}
+                
+                .priority-box.medium {{
+                    background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(245, 158, 11, 0.02) 100%);
+                    border-color: rgba(245, 158, 11, 0.3);
+                }}
+                
+                .priority-box.medium::before {{
+                    background: var(--warning-color);
+                }}
+                
+                .priority-box.low {{
+                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.02) 100%);
+                    border-color: rgba(16, 185, 129, 0.3);
+                }}
+                
+                .priority-box.low::before {{
+                    background: var(--success-color);
+                }}
+                
+                .priority-box:hover {{
+                    transform: translateX(5px);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                }}
+                
+                /* 評価基準テーブル（改善版） */
+                .criteria-table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                }}
+                
+                .criteria-table th {{
+                    background: linear-gradient(135deg, var(--gray-100), var(--gray-50));
+                    padding: 14px;
+                    text-align: left;
+                    font-weight: 600;
+                    color: var(--gray-700);
+                    border-bottom: 2px solid var(--gray-200);
+                }}
+                
+                .criteria-table td {{
+                    padding: 14px;
+                    border-bottom: 1px solid var(--gray-100);
+                    background: white;
+                    transition: background 0.2s ease;
+                }}
+                
+                .criteria-table tr:hover td {{
+                    background: var(--gray-50);
+                }}
+                
+                .criteria-table tr:last-child td {{
+                    border-bottom: none;
+                }}
+                
+                /* ランキング関連（既存） */
                 .ranking-grid {{
                     display: grid;
                     grid-template-columns: 1fr 1fr;
@@ -352,76 +858,15 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     margin-bottom: 30px;
                 }}
                 
-                .ranking-item {{
-                    display: flex;
-                    align-items: center;
-                    gap: 15px;
-                    padding: 15px;
-                    background: white;
-                    border-radius: 8px;
-                    margin-bottom: 10px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    border-left: 4px solid #D1D5DB;
-                    transition: all 0.2s ease;
-                }}
-                
-                .ranking-item:hover {{
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-                }}
-                
-                .ranking-item.rank-1 {{
-                    border-left-color: #FFD700;
-                    background: linear-gradient(to right, rgba(255,215,0,0.1), white);
-                }}
-                
-                .ranking-item.rank-2 {{
-                    border-left-color: #C0C0C0;
-                    background: linear-gradient(to right, rgba(192,192,192,0.1), white);
-                }}
-                
-                .ranking-item.rank-3 {{
-                    border-left-color: #CD7F32;
-                    background: linear-gradient(to right, rgba(205,127,50,0.1), white);
-                }}
-                
-                .medal {{
-                    font-size: 1.8em;
-                    min-width: 50px;
-                    text-align: center;
-                }}
-                
-                .ranking-info {{
-                    flex: 1;
-                }}
-                
-                .ranking-info .name {{
-                    font-weight: bold;
-                    color: var(--gray-800);
-                    margin-bottom: 4px;
-                }}
-                
-                .ranking-info .detail {{
-                    font-size: 0.9em;
-                    color: var(--gray-600);
-                }}
-                
-                .score {{
-                    font-size: 1.6em;
-                    font-weight: bold;
-                    color: var(--primary-color);
-                    min-width: 70px;
-                    text-align: center;
-                }}
-                
                 .ranking-section h3 {{
                     color: var(--primary-color);
                     margin-bottom: 20px;
                     font-size: 1.2em;
                     text-align: center;
-                    padding: 10px;
-                    background: rgba(91, 95, 222, 0.1);
-                    border-radius: 8px;
+                    padding: 12px;
+                    background: linear-gradient(135deg, rgba(91, 95, 222, 0.1) 0%, rgba(91, 95, 222, 0.05) 100%);
+                    border-radius: 10px;
+                    font-weight: 700;
                 }}
                 
                 .ranking-list {{
@@ -431,72 +876,91 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     border: 1px solid var(--gray-200);
                 }}
                 
-                .period-info {{
-                    text-align: center;
-                    color: var(--gray-600);
-                    margin-bottom: 20px;
-                    font-size: 0.95em;
-                }}
-                
-                /* 情報パネル専用スタイル */
-                .info-section {{
-                    margin-bottom: 35px;
-                }}
-                
-                .info-section h3 {{
-                    color: #4b5563;
-                    margin-bottom: 15px;
-                    font-size: 1.2em;
-                }}
-                
-                .priority-box {{
-                    background: rgba(91, 95, 222, 0.05);
-                    border: 1px solid rgba(91, 95, 222, 0.2);
-                    border-radius: 8px;
+                .ranking-item {{
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
                     padding: 15px;
-                    margin-bottom: 15px;
+                    background: white;
+                    border-radius: 10px;
+                    margin-bottom: 12px;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                    border-left: 4px solid var(--gray-300);
+                    transition: all 0.3s ease;
                 }}
                 
-                .priority-box.urgent {{
-                    background: rgba(239, 68, 68, 0.05);
-                    border-color: rgba(239, 68, 68, 0.2);
+                .ranking-item:hover {{
+                    transform: translateX(5px);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
                 }}
                 
-                .priority-box.medium {{
-                    background: rgba(245, 158, 11, 0.05);
-                    border-color: rgba(245, 158, 11, 0.2);
+                .ranking-item.rank-1 {{
+                    border-left-color: #FFD700;
+                    background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, white 100%);
                 }}
                 
-                .priority-box.low {{
-                    background: rgba(16, 185, 129, 0.05);
-                    border-color: rgba(16, 185, 129, 0.2);
+                .ranking-item.rank-2 {{
+                    border-left-color: #C0C0C0;
+                    background: linear-gradient(135deg, rgba(192, 192, 192, 0.1) 0%, white 100%);
                 }}
                 
-                .criteria-table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 15px;
+                .ranking-item.rank-3 {{
+                    border-left-color: #CD7F32;
+                    background: linear-gradient(135deg, rgba(205, 127, 50, 0.1) 0%, white 100%);
                 }}
                 
-                .criteria-table th {{
-                    background: #f3f4f6;
-                    padding: 12px;
-                    text-align: left;
-                    font-weight: 600;
-                    color: #374151;
-                }}
-                
-                .criteria-table td {{
-                    padding: 12px;
-                    border-bottom: 1px solid #e5e7eb;
-                }}
-                
+                /* レスポンシブ対応 */
                 @media (max-width: 768px) {{
+                    .container {{
+                        margin: 0;
+                        border-radius: 0;
+                    }}
+                    
+                    .header {{
+                        padding: 30px 20px;
+                    }}
+                    
+                    h1 {{
+                        font-size: 2em;
+                    }}
+                    
+                    .info-button {{
+                        position: static;
+                        margin-top: 15px;
+                        display: inline-flex;
+                        margin-left: auto;
+                        margin-right: auto;
+                    }}
+                    
+                    .controls {{
+                        padding: 20px;
+                    }}
+                    
+                    .quick-buttons {{
+                        gap: 8px;
+                    }}
+                    
+                    .quick-button {{
+                        padding: 10px 16px;
+                        font-size: 0.9em;
+                    }}
+                    
+                    select {{
+                        min-width: 200px;
+                    }}
+                    
+                    .selector-wrapper {{
+                        padding: 6px 12px 6px 16px;
+                    }}
+                    
                     .ranking-grid {{
                         grid-template-columns: 1fr;
                         gap: 20px;
                     }}
                 }}
+                
+                /* 既存のCSS統合 */
+                {_get_css_styles()}
             </style>
         </head>
         <body>
@@ -505,7 +969,8 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     <h1>統合パフォーマンスレポート</h1>
                     <p class="subtitle">期間: {period_desc} | 🔥 直近週重視版</p>
                     <button class="info-button" onclick="toggleInfoPanel()">
-                        ℹ️ 評価基準・用語説明（直近週重視）
+                        <span style="font-size: 1.1em;">ℹ️</span>
+                        <span>評価基準・用語説明</span>
                     </button>
                 </div>
                 <div class="controls">
@@ -526,7 +991,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     
                     <div class="selector-group">
                         <div class="selector-wrapper" id="dept-selector-wrapper" style="display: none;">
-                            <label class="selector-label" for="dept-selector">診療科</label>
+                            <label class="selector-label" for="dept-selector">🩺 診療科</label>
                             <select id="dept-selector" onchange="changeView(this.value)">
                                 <option value="">診療科を選択してください</option>
                                 {dept_options}
@@ -534,7 +999,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         </div>
                         
                         <div class="selector-wrapper" id="ward-selector-wrapper" style="display: none;">
-                            <label class="selector-label" for="ward-selector">病棟</label>
+                            <label class="selector-label" for="ward-selector">🏢 病棟</label>
                             <select id="ward-selector" onchange="changeView(this.value)">
                                 <option value="">病棟を選択してください</option>
                                 {ward_options}
@@ -693,7 +1158,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         }}
                     }}
                 }});
-            </script>
+			</script>
         </body>
         </html>
         """
@@ -702,6 +1167,156 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
     except Exception as e:
         logger.error(f"統合HTMLレポート生成エラー: {e}", exc_info=True)
         return f"<html><body>レポート全体の生成でエラーが発生しました: {e}</body></html>"
+
+def _get_integrated_javascript():
+    """統合されたJavaScript"""
+    return """
+        // デバッグ用
+        console.log('Script loaded');
+        
+        let currentType = null;
+        
+        function showView(viewId) {
+            console.log('showView called with:', viewId);
+            
+            // 全てのビューを非表示
+            document.querySelectorAll('.view-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // 指定されたビューを表示
+            const targetView = document.getElementById(viewId);
+            if (targetView) {
+                targetView.classList.add('active');
+                console.log('View activated:', viewId);
+                
+                // Plotlyチャートの再描画をトリガー
+                setTimeout(function() {
+                    window.dispatchEvent(new Event('resize'));
+                    
+                    if (window.Plotly) {
+                        const plots = targetView.querySelectorAll('.plotly-graph-div');
+                        plots.forEach(plot => {
+                            Plotly.Plots.resize(plot);
+                        });
+                    }
+                }, 100);
+            } else {
+                console.error('View not found:', viewId);
+            }
+            
+            // クイックボタンのアクティブ状態を更新
+            document.querySelectorAll('.quick-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (viewId === 'view-all') {
+                document.querySelector('.quick-button').classList.add('active');
+                // セレクターを隠す
+                document.getElementById('dept-selector-wrapper').style.display = 'none';
+                document.getElementById('ward-selector-wrapper').style.display = 'none';
+                document.getElementById('dept-selector').value = '';
+                document.getElementById('ward-selector').value = '';
+                currentType = null;
+            } else if (viewId === 'view-high-score') {
+                // ハイスコアボタンをアクティブに（インデックスで指定）
+                const buttons = document.querySelectorAll('.quick-button');
+                if (buttons.length > 3) {
+                    buttons[3].classList.add('active');
+                }
+                // セレクターを隠す
+                document.getElementById('dept-selector-wrapper').style.display = 'none';
+                document.getElementById('ward-selector-wrapper').style.display = 'none';
+                currentType = null;
+            }
+        }
+        
+        function toggleTypeSelector(type) {
+            console.log('toggleTypeSelector called with:', type);
+            
+            // 全てのビューを非表示
+            document.querySelectorAll('.view-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // セレクターの表示切替
+            if (type === 'dept') {
+                document.getElementById('dept-selector-wrapper').style.display = 'flex';
+                document.getElementById('ward-selector-wrapper').style.display = 'none';
+                document.getElementById('ward-selector').value = '';
+            } else if (type === 'ward') {
+                document.getElementById('dept-selector-wrapper').style.display = 'none';
+                document.getElementById('ward-selector-wrapper').style.display = 'flex';
+                document.getElementById('dept-selector').value = '';
+            }
+            
+            currentType = type;
+            
+            // クイックボタンのアクティブ状態を更新
+            document.querySelectorAll('.quick-button').forEach((btn, index) => {
+                btn.classList.toggle('active', 
+                    (index === 1 && type === 'dept') || 
+                    (index === 2 && type === 'ward')
+                );
+            });
+        }
+        
+        function changeView(viewId) {
+            console.log('changeView called with:', viewId);
+            if (viewId) {
+                showView(viewId);
+            }
+        }
+        
+        function toggleInfoPanel() {
+            console.log('toggleInfoPanel called');
+            const panel = document.getElementById('info-panel');
+            if (panel) {
+                panel.classList.toggle('active');
+                console.log('Info panel toggled');
+            } else {
+                console.error('Info panel not found');
+            }
+        }
+        
+        // パネル外クリックで閉じる
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM Content Loaded');
+            
+            const infoPanel = document.getElementById('info-panel');
+            if (infoPanel) {
+                infoPanel.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        toggleInfoPanel();
+                    }
+                });
+            }
+            
+            // 初期表示時にPlotlyチャートを確実に表示
+            setTimeout(function() {
+                window.dispatchEvent(new Event('resize'));
+                if (window.Plotly) {
+                    const plots = document.querySelectorAll('#view-all .plotly-graph-div');
+                    plots.forEach(plot => {
+                        Plotly.Plots.resize(plot);
+                    });
+                }
+            }, 300);
+        });
+        
+        // ブラウザのリサイズ時にもチャートを再描画
+        window.addEventListener('resize', function() {
+            if (window.Plotly) {
+                const activeView = document.querySelector('.view-content.active');
+                if (activeView) {
+                    const plots = activeView.querySelectorAll('.plotly-graph-div');
+                    plots.forEach(plot => {
+                        Plotly.Plots.resize(plot);
+                    });
+                }
+            }
+        });
+    """
 
 def _get_all_styles():
     """すべてのスタイルを統合して返す"""
