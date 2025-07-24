@@ -887,7 +887,8 @@ def calculate_high_score(df, target_data, entity_name, entity_type, start_date, 
             return None # 直近週のデータがなければ計算不可
             
         # ★ 修正点 2: 「直近週の平均在院患者数」を7日間平均で計算
-        latest_week_avg_census = recent_week_df['在院患者数'].mean()
+        recent_week_df_grouped = recent_week_df.groupby('日付')['在院患者数'].sum().reset_index()
+        latest_week_avg_census = recent_week_df_grouped['在院患者数'].mean()
 
         # 1. 直近週達成度（50点）- 新しい計算方法を適用
         latest_achievement_rate = (latest_week_avg_census / target_value) * 100
