@@ -44,7 +44,7 @@ def generate_metrics_html(kpi_data_list, period_desc, selected_metric, dashboard
             target_val = kpi.get(opt['target'])
             achievement = kpi.get(opt['ach'], 0)
             # ★修正点: 「日平均在院患者数」の場合のみ、達成率を直近週データで再計算
-            if selected_metric == "日平均在院患者数":
+            if selected_metric in ["日平均在院患者数", "週合計新入院患者数"]:
                 recent_val = kpi.get(opt['recent'], 0)
                 if target_val and target_val > 0:
                     achievement = (recent_val / target_val) * 100
@@ -424,8 +424,8 @@ def generate_metric_tab_content(kpi_data_list, metric_name, dashboard_type):
             recent_val = kpi.get(opt['recent'], 0)
             target_val = kpi.get(opt['target'])
             achievement = kpi.get(opt['ach'], 0)
-            # ★修正点: 「日平均在院患者数」の場合のみ、達成率を直近週データで再計算
-            if metric_name == "日平均在院患者数":
+            # ★ここを修正
+            if selected_metric in ["日平均在院患者数", "週合計新入院患者数"]:
                 recent_val = kpi.get(opt['recent'], 0)
                 if target_val and target_val > 0:
                     achievement = (recent_val / target_val) * 100
