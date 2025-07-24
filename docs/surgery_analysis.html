@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>診療科別パフォーマンスダッシュボード - 2025/04/01 ~ 2025/07/21</title>
+        <style>
+            body {
+                background: #f5f7fa;
+                font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                margin: 0;
+                padding: 20px;
+                color: #333;
+            }
+            
+            h1 {
+                text-align: center;
+                color: #293a27;
+                margin-bottom: 10px;
+                font-size: 24px;
+            }
+            
+            .subtitle {
+                text-align: center;
+                color: #666;
+                margin-bottom: 30px;
+                font-size: 14px;
+            }
+            
+            .grid-container {
+                display: grid;
+                gap: 20px;
+                max-width: 1920px;
+                margin: 0 auto;
+            }
+            
+            /* デフォルト: 3列レイアウト */
+            .grid-container {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            /* 大画面: 4列レイアウト */
+            @media (min-width: 1400px) {
+                .grid-container {
+                    grid-template-columns: repeat(4, 1fr);
+                }
+            }
+            
+            /* 超大画面: 5列レイアウト */
+            @media (min-width: 1800px) {
+                .grid-container {
+                    grid-template-columns: repeat(5, 1fr);
+                }
+            }
+            
+            /* タブレット: 2列レイアウト */
+            @media (max-width: 900px) {
+                .grid-container {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+            
+            /* モバイル: 1列レイアウト */
+            @media (max-width: 600px) {
+                .grid-container {
+                    grid-template-columns: 1fr;
+                }
+            }
+            
+            .grid-item {
+                min-height: 165px;
+            }
+            
+            .metric-card {
+                transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            }
+            
+            .metric-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            }
+            
+            .summary {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                margin-bottom: 30px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            
+            .summary-stats {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .stat-item {
+                padding: 10px;
+            }
+            
+            .stat-value {
+                font-size: 24px;
+                font-weight: bold;
+                color: #293a27;
+            }
+            
+            .stat-label {
+                font-size: 14px;
+                color: #666;
+                margin-top: 5px;
+            }
+            
+            @media print {
+                body {
+                    padding: 10px;
+                }
+                .grid-container {
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 15px;
+                }
+                .metric-card:hover {
+                    transform: none;
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                }
+            }
+        </style>
+    
+        <style>
+            /* レスポンシブCSS - スマホ3列表示対応 */
+            @media (max-width: 600px) {
+                .grid-container {
+                    grid-template-columns: repeat(3, 1fr) !important;
+                    gap: 10px !important;
+                }
+                .metric-card {
+                    padding: 10px !important;
+                    font-size: 0.85em !important;
+                }
+                .metric-card h5 {
+                    font-size: 0.9em !important;
+                    margin-bottom: 8px !important;
+                }
+                .metric-card > div {
+                    font-size: 0.8em !important;
+                }
+                .metric-card > div:last-child > div {
+                    height: 4px !important;
+                }
+            }
+            @media (max-width: 900px) {
+                .grid-container {
+                    grid-template-columns: repeat(3, 1fr) !important;
+                    gap: 15px !important;
+                }
+            }
+        </style>
+        </head>
+    <body>
+        <h1>診療科別パフォーマンスダッシュボード</h1>
+        <div class="subtitle">分析期間: 2025/04/01 ~ 2025/07/21</div>
+        
+        <div class="summary">
+            <div class="summary-stats">
+                <div class="stat-item">
+                    <div class="stat-value">12</div>
+                    <div class="stat-label">診療科数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">3</div>
+                    <div class="stat-label">目標達成科数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">84.0%</div>
+                    <div class="stat-label">平均達成率</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="grid-container">
+            <div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #28a7451A; 
+                border-left: 5px solid #28a745; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">形成外科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">2.4 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">5 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>3.0 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #28a745; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">166.7%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 100%; background-color: #28a745; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #28a7451A; 
+                border-left: 5px solid #28a745; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">泌尿器科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">11.6 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">12 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>10.2 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #28a745; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">117.6%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 100%; background-color: #28a745; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #28a7451A; 
+                border-left: 5px solid #28a745; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">乳腺外科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">6.8 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">9 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>8.1 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #28a745; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">111.1%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 100%; background-color: #28a745; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #ffc1071A; 
+                border-left: 5px solid #ffc107; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">歯科口腔外科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">2.7 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">3 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>3.2 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #ffc107; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">93.8%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 93.75%; background-color: #ffc107; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #ffc1071A; 
+                border-left: 5px solid #ffc107; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">整形外科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">28.8 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">25 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>27.2 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #ffc107; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">91.9%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 91.91176470588236%; background-color: #ffc107; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #ffc1071A; 
+                border-left: 5px solid #ffc107; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">皮膚科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">1.2 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">1 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>1.2 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #ffc107; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">83.3%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 83.33333333333334%; background-color: #ffc107; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #dc35451A; 
+                border-left: 5px solid #dc3545; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">呼吸器外科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">2.2 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">2 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>2.8 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #dc3545; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">71.4%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 71.42857142857143%; background-color: #dc3545; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #dc35451A; 
+                border-left: 5px solid #dc3545; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">脳神経外科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">2.1 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">2 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>3.0 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #dc3545; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">66.7%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 66.66666666666666%; background-color: #dc3545; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #dc35451A; 
+                border-left: 5px solid #dc3545; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">産婦人科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">9.6 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">8 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>12.5 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #dc3545; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">64.0%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 64.0%; background-color: #dc3545; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #dc35451A; 
+                border-left: 5px solid #dc3545; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">一般消化器外科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">12.6 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">8 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>14.1 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #dc3545; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">56.7%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 56.73758865248227%; background-color: #dc3545; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #dc35451A; 
+                border-left: 5px solid #dc3545; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">心臓血管外科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">1.5 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">1 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>2.1 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #dc3545; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">47.6%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 47.61904761904761%; background-color: #dc3545; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div><div class="grid-item">
+            <div class="metric-card" style="
+                background-color: #dc35451A; 
+                border-left: 5px solid #dc3545; 
+                padding: 12px; 
+                border-radius: 5px; 
+                height: 165px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            ">
+                <h5 style="margin: 0 0 10px 0; font-weight: bold; color: #333;">耳鼻咽喉科</h5>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>期間平均:</span>
+                    <span style="font-weight: bold;">6.1 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em;">
+                    <span>直近週実績:</span>
+                    <span style="font-weight: bold;">3 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #666;">
+                    <span>目標:</span>
+                    <span>8.1 件</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.1em; color: #dc3545; margin-top: 5px;">
+                    <span style="font-weight: bold;">達成率:</span>
+                    <span style="font-weight: bold;">37.0%</span>
+                </div>
+                <div style="background-color: #e9ecef; border-radius: 5px; height: 6px; margin-top: 5px;">
+                    <div style="width: 37.03703703703704%; background-color: #dc3545; height: 6px; border-radius: 5px;"></div>
+                </div>
+            </div>
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px; color: #999; font-size: 12px;">
+            生成日時: 2025年07月21日 22:14
+        </div>
+    
+        <style>
+            .injected-fab-home {
+                position: fixed;
+                bottom: 30px;
+                right: 30px;
+                width: 60px;
+                height: 60px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-decoration: none;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                transition: all 0.3s ease;
+                z-index: 9999;
+                cursor: pointer;
+            }
+            .injected-fab-home:hover {
+                transform: scale(1.1) translateY(-3px);
+                box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+                background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            }
+            @media (max-width: 768px) {
+                .injected-fab-home {
+                    bottom: 20px;
+                    right: 20px;
+                    width: 50px;
+                    height: 50px;
+                }
+            }
+            @media print {
+                .injected-fab-home { display: none; }
+            }
+        </style>
+        <a href="./index.html" class="injected-fab-home" aria-label="ホームに戻る">
+            <span style="font-size: 1.8em;">🏠</span>
+        </a>
+        </body>
+    </html>
+    
