@@ -3,9 +3,10 @@ import json
 
 def get_effort_status_from_kpi(kpi):
     """KPIデータから努力度を計算（enhanced_action_analysis.pyと同じロジック）"""
-    current_census = kpi.get('daily_avg_census', 0)
-    recent_week_census = kpi.get('recent_week_daily_census', 0)
-    census_achievement = kpi.get('daily_census_achievement', 0)
+    # ★修正: or 0 を追加してNoneを安全に処理
+    current_census = kpi.get('daily_avg_census', 0) or 0
+    recent_week_census = kpi.get('recent_week_daily_census', 0) or 0
+    census_achievement = kpi.get('daily_census_achievement', 0) or 0
     
     trend_change = recent_week_census - current_census
     
@@ -54,9 +55,10 @@ def get_effort_status_from_kpi(kpi):
 
 def calculate_improvement_speed(kpi):
     """改善スピード度を計算"""
-    current_avg = kpi.get('daily_avg_census', 0)
-    recent_week = kpi.get('recent_week_daily_census', 0)
-    target = kpi.get('daily_census_target', 0)
+    # ★修正: or 0 を追加してNoneを安全に処理
+    current_avg = kpi.get('daily_avg_census', 0) or 0
+    recent_week = kpi.get('recent_week_daily_census', 0) or 0
+    target = kpi.get('daily_census_target', 0) or 0
     
     if target <= 0:
         return {"speed_icon": "❓", "speed_text": "評価困難", "color": "#9E9E9E", "rate": ""}
@@ -78,10 +80,11 @@ def generate_simple_effect_simulation(kpi):
     """シンプルな効果シミュレーション（理論説明なし）"""
     try:
         # 現在の値を取得
-        weekly_admissions = kpi.get('weekly_avg_admissions', 0)
+        # ★修正: or 0 を追加してNoneを安全に処理
+        weekly_admissions = kpi.get('weekly_avg_admissions', 0) or 0
         daily_admissions = weekly_admissions / 7
-        current_los = kpi.get('avg_length_of_stay', 0)
-        current_census = kpi.get('daily_avg_census', 0)
+        current_los = kpi.get('avg_length_of_stay', 0) or 0
+        current_census = kpi.get('daily_avg_census', 0) or 0
         
         # シナリオ1：新入院を週に1人増やした場合
         new_daily_admissions_1 = daily_admissions + 1/7
@@ -137,6 +140,13 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
         
         # HTMLカード生成（努力度表示版）
         cards_html = ""
+        
+        try:
+            total_current_census = sum(r.get('kpi', {}).get('daily_avg_census', 0) or 0 for r in sorted_results if r.get('kpi'))
+            total_hospital_gap = hospital_targets.get('daily_census', 580) - total_current_census
+        except Exception:
+            total_hospital_gap = None # 計算失敗時はNoneに
+
         for result in sorted_results:
             try:
                 kpi = result.get('kpi', {})
@@ -193,15 +203,19 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
 
                 # 期待効果（安全な計算）
                 effect_text = "目標達成済み"
+                
+                # census_gapは、前段で再計算した「直近週実績と目標との差」とします
                 if census_target and census_target > 0 and census_gap < 0:
-                    # 病院全体ギャップの計算
-                    total_hospital_gap = hospital_targets.get('daily_census', 580) - sum(r.get('kpi', {}).get('daily_avg_census', 0) for r in action_results if r.get('kpi'))
-                    if total_hospital_gap > 0:
+                    
+                    # 事前に計算した total_hospital_gap を使用し、Noneでないことも確認
+                    if total_hospital_gap is not None and total_hospital_gap > 0:
                         hospital_contribution = abs(census_gap) / total_hospital_gap * 100
                         hospital_contribution = min(100.0, max(0.0, hospital_contribution))  # 0-100%に制限
                         effect_text = f"目標達成により病院全体ギャップの{hospital_contribution:.1f}%改善"
                     else:
+                        # 病院全体では目標を達成しているか、ギャップが計算できない場合
                         effect_text = "現状維持により安定した貢献"
+                        
                 elif census_target == 0 or census_target is None:
                     effect_text = "目標値未設定のため効果測定困難"
 
@@ -273,7 +287,7 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
 
         # 病院全体サマリー（安全な計算）
         try:
-            total_census = sum(r.get('kpi', {}).get('daily_avg_census', 0) for r in action_results if r.get('kpi'))
+            total_census = sum(r.get('kpi', {}).get('daily_avg_census', 0) or 0 for r in action_results if r.get('kpi'))
             total_admissions = sum(r.get('kpi', {}).get('weekly_avg_admissions', 0) for r in action_results if r.get('kpi')) / 7
             
             hospital_census_ach = (total_census / hospital_targets['daily_census'] * 100) if hospital_targets.get('daily_census', 0) > 0 else 0
