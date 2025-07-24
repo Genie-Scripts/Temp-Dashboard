@@ -185,161 +185,321 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             <div class="info-content">
                 <button class="close-button" onclick="toggleInfoPanel()">✕</button>
                 
-                <h2>📊 評価基準について（直近週重視版）</h2>
+                <h2>📊 評価基準・用語説明（直近週重視版）</h2>
                 
-                <div class="info-section">
-                    <h3>🎯 アクションの優先順位（98%基準・直近週重視）</h3>
-                    <div class="priority-box urgent">
-                        <h4>🚨 緊急（直近週達成率90%未満）</h4>
-                        <p>直近週の実績が90%を下回る場合、新入院増加と在院日数適正化の両面からの緊急対応が必要</p>
-                    </div>
-                    <div class="priority-box medium">
-                        <h4>⚠️ 高（直近週達成率90-98%）</h4>
-                        <p>直近週の新入院目標達成状況により、新入院増加または在院日数調整を選択的に実施</p>
-                    </div>
-                    <div class="priority-box low">
-                        <h4>✅ 低（直近週達成率98%以上）</h4>
-                        <p>直近週で目標達成済み。現状維持を基本とし、さらなる効率化の余地を検討</p>
-                    </div>
-                    <div class="emphasis-box">
-                        <strong>📍 重要：</strong>評価は<span style="color: #e91e63; font-weight: bold;">直近週の実績</span>を最重要視し、
-                        <span style="color: #5b5fde; font-weight: bold;">98%基準</span>で判定します
-                    </div>
+                <!-- タブナビゲーション -->
+                <div class="info-tabs">
+                    <button class="info-tab active" onclick="showInfoTab('priority')">
+                        <span>🎯</span> アクション優先順位
+                    </button>
+                    <button class="info-tab" onclick="showInfoTab('evaluation')">
+                        <span>🌟</span> 週間総合評価
+                    </button>
+                    <button class="info-tab" onclick="showInfoTab('highscore')">
+                        <span>🏆</span> ハイスコア評価
+                    </button>
+                    <button class="info-tab" onclick="showInfoTab('improvement')">
+                        <span>📈</span> 改善度評価
+                    </button>
+                    <button class="info-tab" onclick="showInfoTab('los')">
+                        <span>📅</span> 在院日数評価
+                    </button>
+                    <button class="info-tab" onclick="showInfoTab('terms')">
+                        <span>📖</span> 用語説明
+                    </button>
+                    <button class="info-tab" onclick="showInfoTab('flow')">
+                        <span>🔄</span> 判定フロー
+                    </button>
                 </div>
                 
-                <div class="info-section">
-                    <h3>🌟 週間総合評価（S〜D）- 直近週基準</h3>
-                    <table class="criteria-table">
-                        <tr>
-                            <th>評価</th>
-                            <th>基準</th>
-                            <th>説明</th>
-                        </tr>
-                        <tr class="grade-s">
-                            <td><strong>S</strong></td>
-                            <td>直近週目標達成＋大幅改善</td>
-                            <td>直近週達成率<span style="color: #10b981; font-weight: bold;">98%以上</span>かつ期間平均比+10%以上</td>
-                        </tr>
-                        <tr class="grade-a">
-                            <td><strong>A</strong></td>
-                            <td>直近週目標達成＋改善傾向</td>
-                            <td>直近週達成率<span style="color: #3b82f6; font-weight: bold;">98%以上</span>かつ期間平均比+5%以上</td>
-                        </tr>
-                        <tr class="grade-b">
-                            <td><strong>B</strong></td>
-                            <td>改善傾向あり</td>
-                            <td>直近週目標未達だが期間平均比プラス</td>
-                        </tr>
-                        <tr class="grade-c">
-                            <td><strong>C</strong></td>
-                            <td>横ばい傾向</td>
-                            <td>期間平均比±5%以内</td>
-                        </tr>
-                        <tr class="grade-d">
-                            <td><strong>D</strong></td>
-                            <td>要改善</td>
-                            <td>期間平均比-5%以下</td>
-                        </tr>
-                    </table>
-                    <div class="attention-box">
-                        <span style="color: #92400e;">⚠️ 重要な変更点</span><br>
-                        • 目標達成基準を95%から<strong style="color: #e91e63;">98%</strong>に引き上げ<br>
-                        • 評価軸を期間平均から<strong style="color: #5b5fde;">直近週実績</strong>に変更<br>
-                        • 変化率は「直近週 vs 期間平均」で算出
+                <!-- タブコンテンツ -->
+                <div class="info-tab-content">
+                    <!-- アクション優先順位タブ -->
+                    <div id="priority-tab" class="tab-pane active">
+                        <h3>🎯 アクションの優先順位（98%基準・直近週重視）</h3>
+                        <div class="priority-box urgent">
+                            <h4>🚨 緊急（直近週達成率90%未満）</h4>
+                            <p>直近週の実績が90%を下回る場合、新入院増加と在院日数適正化の両面からの緊急対応が必要</p>
+                        </div>
+                        <div class="priority-box medium">
+                            <h4>⚠️ 高（直近週達成率90-98%）</h4>
+                            <p>直近週の新入院目標達成状況により、新入院増加または在院日数調整を選択的に実施</p>
+                        </div>
+                        <div class="priority-box low">
+                            <h4>✅ 低（直近週達成率98%以上）</h4>
+                            <p>直近週で目標達成済み。現状維持を基本とし、さらなる効率化の余地を検討</p>
+                        </div>
+                        <div class="emphasis-box">
+                            <strong>📍 重要：</strong>評価は<span style="color: #e91e63; font-weight: bold;">直近週の実績</span>を最重要視し、
+                            <span style="color: #5b5fde; font-weight: bold;">98%基準</span>で判定します
+                        </div>
                     </div>
-                </div>
-                
-                <div class="info-section">
-                    <h3>📈 改善度評価（直近週 vs 期間平均）</h3>
-                    <ul class="criteria-list">
-                        <li><span class="badge excellent">大幅改善</span> 直近週が期間平均比+10%以上</li>
-                        <li><span class="badge good">改善</span> 直近週が期間平均比+5〜10%</li>
-                        <li><span class="badge stable">維持</span> 直近週が期間平均比±5%未満</li>
-                        <li><span class="badge warning">低下</span> 直近週が期間平均比-5〜-10%</li>
-                        <li><span class="badge danger">要注意</span> 直近週が期間平均比-10%以下</li>
-                    </ul>
-                    <div class="note-box">
-                        <strong>📝 注意：</strong>「期間平均比」は、分析対象期間（{period}）の平均値に対する直近週実績の変化率です
+                    
+                    <!-- 週間総合評価タブ -->
+                    <div id="evaluation-tab" class="tab-pane">
+                        <h3>🌟 週間総合評価（S〜D）- 直近週基準</h3>
+                        <table class="criteria-table">
+                            <tr>
+                                <th>評価</th>
+                                <th>基準</th>
+                                <th>説明</th>
+                            </tr>
+                            <tr class="grade-s">
+                                <td><strong>S</strong></td>
+                                <td>直近週目標達成＋大幅改善</td>
+                                <td>直近週達成率<span style="color: #10b981; font-weight: bold;">98%以上</span>かつ期間平均比+10%以上</td>
+                            </tr>
+                            <tr class="grade-a">
+                                <td><strong>A</strong></td>
+                                <td>直近週目標達成＋改善傾向</td>
+                                <td>直近週達成率<span style="color: #3b82f6; font-weight: bold;">98%以上</span>かつ期間平均比+5%以上</td>
+                            </tr>
+                            <tr class="grade-b">
+                                <td><strong>B</strong></td>
+                                <td>改善傾向あり</td>
+                                <td>直近週目標未達だが期間平均比プラス</td>
+                            </tr>
+                            <tr class="grade-c">
+                                <td><strong>C</strong></td>
+                                <td>横ばい傾向</td>
+                                <td>期間平均比±5%以内</td>
+                            </tr>
+                            <tr class="grade-d">
+                                <td><strong>D</strong></td>
+                                <td>要改善</td>
+                                <td>期間平均比-5%以下</td>
+                            </tr>
+                        </table>
+                        <div class="attention-box">
+                            <span style="color: #92400e;">⚠️ 重要な変更点</span><br>
+                            • 目標達成基準を95%から<strong style="color: #e91e63;">98%</strong>に引き上げ<br>
+                            • 評価軸を期間平均から<strong style="color: #5b5fde;">直近週実績</strong>に変更<br>
+                            • 変化率は「直近週 vs 期間平均」で算出
+                        </div>
                     </div>
-                </div>
-                
-                <div class="info-section">
-                    <h3>📅 平均在院日数の評価（直近週重視）</h3>
-                    <div class="los-criteria">
-                        <h4>🎯 直近週で目標達成時（達成率98%以上）</h4>
-                        <ul>
-                            <li>直近週で短縮 → <span class="badge excellent">効率的</span></li>
-                            <li>直近週で維持 → <span class="badge stable">安定</span></li>
-                            <li>直近週で延長 → <span class="badge warning">要確認</span></li>
-                        </ul>
+                    
+                    <!-- ハイスコア評価タブ（新規追加） -->
+                    <div id="highscore-tab" class="tab-pane">
+                        <h3>🏆 ハイスコア評価基準（100点満点）</h3>
                         
-                        <h4>⚠️ 直近週で目標未達時（達成率98%未満）</h4>
-                        <ul>
-                            <li>直近週で短縮 → <span class="badge warning">要検討</span>（収益への影響確認）</li>
-                            <li>直近週で維持 → <span class="badge warning">要対策</span></li>
-                            <li>直近週で延長 → <span class="badge good">改善中</span>（病床稼働向上）</li>
-                        </ul>
-                    </div>
-                    <div class="emphasis-box">
-                        <strong>💡 ポイント：</strong>在院日数の評価も直近週の実績を中心に、期間平均との比較で判定
-                    </div>
-                </div>
-                
-                <div class="info-section">
-                    <h3>📖 用語説明（直近週重視版）</h3>
-                    <dl class="term-list">
-                        <dt>🔥 直近週（最重要指標）</dt>
-                        <dd>分析期間の最新1週間（月曜〜日曜）の実績値。<strong style="color: #e91e63;">アクション判定の主要評価軸</strong></dd>
-                        
-                        <dt>期間平均</dt>
-                        <dd>分析対象期間（{period}）全体の平均値。直近週との比較基準として使用</dd>
-                        
-                        <dt>🎯 直近週目標達成率（主要KPI）</dt>
-                        <dd>（直近週実績値 ÷ 目標値）× 100%。<strong style="color: #5b5fde;">98%以上で目標達成と判定</strong></dd>
-                        
-                        <dt>期間平均比</dt>
-                        <dd>（直近週の値 - 期間平均値）÷ 期間平均値 × 100%。改善傾向の判定に使用</dd>
-                        
-                        <dt>新入院目標</dt>
-                        <dd>各診療科・病棟に設定された週間新入院患者数の目標値。<strong>直近週実績</strong>で評価</dd>
-                        
-                        <dt>病床稼働率</dt>
-                        <dd>（在院患者数 ÷ 病床数）× 100%。直近週と期間平均の両方で算出</dd>
-                        
-                        <dt>🎯 エンドポイント</dt>
-                        <dd><strong style="color: #e91e63;">在院患者数の目標達成</strong>。全ての施策の最終目標</dd>
-                    </dl>
-                </div>
-                
-                <div class="info-section">
-                    <h3>🔄 アクション判定フロー</h3>
-                    <div class="flow-chart">
-                        <div class="flow-step">
-                            <div class="step-number">1</div>
-                            <div class="step-content">
-                                <strong>直近週の在院患者数達成率をチェック</strong><br>
-                                98%以上 → 現状維持系<br>
-                                90-98% → 改善系<br>
-                                90%未満 → 緊急対応系
+                        <div class="score-section">
+                            <h4>📊 総合スコア構成</h4>
+                            <div class="score-breakdown">
+                                <div class="score-item">
+                                    <span class="score-label">直近週達成度</span>
+                                    <span class="score-value">50点</span>
+                                    <div class="score-bar" style="width: 50%;"></div>
+                                </div>
+                                <div class="score-item">
+                                    <span class="score-label">改善度</span>
+                                    <span class="score-value">25点</span>
+                                    <div class="score-bar" style="width: 25%;"></div>
+                                </div>
+                                <div class="score-item">
+                                    <span class="score-label">安定性</span>
+                                    <span class="score-value">15点</span>
+                                    <div class="score-bar" style="width: 15%;"></div>
+                                </div>
+                                <div class="score-item">
+                                    <span class="score-label">持続性</span>
+                                    <span class="score-value">10点</span>
+                                    <div class="score-bar" style="width: 10%;"></div>
+                                </div>
+                                <div class="score-item special">
+                                    <span class="score-label">病棟特別項目</span>
+                                    <span class="score-value">+5点</span>
+                                    <div class="score-bar" style="width: 5%;"></div>
+                                </div>
                             </div>
                         </div>
-                        <div class="flow-arrow">↓</div>
-                        <div class="flow-step">
-                            <div class="step-number">2</div>
-                            <div class="step-content">
-                                <strong>直近週の新入院達成状況で詳細判定</strong><br>
-                                新入院も未達 → 新入院重視<br>
-                                新入院は達成 → 在院日数調整
+                        
+                        <div class="score-detail">
+                            <h4>1️⃣ 直近週達成度（50点）</h4>
+                            <table class="score-table">
+                                <tr><th>直近週達成率</th><th>得点</th><th>評価</th></tr>
+                                <tr class="excellent"><td>110%以上</td><td>50点</td><td>パーフェクト</td></tr>
+                                <tr class="excellent"><td>105-110%</td><td>45点</td><td>エクセレント</td></tr>
+                                <tr class="good"><td>100-105%</td><td>40点</td><td>優秀</td></tr>
+                                <tr class="good"><td>98-100%</td><td>35点</td><td>良好</td></tr>
+                                <tr><td>95-98%</td><td>25点</td><td>普通</td></tr>
+                                <tr><td>90-95%</td><td>15点</td><td>要改善</td></tr>
+                                <tr class="warning"><td>85-90%</td><td>5点</td><td>注意</td></tr>
+                                <tr class="danger"><td>85%未満</td><td>0点</td><td>要対策</td></tr>
+                            </table>
+                        </div>
+                        
+                        <div class="score-detail">
+                            <h4>2️⃣ 改善度（25点）</h4>
+                            <table class="score-table">
+                                <tr><th>期間平均比変化率</th><th>得点</th><th>評価</th></tr>
+                                <tr class="excellent"><td>+15%以上</td><td>25点</td><td>大幅改善</td></tr>
+                                <tr class="excellent"><td>+10%～+15%</td><td>20点</td><td>顕著改善</td></tr>
+                                <tr class="good"><td>+5%～+10%</td><td>15点</td><td>良好改善</td></tr>
+                                <tr class="good"><td>+2%～+5%</td><td>10点</td><td>微増</td></tr>
+                                <tr><td>-2%～+2%</td><td>5点</td><td>安定</td></tr>
+                                <tr><td>-5%～-2%</td><td>3点</td><td>微減</td></tr>
+                                <tr class="warning"><td>-10%～-5%</td><td>1点</td><td>減少</td></tr>
+                                <tr class="danger"><td>-10%未満</td><td>0点</td><td>大幅減少</td></tr>
+                            </table>
+                        </div>
+                        
+                        <div class="score-detail">
+                            <h4>3️⃣ 安定性（15点）</h4>
+                            <table class="score-table">
+                                <tr><th>直近3週の変動</th><th>得点</th><th>評価</th></tr>
+                                <tr class="excellent"><td>変動係数5%未満</td><td>15点</td><td>非常に安定</td></tr>
+                                <tr class="good"><td>変動係数5-10%</td><td>12点</td><td>安定</td></tr>
+                                <tr><td>変動係数10-15%</td><td>8点</td><td>やや変動</td></tr>
+                                <tr class="warning"><td>変動係数15-20%</td><td>4点</td><td>変動大</td></tr>
+                                <tr class="danger"><td>変動係数20%以上</td><td>0点</td><td>不安定</td></tr>
+                            </table>
+                        </div>
+                        
+                        <div class="score-detail">
+                            <h4>4️⃣ 持続性（10点）- 最高得点の1つのみ適用</h4>
+                            <div class="sustainability-grid">
+                                <div class="sustainability-type">
+                                    <h5>🔥 継続改善系</h5>
+                                    <ul>
+                                        <li><span class="badge excellent">+10点</span> 4週連続改善</li>
+                                        <li><span class="badge good">+7点</span> 3週連続改善</li>
+                                        <li><span class="badge">+4点</span> 2週連続改善</li>
+                                    </ul>
+                                </div>
+                                <div class="sustainability-type">
+                                    <h5>🎯 継続達成系</h5>
+                                    <ul>
+                                        <li><span class="badge excellent">+10点</span> 4週連続目標達成（98%以上）</li>
+                                        <li><span class="badge good">+7点</span> 3週連続目標達成</li>
+                                        <li><span class="badge">+4点</span> 2週連続目標達成</li>
+                                    </ul>
+                                </div>
+                                <div class="sustainability-type">
+                                    <h5>📈 高パフォーマンス系</h5>
+                                    <ul>
+                                        <li><span class="badge good">+6点</span> 直近4週平均98%以上</li>
+                                        <li><span class="badge">+4点</span> 直近4週で3回以上目標達成</li>
+                                        <li><span class="badge">+3点</span> 直近4週で1度も90%未満なし</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
-                        <div class="flow-arrow">↓</div>
-                        <div class="flow-step">
-                            <div class="step-number">3</div>
-                            <div class="step-content">
-                                <strong>期間平均比で改善傾向を考慮</strong><br>
-                                改善傾向 → 積極戦略<br>
-                                悪化傾向 → 防御的戦略
+                        
+                        <div class="score-detail">
+                            <h4>5️⃣ 病棟特別項目（+5点）</h4>
+                            <div class="special-item-box">
+                                <p>🏥 病棟のみ適用される追加点</p>
+                                <ul>
+                                    <li><span class="badge excellent">+5点</span> 利用率95%以上かつ目標達成</li>
+                                    <li><span class="badge good">+3点</span> 利用率90-95%かつ目標達成</li>
+                                    <li><span class="badge good">+3点</span> 利用率向上+10%以上</li>
+                                </ul>
                             </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 改善度評価タブ -->
+                    <div id="improvement-tab" class="tab-pane">
+                        <h3>📈 改善度評価（直近週 vs 期間平均）</h3>
+                        <ul class="criteria-list">
+                            <li><span class="badge excellent">大幅改善</span> 直近週が期間平均比+10%以上</li>
+                            <li><span class="badge good">改善</span> 直近週が期間平均比+5〜10%</li>
+                            <li><span class="badge stable">維持</span> 直近週が期間平均比±5%未満</li>
+                            <li><span class="badge warning">低下</span> 直近週が期間平均比-5〜-10%</li>
+                            <li><span class="badge danger">要注意</span> 直近週が期間平均比-10%以下</li>
+                        </ul>
+                        <div class="note-box">
+                            <strong>📝 注意：</strong>「期間平均比」は、分析対象期間（{period}）の平均値に対する直近週実績の変化率です
+                        </div>
+                    </div>
+                    
+                    <!-- 在院日数評価タブ -->
+                    <div id="los-tab" class="tab-pane">
+                        <h3>📅 平均在院日数の評価（直近週重視）</h3>
+                        <div class="los-criteria">
+                            <h4>🎯 直近週で目標達成時（達成率98%以上）</h4>
+                            <ul>
+                                <li>直近週で短縮 → <span class="badge excellent">効率的</span></li>
+                                <li>直近週で維持 → <span class="badge stable">安定</span></li>
+                                <li>直近週で延長 → <span class="badge warning">要確認</span></li>
+                            </ul>
+                            
+                            <h4>⚠️ 直近週で目標未達時（達成率98%未満）</h4>
+                            <ul>
+                                <li>直近週で短縮 → <span class="badge warning">要検討</span>（収益への影響確認）</li>
+                                <li>直近週で維持 → <span class="badge warning">要対策</span></li>
+                                <li>直近週で延長 → <span class="badge good">改善中</span>（病床稼働向上）</li>
+                            </ul>
+                        </div>
+                        <div class="emphasis-box">
+                            <strong>💡 ポイント：</strong>在院日数の評価も直近週の実績を中心に、期間平均との比較で判定
+                        </div>
+                    </div>
+                    
+                    <!-- 用語説明タブ -->
+                    <div id="terms-tab" class="tab-pane">
+                        <h3>📖 用語説明（直近週重視版）</h3>
+                        <dl class="term-list">
+                            <dt>🔥 直近週（最重要指標）</dt>
+                            <dd>分析期間の最新1週間（月曜〜日曜）の実績値。<strong style="color: #e91e63;">アクション判定の主要評価軸</strong></dd>
+                            
+                            <dt>期間平均</dt>
+                            <dd>分析対象期間（{period}）全体の平均値。直近週との比較基準として使用</dd>
+                            
+                            <dt>🎯 直近週目標達成率（主要KPI）</dt>
+                            <dd>（直近週実績値 ÷ 目標値）× 100%。<strong style="color: #5b5fde;">98%以上で目標達成と判定</strong></dd>
+                            
+                            <dt>期間平均比</dt>
+                            <dd>（直近週の値 - 期間平均値）÷ 期間平均値 × 100%。改善傾向の判定に使用</dd>
+                            
+                            <dt>新入院目標</dt>
+                            <dd>各診療科・病棟に設定された週間新入院患者数の目標値。<strong>直近週実績</strong>で評価</dd>
+                            
+                            <dt>病床稼働率</dt>
+                            <dd>（在院患者数 ÷ 病床数）× 100%。直近週と期間平均の両方で算出</dd>
+                            
+                            <dt>🎯 エンドポイント</dt>
+                            <dd><strong style="color: #e91e63;">在院患者数の目標達成</strong>。全ての施策の最終目標</dd>
+                            
+                            <dt>変動係数（CV）</dt>
+                            <dd>（標準偏差 ÷ 平均値）× 100%。データのばらつきを示す指標。安定性評価に使用</dd>
+                        </dl>
+                    </div>
+                    
+                    <!-- 判定フロータブ -->
+                    <div id="flow-tab" class="tab-pane">
+                        <h3>🔄 アクション判定フロー</h3>
+                        <div class="flow-chart">
+                            <div class="flow-step">
+                                <div class="step-number">1</div>
+                                <div class="step-content">
+                                    <strong>直近週の在院患者数達成率をチェック</strong><br>
+                                    98%以上 → 現状維持系<br>
+                                    90-98% → 改善系<br>
+                                    90%未満 → 緊急対応系
+                                </div>
+                            </div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="flow-step">
+                                <div class="step-number">2</div>
+                                <div class="step-content">
+                                    <strong>直近週の新入院達成状況で詳細判定</strong><br>
+                                    新入院も未達 → 新入院重視<br>
+                                    新入院は達成 → 在院日数調整
+                                </div>
+                            </div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="flow-step">
+                                <div class="step-number">3</div>
+                                <div class="step-content">
+                                    <strong>期間平均比で改善傾向を考慮</strong><br>
+                                    改善傾向 → 積極戦略<br>
+                                    悪化傾向 → 防御的戦略
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flow-note">
+                            <p>💡 各ステップの判定結果を組み合わせて、最適なアクションプランを決定します</p>
                         </div>
                     </div>
                 </div>
@@ -1064,7 +1224,225 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         gap: 20px;
                     }}
                 }}
-                
+                /* ========== ここから追加 ========== */
+                /* タブ関連のスタイル */
+                .info-tabs {{
+                    display: flex;
+                    gap: 8px;
+                    margin-bottom: 25px;
+                    border-bottom: 2px solid var(--gray-200);
+                    overflow-x: auto;
+                    -webkit-overflow-scrolling: touch;
+                }}
+    
+                .info-tab {{
+                    padding: 10px 20px;
+                    background: none;
+                    border: none;
+                    border-bottom: 3px solid transparent;
+                    cursor: pointer;
+                    font-size: 0.95em;
+                    font-weight: 600;
+                    color: var(--gray-600);
+                    transition: all 0.3s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    white-space: nowrap;
+                }}
+    
+                .info-tab:hover {{
+                    color: var(--primary-color);
+                    background: rgba(91, 95, 222, 0.05);
+                }}
+    
+                .info-tab.active {{
+                    color: var(--primary-color);
+                    border-bottom-color: var(--primary-color);
+                    background: rgba(91, 95, 222, 0.1);
+                }}
+    
+                .info-tab span {{
+                    font-size: 1.1em;
+                }}
+    
+                .tab-pane {{
+                    display: none;
+                    animation: fadeIn 0.3s ease-in-out;
+                }}
+    
+                .tab-pane.active {{
+                    display: block;
+                }}
+    
+                /* ハイスコア評価専用スタイル */
+                .score-breakdown {{
+                    margin: 20px 0;
+                }}
+    
+                .score-item {{
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                    margin-bottom: 10px;
+                    padding: 10px;
+                    background: var(--gray-50);
+                    border-radius: 8px;
+                }}
+    
+                .score-item.special {{
+                    background: rgba(91, 95, 222, 0.05);
+                    border: 1px dashed var(--primary-color);
+                }}
+    
+                .score-label {{
+                    flex: 0 0 120px;
+                    font-weight: 600;
+                    color: var(--gray-700);
+                }}
+    
+                .score-value {{
+                    flex: 0 0 60px;
+                    text-align: right;
+                    font-weight: 700;
+                    color: var(--primary-color);
+                }}
+    
+                .score-bar {{
+                    height: 20px;
+                    background: linear-gradient(90deg, var(--primary-color), var(--primary-light));
+                    border-radius: 10px;
+                    transition: width 0.5s ease;
+                }}
+    
+                .score-detail {{
+                    margin: 30px 0;
+                }}
+    
+                .score-detail h4 {{
+                    color: var(--gray-700);
+                    margin-bottom: 15px;
+                    font-size: 1.1em;
+                }}
+    
+                .score-table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                }}
+    
+                .score-table th {{
+                    background: var(--gray-100);
+                    padding: 12px;
+                    text-align: left;
+                    font-weight: 600;
+                    color: var(--gray-700);
+                }}
+    
+                .score-table td {{
+                    padding: 10px 12px;
+                    border-bottom: 1px solid var(--gray-100);
+                }}
+    
+                .score-table tr:last-child td {{
+                    border-bottom: none;
+                }}
+    
+                .score-table tr.excellent {{
+                    background: rgba(16, 185, 129, 0.05);
+                }}
+    
+                .score-table tr.good {{
+                    background: rgba(59, 130, 246, 0.05);
+                }}
+    
+                .score-table tr.warning {{
+                    background: rgba(245, 158, 11, 0.05);
+                }}
+    
+                .score-table tr.danger {{
+                    background: rgba(239, 68, 68, 0.05);
+                }}
+    
+                .sustainability-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 20px;
+                    margin-top: 20px;
+                }}
+    
+                .sustainability-type {{
+                    background: var(--gray-50);
+                    padding: 20px;
+                    border-radius: 10px;
+                    border: 1px solid var(--gray-200);
+                }}
+    
+                .sustainability-type h5 {{
+                    color: var(--primary-color);
+                    margin-bottom: 12px;
+                    font-size: 1em;
+                }}
+    
+                .sustainability-type ul {{
+                    list-style: none;
+                    padding: 0;
+                }}
+    
+                .sustainability-type li {{
+                    padding: 8px 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }}
+    
+                .special-item-box {{
+                    background: linear-gradient(135deg, rgba(91, 95, 222, 0.05), rgba(91, 95, 222, 0.02));
+                    border: 2px solid rgba(91, 95, 222, 0.2);
+                    border-radius: 10px;
+                    padding: 20px;
+                    margin-top: 15px;
+                }}
+    
+                .special-item-box ul {{
+                    list-style: none;
+                    padding: 0;
+                    margin-top: 10px;
+                }}
+    
+                .special-item-box li {{
+                    padding: 6px 0;
+                }}
+    
+                .flow-note {{
+                    background: var(--gray-50);
+                    padding: 15px;
+                    border-radius: 8px;
+                    margin-top: 20px;
+                    border-left: 3px solid var(--primary-color);
+                }}
+    
+                /* レスポンシブ対応（タブ用） */
+                @media (max-width: 768px) {{
+                    .info-tabs {{
+                        flex-wrap: nowrap;
+                        overflow-x: scroll;
+                        -webkit-overflow-scrolling: touch;
+                        padding-bottom: 5px;
+                    }}
+                    
+                    .info-tab {{
+                        padding: 8px 15px;
+                        font-size: 0.9em;
+                    }}
+                    
+                    .sustainability-grid {{
+                        grid-template-columns: 1fr;
+                    }}
+                }}
+                /* ========== ここまで追加 ========== */
                 /* 既存のCSS統合 */
                 {_get_css_styles()}
             </style>
@@ -1226,7 +1604,33 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         console.error('Info panel not found');
                     }}
                 }}
-                
+                // ========== ここから追加 ==========
+                // タブ切り替え機能
+                function showInfoTab(tabName) {{
+                    console.log('Switching to tab:', tabName);
+                    
+                    // すべてのタブとコンテンツを非アクティブに
+                    document.querySelectorAll('.info-tab').forEach(tab => {{
+                        tab.classList.remove('active');
+                    }});
+                    document.querySelectorAll('.tab-pane').forEach(pane => {{
+                        pane.classList.remove('active');
+                    }});
+                    
+                    // 選択されたタブとコンテンツをアクティブに
+                    const activeTab = Array.from(document.querySelectorAll('.info-tab')).find(tab => 
+                        tab.getAttribute('onclick') && tab.getAttribute('onclick').includes(tabName)
+                    );
+                    if (activeTab) {{
+                        activeTab.classList.add('active');
+                    }}
+                    
+                    const activePane = document.getElementById(tabName + '-tab');
+                    if (activePane) {{
+                        activePane.classList.add('active');
+                    }}
+                }}
+                // ========== ここまで追加 ==========
                 // パネル外クリックで閉じる
                 document.addEventListener('DOMContentLoaded', function() {{
                     console.log('DOM Content Loaded');
