@@ -27,113 +27,6 @@ from config import EXCLUDED_WARDS
 
 logger = logging.getLogger(__name__)
 
-#
-# ▼▼▼ この関数をご自身のコードと完全に置き換えてください ▼▼▼
-#
-def generate_all_in_one_html_report(
-    df, 
-    target_data, 
-    period="直近12週", 
-    high_score_html=None  # ★【修正ポイント1】ハイスコアHTMLをオプション引数として受け取る
-):
-    """
-    全ての診療科・病棟データを含む、単一の統合HTMLレポートを生成する（直近週重視版）
-    UIを完全に維持しつつ、ハイスコア部門を正式にサポートするよう修正。
-    """
-    try:
-        # --- 必要な関数のインポート (変更なし) ---
-        from chart import create_interactive_patient_chart, create_interactive_alos_chart, create_interactive_dual_axis_chart
-        from mobile_report_generator import _generate_metric_cards_html, _generate_charts_html, _generate_action_plan_html, _adapt_kpi_for_html_generation
-        from ward_utils import calculate_ward_kpi_with_bed_metrics
-        import urllib.parse # urllibをインポート
-
-        # --- データ準備 (変更なし) ---
-        start_date, end_date, period_desc = get_period_dates(df, period)
-        if not start_date:
-            return "<html><body>エラー: 分析期間を計算できませんでした。</body></html>"
-
-        hospital_targets = get_hospital_targets(target_data)
-        dept_col = '診療科名'
-        all_departments = sorted(df[dept_col].dropna().unique()) if dept_col in df.columns else []
-        all_wards = get_target_ward_list(target_data, []) # EXCLUDED_WARDSを空リストに変更（必要に応じて元に戻してください）
-        
-        # --- 各ビューのHTMLコンテンツ生成 (変更なし) ---
-        # 元のロジックを維持するため、一度リストに格納します
-        content_html_parts = []
-        
-        # --- 全体ビューの生成 (変更なし) ---
-        overall_df = df[(df['日付'] >= start_date) & (df['日付'] <= end_date)]
-        overall_kpi = calculate_department_kpis(df, target_data, '全体', '病院全体', start_date, end_date, None)
-        overall_feasibility = evaluate_feasibility(overall_kpi, overall_df, start_date, end_date)
-        overall_simulation = calculate_effect_simulation(overall_kpi)
-        overall_html_kpi = _adapt_kpi_for_html_generation(overall_kpi)
-        cards_all = _generate_metric_cards_html(overall_html_kpi, is_ward=False)
-        charts_all = _generate_charts_html(overall_df, overall_html_kpi)
-        analysis_all = _generate_action_plan_html(overall_html_kpi, overall_feasibility, overall_simulation, hospital_targets)
-        overall_content = cards_all + charts_all + analysis_all
-        # `active`クラスはJSで制御するため、ここでは一旦外します
-        content_html_parts.append(f'<div id="view-all" class="view-content">{overall_content}</div>')
-
-        # --- 診療科別ビューの生成 (変更なし) ---
-        for dept_name in all_departments:
-            dept_id = f"view-dept-{urllib.parse.quote(dept_name)}"
-            try:
-                df_dept = df[df[dept_col] == dept_name]
-                raw_kpi = calculate_department_kpis(df, target_data, dept_name, dept_name, start_date, end_date, dept_col)
-                if not raw_kpi: continue
-                
-                feasibility = evaluate_feasibility(raw_kpi, df_dept, start_date, end_date)
-                simulation = calculate_effect_simulation(raw_kpi)
-                html_kpi = _adapt_kpi_for_html_generation(raw_kpi)
-                cards = _generate_metric_cards_html(html_kpi, is_ward=False)
-                charts = _generate_charts_html(df_dept, html_kpi)
-                analysis = _generate_action_plan_html(html_kpi, feasibility, simulation, hospital_targets)
-                
-                full_dept_content = cards + charts + analysis
-                content_html_parts.append(f'<div id="{dept_id}" class="view-content">{full_dept_content}</div>')
-            except Exception as e:
-                logger.error(f"診療科「{dept_name}」のレポート部品生成エラー: {e}")
-                content_html_parts.append(f'<div id="{dept_id}" class="view-content"><p>エラー: {dept_name}のレポートを生成できませんでした。</p></div>')
-
-        # --- 病棟別ビューの生成 (変更なし) ---
-        for ward_code, ward_name in all_wards:
-            ward_id = f"view-ward-{ward_code}"
-            try:
-                df_ward = df[df['病棟コード'] == ward_code]
-                raw_kpi = calculate_ward_kpis(df, target_data, ward_code, ward_name, start_date, end_date, '病棟コード')
-                if not raw_kpi: continue
-
-                feasibility = evaluate_feasibility(raw_kpi, df_ward, start_date, end_date)
-                simulation = calculate_effect_simulation(raw_kpi)
-                html_kpi = _adapt_kpi_for_html_generation(raw_kpi)
-                final_kpi = calculate_ward_kpi_with_bed_metrics(html_kpi, raw_kpi.get('bed_count'))
-                cards = _generate_metric_cards_html(final_kpi, is_ward=True)
-                charts = _generate_charts_html(df_ward, final_kpi)
-                analysis = _generate_action_plan_html(final_kpi, feasibility, simulation, hospital_targets)
-                full_ward_content = cards + charts + analysis
-                content_html_parts.append(f'<div id="{ward_id}" class="view-content">{full_ward_content}</div>')
-            except Exception as e:
-                logger.error(f"病棟「{ward_name}」のレポート部品生成エラー: {e}")
-                content_html_parts.append(f'<div id="{ward_id}" class="view-content"><p>エラー: {ward_name}のレポートを生成できませんでした。</p></div>')
-
-        # ★【修正ポイント2】引数で渡されたハイスコアHTMLをコンテンツリストの最後に追加
-        if high_score_html:
-            content_html_parts.append(high_score_html)
-        
-        content_html = "\n".join(content_html_parts)
-
-        # --- ドロップダウンメニュー生成 (変更なし) ---
-        dept_options = ""
-        for dept_name in all_departments:
-            dept_id = f"view-dept-{urllib.parse.quote(dept_name)}"
-            dept_options += f'<option value="{dept_id}">{dept_name}</option>'
-            
-        ward_options = ""
-        for ward_code, ward_name in all_wards:
-            ward_id = f"view-ward-{ward_code}"
-            ward_options += f'<option value="{ward_id}">{ward_name}</option>'
-        
-        # --- 評価基準パネル生成 (変更なし) ---
         info_panel_html = f"""
         <div id="info-panel" class="info-panel">
             <div class="info-content">
@@ -301,893 +194,139 @@ def generate_all_in_one_html_report(
         </div>
         """
 
-        # ★【修正ポイント3】ボタン部分を動的に生成
-        buttons = [
-            '<button class="quick-button active" onclick="showView(\'view-all\')"><span>🏥</span> 病院全体</button>',
-            '<button class="quick-button" onclick="toggleTypeSelector(\'dept\')"><span>🩺</span> 診療科別</button>',
-            '<button class="quick-button" onclick="toggleTypeSelector(\'ward\')"><span>🏢</span> 病棟別</button>'
-        ]
-        # high_score_htmlが引数として渡された場合のみ、ハイスコアボタンをリストに追加
-        if high_score_html:
-            buttons.append('<button class="quick-button" onclick="showView(\'view-high-score\')"><span>🏆</span> ハイスコア部門</button>')
+def _get_all_styles():
+    """すべてのスタイルを統合して返す"""
+    return f"""
+        /* 既存のベーススタイル */
+        {_get_css_styles()}
         
-        # リストからボタンのHTML文字列を生成
-        quick_buttons_html = "\n".join(buttons)
-
-
-        # --- 最終的なHTMLの組み立て (UIを維持し、ボタン部分のみ動的に) ---
-        final_html = f"""
-        <!DOCTYPE html>
-        <html lang="ja">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>統合パフォーマンスレポート（直近週重視版）</title>
-            <style>
-                /* ベース設定（従来通り） */
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }}
-                
-                :root {{
-                    /* カラーパレット */
-                    --primary-color: #5B5FDE;
-                    --primary-dark: #4347B8;
-                    --primary-light: #7B7EE6;
-                    --secondary-color: #E91E63;
-                    --success-color: #10B981;
-                    --warning-color: #F59E0B;
-                    --danger-color: #EF4444;
-                    --info-color: #3B82F6;
-                    
-                    /* グレースケール */
-                    --gray-50: #F9FAFB;
-                    --gray-100: #F3F4F6;
-                    --gray-200: #E5E7EB;
-                    --gray-300: #D1D5DB;
-                    --gray-400: #9CA3AF;
-                    --gray-500: #6B7280;
-                    --gray-600: #4B5563;
-                    --gray-700: #374151;
-                    --gray-800: #1F2937;
-                    --gray-900: #111827;
-                    
-                    /* シャドウ */
-                    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-                    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-                    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-                    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-                    
-                    /* トランジション */
-                    --transition-fast: 150ms ease-in-out;
-                    --transition-normal: 300ms ease-in-out;
-                }}
-                
-                body {{
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
-                    background-color: var(--gray-50);
-                    color: var(--gray-800);
-                    line-height: 1.6;
-                    -webkit-font-smoothing: antialiased;
-                    -moz-osx-font-smoothing: grayscale;
-                }}
-                
-                /* === 情報パネル専用スタイル（直近週重視版） === */
-                .priority-box {{
-                    background: rgba(91, 95, 222, 0.05);
-                    border: 1px solid rgba(91, 95, 222, 0.2);
-                    border-radius: 8px;
-                    padding: 15px;
-                    margin-bottom: 15px;
-                }}
-                
-                .priority-box.urgent {{
-                    background: rgba(239, 68, 68, 0.05);
-                    border-color: rgba(239, 68, 68, 0.2);
-                }}
-                
-                .priority-box.medium {{
-                    background: rgba(245, 158, 11, 0.05);
-                    border-color: rgba(245, 158, 11, 0.2);
-                }}
-                
-                .priority-box.low {{
-                    background: rgba(16, 185, 129, 0.05);
-                    border-color: rgba(16, 185, 129, 0.2);
-                }}
-                
-                .emphasis-box {{
-                    background: linear-gradient(135deg, rgba(233, 30, 99, 0.1) 0%, rgba(91, 95, 222, 0.1) 100%);
-                    border-left: 4px solid var(--secondary-color);
-                    padding: 15px;
-                    margin-top: 15px;
-                    border-radius: 0 8px 8px 0;
-                    font-size: 0.95em;
-                }}
-                
-                .attention-box {{
-                    background: rgba(245, 158, 11, 0.1);
-                    border: 1px solid rgba(245, 158, 11, 0.3);
-                    border-radius: 8px;
-                    padding: 15px;
-                    margin-top: 15px;
-                    font-size: 0.9em;
-                }}
-                
-                .note-box {{
-                    background: rgba(59, 130, 246, 0.05);
-                    border-left: 3px solid var(--info-color);
-                    padding: 12px;
-                    margin-top: 10px;
-                    border-radius: 0 6px 6px 0;
-                    font-size: 0.9em;
-                }}
-                
-                .flow-chart {{
-                    margin-top: 20px;
-                }}
-                
-                .flow-step {{
-                    display: flex;
-                    align-items: flex-start;
-                    gap: 15px;
-                    background: var(--gray-50);
-                    padding: 15px;
-                    border-radius: 8px;
-                    margin-bottom: 10px;
-                }}
-                
-                .step-number {{
-                    background: var(--primary-color);
-                    color: white;
-                    width: 30px;
-                    height: 30px;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-weight: bold;
-                    flex-shrink: 0;
-                }}
-                
-                .step-content {{
-                    flex: 1;
-                    font-size: 0.9em;
-                }}
-                
-                .flow-arrow {{
-                    text-align: center;
-                    font-size: 1.5em;
-                    color: var(--primary-color);
-                    margin: 5px 0;
-                }}
-                
-                /* コンテナ（従来通り） */
-                .container {{
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    background: white;
-                    box-shadow: var(--shadow-lg);
-                    border-radius: 16px;
-                    overflow: hidden;
-                    margin-top: 20px;
-                    margin-bottom: 20px;
-                }}
-                
-                /* ヘッダー（タイトル更新） */
-                .header {{
-                    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
-                    color: white;
-                    padding: 40px 30px;
-                    text-align: center;
-                    position: relative;
-                    overflow: hidden;
-                }}
-                
-                .header::before {{
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,112C672,96,768,96,864,112C960,128,1056,160,1152,160C1248,160,1344,128,1392,112L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>');
-                    background-size: cover;
-                    opacity: 0.3;
-                }}
-                
-                h1 {{
-                    margin: 0;
-                    font-size: 2.5em;
-                    font-weight: 700;
-                    letter-spacing: -0.02em;
-                    position: relative;
-                    z-index: 1;
-                }}
-                
-                .subtitle {{
-                    opacity: 0.95;
-                    margin-top: 8px;
-                    font-size: 1.1em;
-                    position: relative;
-                    z-index: 1;
-                }}
-                
-                /* 情報ボタン */
-                .info-button {{
-                    position: absolute;
-                    top: 20px;
-                    right: 20px;
-                    background: rgba(255, 255, 255, 0.2);
-                    border: 2px solid rgba(255, 255, 255, 0.5);
-                    color: white;
-                    padding: 8px 16px;
-                    border-radius: 20px;
-                    cursor: pointer;
-                    font-size: 0.9em;
-                    transition: all 0.3s;
-                    backdrop-filter: blur(10px);
-                    z-index: 2;
-                }}
-                
-                .info-button:hover {{
-                    background: rgba(255, 255, 255, 0.3);
-                    transform: translateY(-2px);
-                }}
-                
-                /* 情報パネル */
-                .info-panel {{
-                    display: none;
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: rgba(0, 0, 0, 0.5);
-                    z-index: 1000;
-                    overflow-y: auto;
-                    animation: fadeIn 0.3s ease-out;
-                }}
-                
-                .info-panel.active {{
-                    display: block;
-                }}
-                
-                .info-content {{
-                    max-width: 900px;
-                    margin: 40px auto;
-                    background: white;
-                    border-radius: 16px;
-                    padding: 40px;
-                    position: relative;
-                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-                    animation: slideIn 0.3s ease-out;
-                }}
-                
-                @keyframes fadeIn {{
-                    from {{ opacity: 0; }}
-                    to {{ opacity: 1; }}
-                }}
-                
-                @keyframes slideIn {{
-                    from {{ 
-                        opacity: 0;
-                        transform: translateY(-20px);
-                    }}
-                    to {{
-                        opacity: 1;
-                        transform: translateY(0);
-                    }}
-                }}
-                
-                .close-button {{
-                    position: absolute;
-                    top: 20px;
-                    right: 20px;
-                    background: none;
-                    border: none;
-                    font-size: 1.5em;
-                    cursor: pointer;
-                    color: #666;
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 50%;
-                    transition: all 0.3s;
-                }}
-                
-                .close-button:hover {{
-                    background: #f0f0f0;
-                }}
-                
-                .info-content h2 {{
-                    color: #374151;
-                    margin-bottom: 30px;
-                    font-size: 1.6em;
-                    border-bottom: 2px solid #e5e7eb;
-                    padding-bottom: 15px;
-                }}
-                
-                .info-section {{
-                    margin-bottom: 35px;
-                }}
-                
-                .info-section h3 {{
-                    color: #4b5563;
-                    margin-bottom: 15px;
-                    font-size: 1.2em;
-                }}
-                
-                .info-section h4 {{
-                    color: #6b7280;
-                    margin: 15px 0 10px 0;
-                    font-size: 1em;
-                }}
-                
-                /* 評価基準テーブル */
-                .criteria-table {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 15px;
-                }}
-                
-                .criteria-table th {{
-                    background: #f3f4f6;
-                    padding: 12px;
-                    text-align: left;
-                    font-weight: 600;
-                    color: #374151;
-                }}
-                
-                .criteria-table td {{
-                    padding: 12px;
-                    border-bottom: 1px solid #e5e7eb;
-                }}
-                
-                .criteria-table tr:hover {{
-                    background: #f9fafb;
-                }}
-                
-                .grade-s td:first-child {{ color: #10b981; font-size: 1.2em; }}
-                .grade-a td:first-child {{ color: #3b82f6; font-size: 1.2em; }}
-                .grade-b td:first-child {{ color: #6b7280; font-size: 1.2em; }}
-                .grade-c td:first-child {{ color: #f59e0b; font-size: 1.2em; }}
-                .grade-d td:first-child {{ color: #ef4444; font-size: 1.2em; }}
-                
-                /* バッジスタイル */
-                .badge {{
-                    display: inline-block;
-                    padding: 4px 12px;
-                    border-radius: 12px;
-                    font-size: 0.85em;
-                    font-weight: 600;
-                }}
-                
-                .badge.excellent {{
-                    background: rgba(16, 185, 129, 0.15);
-                    color: #10b981;
-                }}
-                
-                .badge.good {{
-                    background: rgba(59, 130, 246, 0.15);
-                    color: #3b82f6;
-                }}
-                
-                .badge.stable {{
-                    background: rgba(245, 158, 11, 0.15);
-                    color: #f59e0b;
-                }}
-                
-                .badge.warning {{
-                    background: rgba(251, 146, 60, 0.15);
-                    color: rgb(234, 88, 12);
-                }}
-                
-                .badge.danger {{
-                    background: rgba(239, 68, 68, 0.15);
-                    color: #ef4444;
-                }}
-                
-                /* リストスタイル */
-                .criteria-list {{
-                    list-style: none;
-                    padding: 0;
-                }}
-                
-                .criteria-list li {{
-                    padding: 8px 0;
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                }}
-                
-                /* 用語説明 */
-                .term-list dt {{
-                    font-weight: 600;
-                    color: #374151;
-                    margin-top: 15px;
-                    margin-bottom: 5px;
-                }}
-                
-                .term-list dd {{
-                    margin-left: 20px;
-                    color: #6b7280;
-                    margin-bottom: 10px;
-                }}
-                
-                /* 以下、従来のスタイルを継承 */
-                .controls {{
-                    padding: 30px;
-                    background: var(--gray-50);
-                    border-bottom: 1px solid var(--gray-200);
-                }}
-                
-                .quick-buttons {{
-                    display: flex;
-                    justify-content: center;
-                    gap: 12px;
-                    margin-bottom: 20px;
-                    flex-wrap: wrap;
-                }}
-                
-                .quick-button {{
-                    padding: 12px 24px;
-                    background: white;
-                    color: var(--gray-700);
-                    border: 2px solid var(--gray-200);
-                    border-radius: 12px;
-                    cursor: pointer;
-                    font-size: 0.95em;
-                    font-weight: 600;
-                    transition: all var(--transition-normal);
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    box-shadow: var(--shadow-sm);
-                }}
-                
-                .quick-button:hover {{
-                    transform: translateY(-2px);
-                    box-shadow: var(--shadow-md);
-                    border-color: var(--primary-color);
-                    color: var(--primary-color);
-                }}
-                
-                .quick-button.active {{
-                    background: var(--primary-color);
-                    color: white;
-                    border-color: var(--primary-color);
-                    box-shadow: var(--shadow-md);
-                }}
-                
-                .selector-group {{
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    gap: 20px;
-                    flex-wrap: wrap;
-                }}
-                
-                .selector-wrapper {{
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    background: white;
-                    padding: 12px 20px;
-                    border-radius: 12px;
-                    box-shadow: var(--shadow-sm);
-                }}
-                
-                .selector-label {{
-                    font-weight: 600;
-                    color: var(--gray-600);
-                    font-size: 0.95em;
-                }}
-                
-                select {{
-                    padding: 10px 16px;
-                    font-size: 0.95em;
-                    border-radius: 8px;
-                    border: 2px solid var(--gray-200);
-                    background-color: white;
-                    cursor: pointer;
-                    transition: all var(--transition-fast);
-                    min-width: 250px;
-                    font-weight: 500;
-                    color: var(--gray-700);
-                }}
-                
-                select:hover {{
-                    border-color: var(--primary-light);
-                }}
-                
-                select:focus {{
-                    outline: 0;
-                    border-color: var(--primary-color);
-                    box-shadow: 0 0 0 3px rgba(91, 95, 222, 0.1);
-                }}
-                
-                .content-area {{
-                    padding: 30px;
-                }}
-                
-                .view-content {{
-                    display: none;
-                    animation: fadeIn 0.3s ease-in-out;
-                }}
-                
-                .view-content.active {{
-                    display: block;
-                }}
-                
-                /* メトリクスカード以下、レスポンシブまで従来通り */
-                .summary-cards {{
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                    gap: 20px;
-                    margin-bottom: 30px;
-                }}
-                
-                .summary-card {{
-                    background: white;
-                    border-radius: 16px;
-                    padding: 24px;
-                    text-align: center;
-                    box-shadow: var(--shadow-md);
-                    transition: all var(--transition-normal);
-                    border: 1px solid var(--gray-100);
-                    position: relative;
-                    overflow: hidden;
-                }}
-                
-                .summary-card::before {{
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    height: 4px;
-                    background: var(--gray-200);
-                }}
-                
-                .summary-card.card-good::before {{
-                    background: var(--success-color);
-                }}
-                
-                .summary-card.card-warning::before {{
-                    background: var(--warning-color);
-                }}
-                
-                .summary-card.card-danger::before {{
-                    background: var(--danger-color);
-                }}
-                
-                .summary-card.card-info::before {{
-                    background: var(--info-color);
-                }}
-                
-                .summary-card:hover {{
-                    transform: translateY(-4px);
-                    box-shadow: var(--shadow-xl);
-                }}
-                
-                .summary-card h3 {{
-                    font-size: 0.9em;
-                    color: var(--gray-600);
-                    margin-bottom: 12px;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                }}
-                
-                .summary-card .value {{
-                    font-size: 2.2em;
-                    font-weight: 700;
-                    margin-bottom: 8px;
-                    letter-spacing: -0.02em;
-                }}
-                
-                .summary-card .target {{
-                    font-size: 0.9em;
-                    color: var(--gray-500);
-                    margin-bottom: 8px;
-                }}
-                
-                .summary-card.card-good .value {{
-                    color: var(--success-color);
-                }}
-                
-                .summary-card.card-warning .value {{
-                    color: var(--warning-color);
-                }}
-                
-                .summary-card.card-danger .value {{
-                    color: var(--danger-color);
-                }}
-                
-                .summary-card.card-info .value {{
-                    color: var(--info-color);
-                }}
-                
-                .trend {{
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 6px;
-                    font-size: 0.85em;
-                    padding: 6px 12px;
-                    border-radius: 20px;
-                    margin-top: 8px;
-                    font-weight: 600;
-                }}
-                
-                .trend-up {{
-                    background: rgba(239, 68, 68, 0.1);
-                    color: var(--danger-color);
-                }}
-                
-                .trend-down {{
-                    background: rgba(16, 185, 129, 0.1);
-                    color: var(--success-color);
-                }}
-                
-                .trend-stable {{
-                    background: rgba(245, 158, 11, 0.1);
-                    color: var(--warning-color);
-                }}
-                
-                .section {{
-                    background: white;
-                    border-radius: 16px;
-                    padding: 32px;
-                    margin-bottom: 24px;
-                    box-shadow: var(--shadow-md);
-                    border: 1px solid var(--gray-100);
-                }}
-                
-                .section h2 {{
-                    color: var(--gray-800);
-                    font-size: 1.4em;
-                    margin-bottom: 24px;
-                    padding-bottom: 12px;
-                    border-bottom: 2px solid var(--gray-100);
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    font-weight: 700;
-                }}
-                
-                .section h3 {{
-                    color: var(--gray-700);
-                    font-size: 1.1em;
-                    margin-top: 24px;
-                    margin-bottom: 16px;
-                    font-weight: 600;
-                }}
-                
-                .chart-container {{
-                    margin-bottom: 24px;
-                    border-radius: 12px;
-                    overflow: hidden;
-                    background: var(--gray-50);
-                    padding: 16px;
-                    border: 1px solid var(--gray-200);
-                }}
-                
-                .analysis-grid {{
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                    gap: 20px;
-                    margin-bottom: 24px;
-                }}
-                
-                .analysis-grid > div {{
-                    background: var(--gray-50);
-                    padding: 20px;
-                    border-radius: 12px;
-                    border-left: 4px solid var(--primary-color);
-                }}
-                
-                .analysis-grid h3 {{
-                    color: var(--gray-700);
-                    font-size: 1em;
-                    margin-bottom: 12px;
-                    margin-top: 0;
-                }}
-                
-                .analysis-grid p {{
-                    margin: 8px 0;
-                    color: var(--gray-600);
-                    font-size: 0.95em;
-                }}
-                
-                .analysis-grid strong {{
-                    color: var(--gray-800);
-                    font-weight: 600;
-                }}
-                
-                .action-summary {{
-                    background: linear-gradient(135deg, rgba(91, 95, 222, 0.1) 0%, rgba(91, 95, 222, 0.05) 100%);
-                    border-left: 5px solid var(--primary-color);
-                    padding: 20px;
-                    margin-bottom: 20px;
-                    border-radius: 12px;
-                }}
-                
-                .action-summary strong {{
-                    color: var(--primary-dark);
-                    font-size: 1.1em;
-                    display: block;
-                    margin-bottom: 8px;
-                }}
-                
-                .action-summary p {{
-                    color: var(--gray-700);
-                    margin: 0;
-                }}
-                
-                .action-list {{
-                    list-style: none;
-                    padding-left: 0;
-                }}
-                
-                .action-list li {{
-                    background: var(--gray-50);
-                    margin-bottom: 12px;
-                    padding: 16px 20px;
-                    border-radius: 12px;
-                    border-left: 4px solid var(--primary-light);
-                    font-size: 0.95em;
-                    transition: all var(--transition-fast);
-                    position: relative;
-                    padding-left: 40px;
-                }}
-                
-                .action-list li::before {{
-                    content: '✓';
-                    position: absolute;
-                    left: 16px;
-                    color: var(--primary-color);
-                    font-weight: bold;
-                }}
-                
-                .action-list li:hover {{
-                    background: white;
-                    box-shadow: var(--shadow-sm);
-                    transform: translateX(4px);
-                }}
-                
-                /* レスポンシブ対応 */
-                @media (max-width: 768px) {{
-                    .container {{
-                        margin: 0;
-                        border-radius: 0;
-                    }}
-                    
-                    .header {{
-                        padding: 30px 20px;
-                    }}
-                    
-                    h1 {{
-                        font-size: 2em;
-                    }}
-                    
-                    .info-button {{
-                        position: static;
-                        margin-top: 15px;
-                        display: block;
-                        margin-left: auto;
-                        margin-right: auto;
-                    }}
-                    
-                    .info-content {{
-                        margin: 20px;
-                        padding: 25px;
-                    }}
-                    
-                    .criteria-table {{
-                        font-size: 0.9em;
-                    }}
-                    
-                    .criteria-table td, .criteria-table th {{
-                        padding: 8px;
-                    }}
-                    
-                    .controls {{
-                        padding: 20px;
-                    }}
-                    
-                    .quick-buttons {{
-                        gap: 8px;
-                    }}
-                    
-                    .quick-button {{
-                        padding: 10px 16px;
-                        font-size: 0.9em;
-                    }}
-                    
-                    select {{
-                        min-width: 200px;
-                    }}
-                    
-                    .summary-cards {{
-                        grid-template-columns: 1fr 1fr;
-                        gap: 12px;
-                    }}
-                    
-                    .summary-card {{
-                        padding: 20px;
-                    }}
-                    
-                    .summary-card .value {{
-                        font-size: 1.8em;
-                    }}
-                    
-                    .section {{
-                        padding: 20px;
-                    }}
-                }}
-                
-                /* 印刷対応 */
-                @media print {{
-                    body {{
-                        background: white;
-                    }}
-                    
-                    .container {{
-                        box-shadow: none;
-                        margin: 0;
-                    }}
-                    
-                    .controls {{
-                        display: none;
-                    }}
-                    
-                    .info-button {{
-                        display: none;
-                    }}
-                    
-                    .section {{
-                        box-shadow: none;
-                        break-inside: avoid;
-                    }}
-                }}
-                
-                /* mobile_report_generatorのスタイルを含める */
-                {_get_css_styles()}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    {'''... (元の<header>セクションは変更しないため省略) ...'''}
-                </div>
-                <div class="controls">
-                    <div class="quick-buttons">
-                        {quick_buttons_html}  {''''''}
-                    </div>
-                    
-                    <div class="selector-group">
-                       {'''... (元のselector-groupは変更しないため省略) ...'''}
-                    </div>
-                </div>
-                <div class="content-area">
-                    {content_html}
-                </div>
-            </div>
-            {info_panel_html}
-            <script>
-                {'''/* ... (元の長いJavaScript文字列は変更しないため省略) ... */'''}
-            </script>
-        </body>
-        </html>
-        """
-        return final_html
-
-    except Exception as e:
-        logger.error(f"直近週重視統合HTMLレポート生成エラー: {e}", exc_info=True)
-        return f"<html><body>レポート全体の生成でエラーが発生しました: {e}</body></html>"
+        /* ハイスコア部門専用スタイル */
+        .ranking-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }}
         
+        .ranking-item {{
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #D1D5DB;
+            transition: all 0.2s ease;
+        }}
+        
+        /* 以下、既存のハイスコア用CSSを追加 */
+    """
+
+def _get_all_javascript():
+    """すべてのJavaScriptを統合して返す（ハイスコア対応版）"""
+    return """
+        let currentType = null;
+        
+        function showView(viewId) {
+            // 全てのビューを非表示
+            document.querySelectorAll('.view-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // 指定されたビューを表示
+            const targetView = document.getElementById(viewId);
+            if (targetView) {
+                targetView.classList.add('active');
+                
+                // Plotlyチャートの再描画をトリガー
+                setTimeout(function() {
+                    window.dispatchEvent(new Event('resize'));
+                    
+                    if (window.Plotly) {
+                        const plots = targetView.querySelectorAll('.plotly-graph-div');
+                        plots.forEach(plot => {
+                            Plotly.Plots.resize(plot);
+                        });
+                    }
+                }, 100);
+            }
+            
+            // クイックボタンのアクティブ状態を更新
+            document.querySelectorAll('.quick-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (viewId === 'view-all') {
+                document.querySelectorAll('.quick-button')[0].classList.add('active');
+                // セレクターを隠す
+                document.getElementById('dept-selector-wrapper').style.display = 'none';
+                document.getElementById('ward-selector-wrapper').style.display = 'none';
+                currentType = null;
+            } else if (viewId === 'view-high-score') {
+                document.querySelectorAll('.quick-button')[3].classList.add('active');
+                // セレクターを隠す
+                document.getElementById('dept-selector-wrapper').style.display = 'none';
+                document.getElementById('ward-selector-wrapper').style.display = 'none';
+                currentType = null;
+            }
+        }
+        
+        function toggleTypeSelector(type) {
+            // 全てのビューを非表示
+            document.querySelectorAll('.view-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // セレクターの表示切替
+            if (type === 'dept') {
+                document.getElementById('dept-selector-wrapper').style.display = 'flex';
+                document.getElementById('ward-selector-wrapper').style.display = 'none';
+                document.getElementById('ward-selector').value = '';
+            } else if (type === 'ward') {
+                document.getElementById('dept-selector-wrapper').style.display = 'none';
+                document.getElementById('ward-selector-wrapper').style.display = 'flex';
+                document.getElementById('dept-selector').value = '';
+            }
+            
+            currentType = type;
+            
+            // クイックボタンのアクティブ状態を更新
+            document.querySelectorAll('.quick-button').forEach((btn, index) => {
+                btn.classList.toggle('active', 
+                    (index === 1 && type === 'dept') || 
+                    (index === 2 && type === 'ward')
+                );
+            });
+        }
+        
+        function changeView(viewId) {
+            if (viewId) {
+                showView(viewId);
+            }
+        }
+        
+        function toggleInfoPanel() {
+            const panel = document.getElementById('info-panel');
+            panel.classList.toggle('active');
+        }
+        
+        // ページ読み込み時の初期化
+        window.onload = function() {
+            // 初期表示時にPlotlyチャートを確実に表示
+            setTimeout(function() {
+                window.dispatchEvent(new Event('resize'));
+                if (window.Plotly) {
+                    const plots = document.querySelectorAll('#view-all .plotly-graph-div');
+                    plots.forEach(plot => {
+                        Plotly.Plots.resize(plot);
+                    });
+                }
+            }, 300);
+        };
+    """
+
 def _get_css_styles():
     """mobile_report_generator のスタイルを統一感のあるデザインで返す"""
     return CSSStyles.get_integrated_report_styles()
@@ -1501,36 +640,435 @@ def calculate_all_high_scores(df, target_data, period="直近12週"):
         return [], []
 
 def generate_all_in_one_html_report_with_high_score(df, target_data, period="直近12週"):
-    """
-    ハイスコア機能付き統合HTMLレポートを生成する（新方式のラッパー関数）
-    不安定なHTMLの書き換えを完全に撤廃。
-    """
+    """ハイスコア機能付き統合HTMLレポート（修正版）"""
     try:
-        logger.info("🏆 [新方式]ハイスコア統合レポート生成開始")
+        logger.info("🏆 ハイスコア統合レポート生成開始")
 
-        # 1. ハイスコアデータを計算
+        # 1. 基本レポート生成
+        base_html = generate_all_in_one_html_report(df, target_data, period)
+        logger.info(f"📄 基本HTML生成完了: {len(base_html)}文字")
+
+        # 2. ハイスコアデータ計算
         dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
         logger.info(f"📊 スコア計算完了: 診療科{len(dept_scores)}件, 病棟{len(ward_scores)}件")
+        
+        # 3. ハイスコアHTMLを生成
+        if not dept_scores and not ward_scores:
+            logger.warning("⚠️ スコアデータなし")
+            return base_html
+        
+        # ハイスコアセクションのHTML（id変更：view-high-scoreに統一）
+        high_score_section = f"""
+        <div id="view-high-score" class="view-content">
+            <div class="section">
+                <h2>🏆 週間ハイスコア TOP3</h2>
+                <div class="ranking-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                    <div class="ranking-section">
+                        <h3>🩺 診療科部門</h3>
+                        <div class="ranking-list">
+        """
+        
+        # 診療科ランキング
+        for i, score in enumerate(dept_scores[:3]):
+            medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
+            high_score_section += f"""
+                            <div class="ranking-item rank-{i+1}">
+                                <span class="medal">{medal}</span>
+                                <div class="ranking-info">
+                                    <div class="name">{score['entity_name']}</div>
+                                    <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
+                                </div>
+                                <div class="score">{score['total_score']:.0f}点</div>
+                            </div>
+            """
+        
+        high_score_section += """
+                        </div>
+                    </div>
+                    <div class="ranking-section">
+                        <h3>🏢 病棟部門</h3>
+                        <div class="ranking-list">
+        """
+        
+        # 病棟ランキング
+        for i, score in enumerate(ward_scores[:3]):
+            medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
+            ward_name = score.get('display_name', score['entity_name'])
+            high_score_section += f"""
+                            <div class="ranking-item rank-{i+1}">
+                                <span class="medal">{medal}</span>
+                                <div class="ranking-info">
+                                    <div class="name">{ward_name}</div>
+                                    <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
+                                </div>
+                                <div class="score">{score['total_score']:.0f}点</div>
+                            </div>
+            """
+        
+        high_score_section += """
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+        
+        # 4. HTMLに組み込み（修正版：content-areaの直下に配置）
+        # content-areaの終了タグの直前に挿入
+        content_area_end = base_html.find('</div>', base_html.find('<div class="content-area">'))
+        
+        # content-area内の最後のview-contentを見つける
+        last_view_content_end = -1
+        content_area_start = base_html.find('<div class="content-area">')
+        if content_area_start > 0:
+            # view-contentクラスを持つすべてのdivの終了位置を探す
+            search_pos = content_area_start
+            while True:
+                view_content_pos = base_html.find('class="view-content"', search_pos, content_area_end)
+                if view_content_pos == -1:
+                    break
+                # この view-content の終了タグを見つける
+                div_count = 1
+                pos = base_html.find('>', view_content_pos) + 1
+                while div_count > 0 and pos < content_area_end:
+                    if base_html[pos:pos+4] == '<div':
+                        div_count += 1
+                    elif base_html[pos:pos+6] == '</div>':
+                        div_count -= 1
+                        if div_count == 0:
+                            last_view_content_end = pos + 6
+                    pos += 1
+                search_pos = pos
+        
+        # 挿入位置の決定
+        if last_view_content_end > 0:
+            insert_pos = last_view_content_end
+        else:
+            insert_pos = content_area_end
+        
+        modified_html = (base_html[:insert_pos] + 
+                       '\n                    ' + high_score_section + 
+                       base_html[insert_pos:])
+        
+        # 5. ボタンにハイスコアを追加
+        logger.info("ハイスコアボタンの追加処理を開始します。")
+        # ボタンを囲んでいるコンテナのクラス名を探します
+        # 注: 'quick-buttons' または 'quick-filters' のいずれかに対応します
+        buttons_container_tag = None
+        if modified_html.find('<div class="quick-buttons">') > -1:
+            buttons_container_tag = '<div class="quick-buttons">'
+        elif modified_html.find('<div class="quick-filters">') > -1:
+            buttons_container_tag = '<div class="quick-filters">'
 
-        # 2. ハイスコアのHTMLコンテンツを生成
-        high_score_html = create_high_score_html_section(dept_scores, ward_scores)
-        if high_score_html:
-            logger.info("✅ ハイスコアのHTMLセクションを生成しました。")
-
-        # 3. 修正されたメイン関数を呼び出し、ハイスコアHTMLを引数として渡すだけ！
-        final_html = generate_all_in_one_html_report(
-            df,
-            target_data,
-            period,
-            high_score_html=high_score_html # ★ここで生成したHTMLを渡します
-        )
-
-        logger.info("✅✅✅ [新方式]統合レポートの生成が完了しました。")
-        return final_html
-
+        if buttons_container_tag:
+            container_start_pos = modified_html.find(buttons_container_tag)
+            # ボタンコンテナの終了タグ(</div>)を、コンテナの開始位置以降で探します
+            insert_pos = modified_html.find('</div>', container_start_pos)
+            
+            if insert_pos > 0:
+                high_score_button = '''
+                <button class="quick-button" onclick="showView('view-high-score')">
+                    <span>🏆</span> ハイスコア部門
+                </button>'''
+                # </div> の直前にボタンを挿入します
+                modified_html = modified_html[:insert_pos] + high_score_button + modified_html[insert_pos:]
+                logger.info("✅ ハイスコアボタンの追加に成功しました。")
+            else:
+                logger.error("❌ ボタンコンテナの終了タグ(</div>)が見つかりませんでした。")
+        else:
+            logger.error("❌ ボタンコンテナ ('quick-buttons' または 'quick-filters') が見つかりませんでした。")
+        
+        # 6. CSS追加
+        additional_css = """
+        /* ハイスコア部門専用スタイル */
+        .ranking-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #D1D5DB;
+            transition: all 0.2s ease;
+        }
+        .ranking-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .ranking-item.rank-1 { 
+            border-left-color: #FFD700; 
+            background: linear-gradient(to right, rgba(255,215,0,0.1), white); 
+        }
+        .ranking-item.rank-2 { 
+            border-left-color: #C0C0C0; 
+            background: linear-gradient(to right, rgba(192,192,192,0.1), white); 
+        }
+        .ranking-item.rank-3 { 
+            border-left-color: #CD7F32; 
+            background: linear-gradient(to right, rgba(205,127,50,0.1), white); 
+        }
+        .medal { 
+            font-size: 1.8em; 
+            min-width: 50px;
+            text-align: center;
+        }
+        .ranking-info { 
+            flex: 1; 
+        }
+        .ranking-info .name { 
+            font-weight: bold; 
+            color: var(--gray-800);
+            margin-bottom: 4px;
+        }
+        .ranking-info .detail { 
+            font-size: 0.9em; 
+            color: var(--gray-600); 
+        }
+        .score { 
+            font-size: 1.6em; 
+            font-weight: bold; 
+            color: var(--primary-color); 
+            min-width: 70px;
+            text-align: center;
+        }
+        .ranking-section h3 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            text-align: center;
+            padding: 10px;
+            background: rgba(91, 95, 222, 0.1);
+            border-radius: 8px;
+        }
+        .ranking-list {
+            background: var(--gray-50);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--gray-200);
+        }
+        """
+        
+        style_end = modified_html.find('</style>')
+        if style_end > 0:
+            modified_html = (modified_html[:style_end] + 
+                           additional_css + '\n            ' +
+                           modified_html[style_end:])
+        
+        # 7. JavaScript修正（既存のshowView関数が適切に動作するよう確認）
+        # showView関数が正しく動作することを確認するためのログを追加
+        show_view_start = modified_html.find('function showView(viewId)')
+        if show_view_start > 0:
+            # showView関数の終了位置を見つける
+            func_end = modified_html.find('}', show_view_start)
+            brace_count = 1
+            pos = modified_html.find('{', show_view_start) + 1
+            
+            while brace_count > 0 and pos < len(modified_html):
+                if modified_html[pos] == '{':
+                    brace_count += 1
+                elif modified_html[pos] == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        func_end = pos
+                pos += 1
+            
+            # 既存の関数を保存
+            original_function = modified_html[show_view_start:func_end+1]
+            
+            # 新しいshowView関数を作成
+            new_show_view = """
+                function showView(viewId) {
+                    console.log('showView called with:', viewId);
+                    
+                    // 全てのビューを非表示
+                    document.querySelectorAll('.view-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // 指定されたビューを表示
+                    const targetView = document.getElementById(viewId);
+                    if (targetView) {
+                        targetView.classList.add('active');
+                        
+                        // Plotlyチャートの再描画をトリガー
+                        setTimeout(function() {
+                            window.dispatchEvent(new Event('resize'));
+                            
+                            if (window.Plotly) {
+                                const plots = targetView.querySelectorAll('.plotly-graph-div');
+                                plots.forEach(plot => {
+                                    Plotly.Plots.resize(plot);
+                                });
+                            }
+                        }, 100);
+                    }
+                    
+                    // クイックボタンのアクティブ状態を更新
+                    document.querySelectorAll('.quick-button').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    
+                    // 対応するボタンをアクティブに
+                    if (viewId === 'view-all') {
+                        document.querySelector('.quick-button').classList.add('active');
+                        // セレクターを隠す
+                        document.getElementById('dept-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector-wrapper').style.display = 'none';
+                        document.getElementById('dept-selector').value = '';
+                        document.getElementById('ward-selector').value = '';
+                    } else if (viewId === 'view-high-score') {
+                        // ハイスコアボタンをアクティブに
+                        const buttons = document.querySelectorAll('.quick-button');
+                        buttons.forEach((btn, index) => {
+                            if (btn.textContent.includes('ハイスコア部門')) {
+                                btn.classList.add('active');
+                            }
+                        });
+                        // セレクターを隠す
+                        document.getElementById('dept-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector-wrapper').style.display = 'none';
+                    }
+                }"""
+            
+            # 関数を置換
+            modified_html = modified_html.replace(original_function, new_show_view)
+            
+        else:
+            # showView関数が見つからない場合は新規追加
+            complete_js = """
+            <script>
+                function showView(viewId) {
+                    console.log('showView called with:', viewId);
+                    
+                    // 全てのビューを非表示
+                    document.querySelectorAll('.view-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // 指定されたビューを表示
+                    const targetView = document.getElementById(viewId);
+                    if (targetView) {
+                        targetView.classList.add('active');
+                        
+                        // Plotlyチャートの再描画
+                        setTimeout(function() {
+                            window.dispatchEvent(new Event('resize'));
+                            if (window.Plotly) {
+                                const plots = targetView.querySelectorAll('.plotly-graph-div');
+                                plots.forEach(plot => {
+                                    Plotly.Plots.resize(plot);
+                                });
+                            }
+                        }, 100);
+                    }
+                    
+                    // ボタンのアクティブ状態を更新
+                    updateActiveButtons(viewId);
+                }
+                
+                function updateActiveButtons(viewId) {
+                    // 全ボタンを非アクティブに
+                    document.querySelectorAll('.quick-button').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    
+                    // セレクターを隠す
+                    const deptWrapper = document.getElementById('dept-selector-wrapper');
+                    const wardWrapper = document.getElementById('ward-selector-wrapper');
+                    if (deptWrapper) deptWrapper.style.display = 'none';
+                    if (wardWrapper) wardWrapper.style.display = 'none';
+                    
+                    // 対応するボタンをアクティブに
+                    if (viewId === 'view-all') {
+                        document.querySelector('.quick-button').classList.add('active');
+                    } else if (viewId === 'view-high-score') {
+                        const buttons = document.querySelectorAll('.quick-button');
+                        buttons.forEach(btn => {
+                            if (btn.textContent.includes('ハイスコア部門')) {
+                                btn.classList.add('active');
+                            }
+                        });
+                    } else if (viewId.startsWith('view-dept-')) {
+                        const buttons = document.querySelectorAll('.quick-button');
+                        buttons.forEach(btn => {
+                            if (btn.textContent.includes('診療科別')) {
+                                btn.classList.add('active');
+                            }
+                        });
+                    } else if (viewId.startsWith('view-ward-')) {
+                        const buttons = document.querySelectorAll('.quick-button');
+                        buttons.forEach(btn => {
+                            if (btn.textContent.includes('病棟別')) {
+                                btn.classList.add('active');
+                            }
+                        });
+                    }
+                }
+                
+                function toggleTypeSelector(type) {
+                    // 病院全体ビューを非表示
+                    document.getElementById('view-all').classList.remove('active');
+                    document.getElementById('view-high-score').classList.remove('active');
+                    
+                    // セレクターの表示切替
+                    if (type === 'dept') {
+                        document.getElementById('dept-selector-wrapper').style.display = 'flex';
+                        document.getElementById('ward-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector').value = '';
+                    } else if (type === 'ward') {
+                        document.getElementById('dept-selector-wrapper').style.display = 'none';
+                        document.getElementById('ward-selector-wrapper').style.display = 'flex';
+                        document.getElementById('dept-selector').value = '';
+                    }
+                    
+                    // ボタンのアクティブ状態を更新
+                    document.querySelectorAll('.quick-button').forEach((btn, index) => {
+                        btn.classList.toggle('active', 
+                            (btn.textContent.includes('診療科別') && type === 'dept') || 
+                            (btn.textContent.includes('病棟別') && type === 'ward')
+                        );
+                    });
+                }
+                
+                function changeView(viewId) {
+                    if (viewId) {
+                        showView(viewId);
+                    }
+                }
+                
+                // ページ読み込み時の初期化
+                document.addEventListener('DOMContentLoaded', function() {
+                    console.log('DOM loaded - initializing views');
+                    
+                    // 初期表示の確認
+                    const activeView = document.querySelector('.view-content.active');
+                    if (activeView) {
+                        console.log('Initial active view:', activeView.id);
+                    }
+                    
+                    // ハイスコアビューの存在確認
+                    const highScoreView = document.getElementById('view-high-score');
+                    if (highScoreView) {
+                        console.log('✅ High score view found');
+                    } else {
+                        console.error('❌ High score view not found');
+                    }
+                });
+            </script>
+            """
+            
+            # </body>タグの前に挿入
+            body_end = modified_html.rfind('</body>')
+            if body_end > 0:
+                modified_html = modified_html[:body_end] + complete_js + '\n' + modified_html[body_end:]
+        
+        return modified_html
+        
     except Exception as e:
-        logger.error(f"[新方式]ハイスコア統合レポート生成中にエラー: {e}", exc_info=True)
-        return "<html><body>レポート生成中にエラーが発生しました。</body></html>"
+        logger.error(f"ハイスコア統合エラー: {e}", exc_info=True)
+        return base_html
 
 def _generate_ranking_list_html(scores: List[Dict], entity_type: str) -> str:
     """ランキングリストHTML生成"""
