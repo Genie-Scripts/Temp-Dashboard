@@ -428,7 +428,7 @@ class CSSStyles:
 # 元のファイルで関数を以下のように変更:
 def _get_css_styles():
     """モバイルレポート用CSSスタイルを返す"""
-    from css_styles import CSSStyles
+    from .css_styles import CSSStyles
     return CSSStyles.get_mobile_report_styles()
 
 
@@ -437,7 +437,7 @@ def _get_css_styles():
 # 元のファイルで関数を以下のように変更:
 def _get_css_styles():
     """統合レポート用CSSスタイルを返す"""
-    from css_styles import CSSStyles
+    from .css_styles import CSSStyles
     return CSSStyles.get_integrated_report_styles()
 
 
@@ -445,7 +445,7 @@ def _get_css_styles():
 
 """
 # 個別のスタイル部品が必要な場合
-from css_styles import CSSStyles
+from .css_styles importt CSSStyles
 
 # 基本的なカードスタイルのみ
 card_css = CSSStyles.get_card_styles()

@@ -3,7 +3,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import logging
 from typing import Dict, Any, Optional
-from css_styles import CSSStyles
+from report_generation.css_styles CSSStyles
 
 # --- 必要な分析・計算モジュールをインポート ---
 from report_generation.utils import evaluate_feasibility, calculate_effect_simulation
