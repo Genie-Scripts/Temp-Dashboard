@@ -1,4 +1,4 @@
-# department_performance_tab.py - 診療科別パフォーマンスダッシュボード（努力度表示版・トレンド分析対応）
+# department_performance_tab.py
 # -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
@@ -12,19 +12,22 @@ from config import EXCLUDED_WARDS
 
 logger = logging.getLogger(__name__)
 
+# ▼▼▼ 修正箇所 ▼▼▼
+# 既存のインポートに加えて詳細表示機能を追加
 try:
     from .unified_filters import get_unified_filter_config
-    # from .unified_html_export import generate_unified_html_export # このファイルは存在しない可能性が高い
     from .enhanced_streamlit_display import display_enhanced_action_dashboard
     from .enhanced_action_analysis import generate_comprehensive_action_data
+    # unified_html_export は存在しない可能性が高いため、インポートしない
+    # from .unified_html_export import generate_unified_html_export
+    generate_unified_html_export = None # プレースホルダー
 except ImportError as e:
-    st.error(f"必要なモジュールのインポートに失敗しました: {e}")
-    st.info("unified_filters.py, enhanced_streamlit_display.py, enhanced_action_analysis.pyが report_generation パッケージ内に配置されているか確認してください。")
-    # 存在しない可能性のあるモジュールはNoneに設定
+    st.warning(f"詳細表示機能の一部のモジュールが見つかりません: {e}")
     get_unified_filter_config = None
     generate_unified_html_export = None
     display_enhanced_action_dashboard = None
     generate_comprehensive_action_data = None
+# ▲▲▲ 修正ここまで ▲▲▲
 
 def get_mobile_report_generator():
     """mobile_report_generatorを遅延インポート"""
