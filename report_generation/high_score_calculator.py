@@ -112,6 +112,14 @@ class HighScoreCalculator:
         mapping = self.config.get_stability_score_mapping()
         return _get_score_from_mapping(cv, mapping)
 
+    def calculate_all_high_scores(self, df: pd.DataFrame, target_data: pd.DataFrame, 
+                                period: str = "直近12週") -> Tuple[List[Dict], List[Dict]]:
+        """全エンティティのハイスコア計算"""
+        # この関数の実装は、utilsからの関数インポートが必要なため
+        # 簡易版を返す
+        logger.warning("完全なハイスコア計算機能は利用できません")
+        return [], []
+
 # =============================================================================
 # 便利関数（後方互換性）
 # =============================================================================
@@ -120,13 +128,6 @@ def calculate_high_score(kpi_data: Dict[str, Any], config: Any = None) -> float:
     calculator = HighScoreCalculator(config)
     return calculator.calculate_score(kpi_data)
 
-def calculate_all_high_scores(df: pd.DataFrame, target_data: pd.DataFrame, 
-                            period: str = "直近12週") -> Tuple[List[Dict], List[Dict]]:
-    """全エンティティのハイスコア計算"""
-    # この関数の実装は、utilsからの関数インポートが必要なため
-    # 簡易版を返す
-    logger.warning("完全なハイスコア計算機能は利用できません")
-    return [], []
 
 # =============================================================================
 # テスト関数
