@@ -39,8 +39,8 @@ try:
         create_forecast_comparison_chart
     )
     from pdf_generator import create_pdf, create_landscape_pdf
-    from forecast import generate_filtered_summaries, create_forecast_dataframe
-    from kpi_calculator import calculate_kpis, analyze_kpi_insights
+    from .forecast import generate_filtered_summaries, create_forecast_dataframe
+    from .kpi_calculator import calculate_kpis, analyze_kpi_insights
     from report_generation.utils import get_display_name_for_dept
 except ImportError as e:
     st.error(f"必要なモジュールのインポートに失敗しました: {e}")

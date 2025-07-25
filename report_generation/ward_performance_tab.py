@@ -14,7 +14,7 @@ try:
     evaluate_feasibility, calculate_effect_simulation, calculate_los_appropriate_range,
     get_hospital_targets
     )
-    from unified_filters import get_unified_filter_config
+    from .unified_filters import get_unified_filter_config
     from unified_html_export import generate_unified_html_export
     
     # アクション提案ダッシュボードの表示関数
