@@ -8,9 +8,9 @@ from css_styles import CSSStyles
 
 # --- 必要なモジュールをインポート ---
 from utils import (
-    get_period_dates, 
-    calculate_department_kpis, 
-    calculate_ward_kpis, 
+    get_period_dates,
+    calculate_department_kpis,
+    calculate_ward_kpis,
     get_target_ward_list,
     get_hospital_targets,
     evaluate_feasibility,
@@ -44,9 +44,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         dept_col = '診療科名'
         all_departments = sorted(df[dept_col].dropna().unique()) if dept_col in df.columns else []
         all_wards = get_target_ward_list(target_data, EXCLUDED_WARDS)
-        
+
         content_html = ""
-        
+
         # --- 全体ビューの生成 ---
         overall_df = df[(df['日付'] >= start_date) & (df['日付'] <= end_date)]
         overall_kpi = calculate_department_kpis(df, target_data, '全体', '病院全体', start_date, end_date, None)
@@ -56,7 +56,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         cards_all = _generate_metric_cards_html(overall_html_kpi, is_ward=False)
         charts_all = _generate_charts_html(overall_df, overall_html_kpi)
         analysis_all = _generate_action_plan_html(overall_html_kpi, overall_feasibility, overall_simulation, hospital_targets)
-        
+
         # ⭐ 新規追加：週間ハイライトの生成（ハイスコア計算を先に実行）
         try:
             dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
@@ -75,7 +75,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         except Exception as e:
             logger.error(f"週間ハイライト生成エラー: {e}")
             overall_content = cards_all + charts_all + analysis_all
-        
+
         content_html += f'<div id="view-all" class="view-content active">{overall_content}</div>'
 
         # --- 診療科別ビューの生成 ---
@@ -85,14 +85,14 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 df_dept = df[df[dept_col] == dept_name]
                 raw_kpi = calculate_department_kpis(df, target_data, dept_name, dept_name, start_date, end_date, dept_col)
                 if not raw_kpi: continue
-                
+
                 feasibility = evaluate_feasibility(raw_kpi, df_dept, start_date, end_date)
                 simulation = calculate_effect_simulation(raw_kpi)
                 html_kpi = _adapt_kpi_for_html_generation(raw_kpi)
                 cards = _generate_metric_cards_html(html_kpi, is_ward=False)
                 charts = _generate_charts_html(df_dept, html_kpi)
                 analysis = _generate_action_plan_html(html_kpi, feasibility, simulation, hospital_targets)
-                
+
                 full_dept_content = cards + charts + analysis
                 content_html += f'<div id="{dept_id}" class="view-content">{full_dept_content}</div>'
             except Exception as e:
@@ -127,7 +127,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             # 詳細表示とハイライトのHTML生成
             score_details_html = _generate_score_detail_html(dept_scores, ward_scores)
             highlights_html = _generate_weekly_highlights(dept_scores, ward_scores)
-            
+
             high_score_html = f"""
             <div id="view-high-score" class="view-content">
                 <div class="section">
@@ -138,7 +138,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             <h3>🩺 診療科部門</h3>
                             <div class="ranking-list">
             """
-            
+
             if dept_scores:
                 for i, score in enumerate(dept_scores[:3]):
                     medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
@@ -154,7 +154,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     """
             else:
                 high_score_html += "<p>データがありません</p>"
-            
+
             high_score_html += """
                             </div>
                         </div>
@@ -162,7 +162,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             <h3>🏢 病棟部門</h3>
                             <div class="ranking-list">
             """
-            
+
             if ward_scores:
                 for i, score in enumerate(ward_scores[:3]):
                     medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
@@ -179,7 +179,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     """
             else:
                 high_score_html += "<p>データがありません</p>"
-            
+
             high_score_html += f"""
                             </div>
                         </div>
@@ -202,12 +202,12 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         for dept_name in all_departments:
             dept_id = f"view-dept-{urllib.parse.quote(dept_name)}"
             dept_options += f'<option value="{dept_id}">{dept_name}</option>'
-            
+
         ward_options = ""
         for ward_code, ward_name in all_wards:
             ward_id = f"view-ward-{ward_code}"
             ward_options += f'<option value="{ward_id}">{ward_name}</option>'
-        
+
         # ===== 🔥 評価基準パネルのHTML（直近週重視版に更新） =====
         info_panel_html = f"""
         <div id="info-panel" class="info-panel">
@@ -216,7 +216,6 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 
                 <h2>📊 評価基準・用語説明（直近週重視版）</h2>
                 
-                <!-- タブナビゲーション -->
                 <div class="info-tabs">
                     <button class="info-tab active" onclick="showInfoTab('priority')">
                         <span>🎯</span> アクション優先順位
@@ -241,9 +240,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     </button>
                 </div>
                 
-                <!-- タブコンテンツ -->
                 <div class="info-tab-content">
-                    <!-- アクション優先順位タブ -->
                     <div id="priority-tab" class="tab-pane active">
                         <h3>🎯 アクションの優先順位（98%基準・直近週重視）</h3>
                         <div class="priority-box urgent">
@@ -264,7 +261,6 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         </div>
                     </div>
                     
-                    <!-- 週間総合評価タブ -->
                     <div id="evaluation-tab" class="tab-pane">
                         <h3>🌟 週間総合評価（S〜D）- 直近週基準</h3>
                         <table class="criteria-table">
@@ -307,7 +303,6 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         </div>
                     </div>
                     
-                    <!-- ハイスコア評価タブ（新規追加） -->
                     <div id="highscore-tab" class="tab-pane">
                         <h3>🏆 ハイスコア評価基準（100点満点）</h3>
                         
@@ -427,7 +422,6 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         </div>
                     </div>
                     
-                    <!-- 改善度評価タブ -->
                     <div id="improvement-tab" class="tab-pane">
                         <h3>📈 改善度評価（直近週 vs 期間平均）</h3>
                         <ul class="criteria-list">
@@ -442,7 +436,6 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         </div>
                     </div>
                     
-                    <!-- 在院日数評価タブ -->
                     <div id="los-tab" class="tab-pane">
                         <h3>📅 平均在院日数の評価（直近週重視）</h3>
                         <div class="los-criteria">
@@ -465,7 +458,6 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         </div>
                     </div>
                     
-                    <!-- 用語説明タブ -->
                     <div id="terms-tab" class="tab-pane">
                         <h3>📖 用語説明（直近週重視版）</h3>
                         <dl class="term-list">
@@ -495,7 +487,6 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         </dl>
                     </div>
                     
-                    <!-- 判定フロータブ -->
                     <div id="flow-tab" class="tab-pane">
                         <h3>🔄 アクション判定フロー</h3>
                         <div class="flow-chart">
@@ -1472,9 +1463,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     }}
                 }}
 
-
-                /* 週間ハイライトバナー */
-                .weekly-highlight-banner {
+                /* ===== 修正箇所 ===== */
+                /* 週間ハイライトバナー (f-string内の { と } をエスケープ) */
+                .weekly-highlight-banner {{
                     background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
                     border-left: 4px solid var(--info-color);
                     margin: 0 0 25px 0;
@@ -1484,9 +1475,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     animation: slideDown 0.4s ease-out;
                     position: relative;
                     overflow: hidden;
-                }
+                }}
                 
-                .weekly-highlight-banner::before {
+                .weekly-highlight-banner::before {{
                     content: '';
                     position: absolute;
                     top: 0;
@@ -1495,92 +1486,92 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     height: 100px;
                     background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
                     transform: translate(30px, -30px);
-                }
+                }}
                 
-                .highlight-container {
+                .highlight-container {{
                     display: flex;
                     align-items: center;
                     gap: 18px;
                     position: relative;
                     z-index: 1;
-                }
+                }}
                 
-                .highlight-icon {
+                .highlight-icon {{
                     font-size: 1.8em;
                     animation: pulse 2s infinite;
                     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
-                }
+                }}
                 
-                .highlight-content {
+                .highlight-content {{
                     flex: 1;
-                }
+                }}
                 
-                .highlight-content strong {
+                .highlight-content strong {{
                     color: var(--primary-color);
                     font-size: 1.1em;
                     margin-right: 12px;
                     font-weight: 700;
-                }
+                }}
                 
-                .highlight-items {
+                .highlight-items {{
                     color: var(--gray-700);
                     font-weight: 500;
                     line-height: 1.6;
                     font-size: 1.05em;
-                }
+                }}
                 
                 /* スマホ対応 */
-                @media (max-width: 768px) {
-                    .weekly-highlight-banner {
+                @media (max-width: 768px) {{
+                    .weekly-highlight-banner {{
                         margin: 0 0 20px 0;
                         padding: 15px 18px;
                         border-radius: 0;
-                    }
+                    }}
                     
-                    .highlight-container {
+                    .highlight-container {{
                         flex-direction: column;
                         text-align: center;
                         gap: 10px;
-                    }
+                    }}
                     
-                    .highlight-icon {
+                    .highlight-icon {{
                         font-size: 1.5em;
-                    }
+                    }}
                     
-                    .highlight-content strong {
+                    .highlight-content strong {{
                         display: block;
                         margin-bottom: 8px;
                         font-size: 1em;
-                    }
+                    }}
                     
-                    .highlight-items {
+                    .highlight-items {{
                         display: block;
                         font-size: 0.95em;
                         line-height: 1.5;
-                    }
-                }
+                    }}
+                }}
                 
                 /* アニメーション */
-                @keyframes slideDown {
-                    from { 
+                @keyframes slideDown {{
+                    from {{ 
                         opacity: 0; 
                         transform: translateY(-20px); 
-                    }
-                    to { 
+                    }}
+                    to {{ 
                         opacity: 1; 
                         transform: translateY(0); 
-                    }
-                }
+                    }}
+                }}
                 
-                @keyframes pulse {
-                    0%, 100% { 
+                @keyframes pulse {{
+                    0%, 100% {{ 
                         transform: scale(1); 
-                    }
-                    50% { 
+                    }}
+                    50% {{ 
                         transform: scale(1.15); 
-                    }
-                }
-                /* ========== ここまで追加 ========== */
+                    }}
+                }}
+                /* ========== ここまで修正 ========== */
                 /* 既存のCSS統合 */
                 {_get_css_styles()}
             </style>
