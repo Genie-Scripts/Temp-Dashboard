@@ -58,6 +58,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         analysis_all = _generate_action_plan_html(overall_html_kpi, overall_feasibility, overall_simulation, hospital_targets)
         
         # ⭐ 新規追加：診療科・病棟別の週間ハイライト
+        highlight_html = ""
+        dept_scores = []
+        ward_scores = []
         try:
             # ハイスコア計算（後でハイスコアビューでも使用するため）
             dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
@@ -85,11 +88,13 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 </div>
             </div>
             """
-            overall_content = highlight_html + cards_all + charts_all + analysis_all
         except Exception as e:
             logger.error(f"週間ハイライト生成エラー: {e}")
-            overall_content = cards_all + charts_all + analysis_all
-    
+            # エラー時は空のハイライトHTMLにする
+            highlight_html = ""
+        
+        # ハイライトHTMLを含めて全体コンテンツを構成
+        overall_content = highlight_html + cards_all + charts_all + analysis_all
     content_html += f'<div id="view-all" class="view-content active">{overall_content}</div>'
 
         # --- 診療科別ビューの生成 ---
