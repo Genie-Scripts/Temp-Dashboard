@@ -139,8 +139,10 @@ def execute_github_publish(period: str):
         # === 修正箇所: 新しい関数を直接呼び出す ===
         try:
             # 常にハイスコア機能を含む新しい関数を呼び出す
-            from html_export_functions import generate_all_in_one_html_report
-            
+            try:
+                from html_export_functions import generate_all_in_one_html_report
+            except ImportError:
+                from report_generation.html_export_functions import generate_all_in_one_html_report
             html_content = generate_all_in_one_html_report(df, target_data, period)
             feature_description = "ハイスコア機能付き統合レポート"
             
