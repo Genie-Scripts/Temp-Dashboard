@@ -20,8 +20,9 @@ try:
     SCORING_CONFIG = scoring_config.DEFAULT_SCORING_CONFIG
 except ImportError:
     try:
-        from config.scoring_config import DEFAULT_SCORING_CONFIG
-        SCORING_CONFIG = DEFAULT_SCORING_CONFIG
+        # 自身のパッケージ内のconfigモジュールを参照する
+        from .config import scoring_config
+        SCORING_CONFIG = scoring_config.DEFAULT_SCORING_CONFIG
     except ImportError:
         # フォールバック設定
         class DefaultScoringConfig:

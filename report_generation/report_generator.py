@@ -1,20 +1,15 @@
-# report_generator.py
-"""
-統合レポート生成のメインオーケストレーター
-元のhtml_export_functions.pyの機能を分離されたモジュールを使って再構築
-"""
-
 import pandas as pd
 import logging
 import urllib.parse
 from typing import Dict, List, Tuple, Optional
 
-# 分離したモジュールのインポート
-from high_score_calculator import HighScoreCalculator
-from components.ui_components import UIComponentBuilder
-from templates.html_templates import HTMLTemplates, InfoPanelContent, JavaScriptTemplates
-from css_styles import CSSStyles
-from config.scoring_config import ScoringConfig
+# ▼▼▼ 修正箇所 ▼▼▼
+# パッケージ内のモジュールは相対インポートにする
+from .high_score_calculator import HighScoreCalculator
+from .components.ui_components import UIComponentBuilder
+from .templates.html_templates import HTMLTemplates, InfoPanelContent, JavaScriptTemplates
+from .css_styles import CSSStyles  # css_styles.pyもパッケージ内にあると仮定
+from .config.scoring_config import ScoringConfig
 
 # 必要なユーティリティのインポート
 from utils import (
