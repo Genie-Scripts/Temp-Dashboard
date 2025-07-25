@@ -1464,7 +1464,6 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 }}
 
                 /* ===== 修正箇所 ===== */
-                /* 週間ハイライトバナー (f-string内の { と } をエスケープ) */
                 .weekly-highlight-banner {{
                     background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
                     border-left: 4px solid var(--info-color);
