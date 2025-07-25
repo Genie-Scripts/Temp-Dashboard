@@ -31,7 +31,7 @@ def get_mobile_report_generator():
         st.error(f"mobile_report_generator インポートエラー: {e}")
         return None
 
-from utils import (
+from report_generation.utils import (
     safe_date_filter, get_display_name_for_dept, create_dept_mapping_table,
     get_period_dates, calculate_department_kpis, decide_action_and_reasoning,
     evaluate_feasibility, calculate_effect_simulation, calculate_los_appropriate_range,

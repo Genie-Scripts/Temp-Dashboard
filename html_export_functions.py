@@ -155,7 +155,7 @@ except ImportError:
 # 既存モジュールのインポート（必須）
 # =============================================================================
 try:
-    from utils import (
+    from report_generation.utils import (
         get_period_dates,
         calculate_department_kpis,
         calculate_ward_kpis,

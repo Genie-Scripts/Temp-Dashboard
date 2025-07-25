@@ -8,7 +8,7 @@ import pandas as pd
 # import numpy as np # 必要に応じて
 # from datetime import datetime, timedelta # 必要に応じて
 # import jpholiday # 不要なら削除
-from utils import safe_date_filter # 期間フィルターに必要
+from report_generation.utils import safe_date_filter # 期間フィルターに必要
 
 # dashboard_overview_tab からKPI表示関数をインポート
 try:

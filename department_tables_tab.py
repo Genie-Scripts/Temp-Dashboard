@@ -95,7 +95,7 @@ def display_department_tables_tab(department_type: str):
                 # 表示用に部門名に変換
                 dept_names = []
                 try:
-                    from utils import get_display_name_for_dept
+                    from report_generation.utils import get_display_name_for_dept
                     for dept_code in dept_codes:
                         display_name = get_display_name_for_dept(dept_code, dept_code)
                         dept_names.append(display_name)
@@ -116,7 +116,7 @@ def display_department_tables_tab(department_type: str):
                 # 表示用に部門名に変換
                 dept_names = []
                 try:
-                    from utils import get_display_name_for_dept
+                    from report_generation.utils import get_display_name_for_dept
                     for dept_code in included_departments_list:
                         display_name = get_display_name_for_dept(dept_code, dept_code)
                         dept_names.append(display_name)

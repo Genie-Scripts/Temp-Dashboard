@@ -14,7 +14,7 @@ from alos_charts import (
 )
 
 # utils.py からインポート (変更なし)
-from utils import (
+from report_generation.utils import (
     get_ward_display_name,
     get_display_name_for_dept,
 )

@@ -8,7 +8,7 @@ from config import EXCLUDED_WARDS
 logger = logging.getLogger(__name__)
 
 try:
-    from utils import (
+    from report_generation.utils import (
     safe_date_filter, get_ward_display_name, create_ward_name_mapping,
     get_period_dates, calculate_ward_kpis, decide_action_and_reasoning,
     evaluate_feasibility, calculate_effect_simulation, calculate_los_appropriate_range,

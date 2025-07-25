@@ -12,7 +12,7 @@ from .css_styles import CSSStyles  # css_styles.pyもパッケージ内にある
 from .config.scoring_config import ScoringConfig
 
 # 必要なユーティリティのインポート
-from utils import (
+from report_generation.utils import (
     get_period_dates,
     calculate_department_kpis,
     calculate_ward_kpis,

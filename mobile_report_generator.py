@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 from css_styles import CSSStyles
 
 # --- 必要な分析・計算モジュールをインポート ---
-from utils import evaluate_feasibility, calculate_effect_simulation
+from report_generation.utils import evaluate_feasibility, calculate_effect_simulation
 from enhanced_action_analysis import generate_comprehensive_action_data
 
 logger = logging.getLogger(__name__)
@@ -464,7 +464,7 @@ def _lazy_import_functions():
 
 # utilsからのインポート（これは循環インポートしない）
 try:
-    from utils import safe_date_filter
+    from report_generation.utils import safe_date_filter
 except ImportError:
     logger.error("utils のインポートエラー")
     def safe_date_filter(df, start_date, end_date):

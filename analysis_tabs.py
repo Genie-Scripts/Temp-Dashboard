@@ -24,7 +24,7 @@ from unified_filters import (
 )
 
 # ユーティリティ関数のインポート
-from utils import safe_date_filter
+from report_generation.utils import safe_date_filter
 
 # 既存モジュールからのインポート
 try:
@@ -41,7 +41,7 @@ try:
     from pdf_generator import create_pdf, create_landscape_pdf
     from forecast import generate_filtered_summaries, create_forecast_dataframe
     from kpi_calculator import calculate_kpis, analyze_kpi_insights
-    from utils import get_display_name_for_dept
+    from report_generation.utils import get_display_name_for_dept
 except ImportError as e:
     st.error(f"必要なモジュールのインポートに失敗しました: {e}")
     display_alos_analysis_tab = None
@@ -164,7 +164,7 @@ def create_ward_table_section(df_filtered):
             st.warning("指定された期間にデータがありません。")
             return
         
-        from utils import initialize_all_mappings, get_ward_display_name
+        from report_generation.utils import initialize_all_mappings, get_ward_display_name
         initialize_all_mappings(df_filtered, st.session_state.get('target_data'))
         ward_mapping = st.session_state.get('ward_mapping', {})
         
