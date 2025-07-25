@@ -1,40 +1,54 @@
 
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>レポート（フォールバック版）</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .container { max-width: 800px; margin: 0 auto; }
-            .warning { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>📊 統合パフォーマンスレポート</h1>
-            <p><strong>期間:</strong> 直近12週</p>
-            
+    <style>
+        body { font-family: 'Noto Sans JP', sans-serif; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { background: #1e88e5; color: white; padding: 20px; border-radius: 8px; }
+        .metric-card { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        .chart-container { margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+        .warning { background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+    
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>統合パフォーマンスレポート</title>
+        </head>
+        <body>
+            <div class="container">
+        
+            <div class="header">
+                <h1>📊 統合パフォーマンスレポート</h1>
+                <p><strong>期間:</strong> 直近12週</p>
+            </div>
+        
             <div class="warning">
-                <h3>⚠️ フォールバックモードで動作中</h3>
+                <p>⚠️ フォールバックモードで動作中</p>
                 <p>新アーキテクチャおよびハイブリッド実装が利用できません。</p>
                 <p>基本的なレポート機能のみ提供しています。</p>
             </div>
-            
-            <h2>📈 データ概要</h2>
-            <ul>
-                <li>データ行数: 128,188行</li>
-                <li>分析期間: 直近12週</li>
-                <li>処理日時: 2025-07-25 21:00:48</li>
-            </ul>
-            
-            <h2>🔧 改善のために</h2>
-            <p>完全な機能を利用するには、以下をご確認ください：</p>
-            <ul>
-                <li>report_generation パッケージのインストール</li>
-                <li>必要な依存関係のインストール</li>
-                <li>設定ファイルの配置</li>
-            </ul>
-        </div>
-    </body>
-    </html>
-    
+        
+            <div class="metric-card">
+                <h2>📈 データ概要</h2>
+                <ul>
+        <li>データ行数: 128,188行</li><li>分析期間: 直近12週</li><li>処理日時: 2025-07-25 21:20:30</li>
+                </ul>
+            </div>
+        <div class="warning">KPIの計算中にエラーが発生しました。</div>
+            <div class="metric-card">
+                <h2>🔧 改善のために</h2>
+                <p>完全な機能を利用するには、以下をご確認ください:</p>
+                <ul>
+                    <li>report_generation パッケージのインストール</li>
+                    <li>必要な依存関係のインストール</li>
+                    <li>設定ファイルの配置</li>
+                </ul>
+            </div>
+        
+            </div>
+        </body>
+        </html>
+        
