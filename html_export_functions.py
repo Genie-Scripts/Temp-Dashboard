@@ -91,7 +91,6 @@ except ImportError:
 try:
     from high_score_calculator import (
         calculate_high_score,
-        calculate_all_high_scores
     )
     HIGH_SCORE_CALCULATOR_AVAILABLE = True
     logger.debug("✅ High Score Calculator利用可能")

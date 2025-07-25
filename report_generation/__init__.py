@@ -41,9 +41,7 @@ except ImportError as e:
 try:
     from .high_score_calculator import (
         HighScoreCalculator,
-        # ScoreResult, # <-- この行を削除またはコメントアウト
         calculate_high_score,
-        calculate_all_high_scores
     )
     HIGH_SCORE_AVAILABLE = True
     logger.info("✅ HighScoreCalculator をロードしました")

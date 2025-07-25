@@ -166,20 +166,3 @@ def execute_github_publish(period: str):
                 st.error(f"❌ 公開に失敗: {msg}")
         else:
             st.error("❌ HTMLコンテンツの生成に失敗しました。")
-
-# === 追加: ハイスコア機能のテスト関数 ===
-def test_high_score_functionality():
-    """ハイスコア機能の動作確認（デバッグ用）"""
-    try:
-        from html_export_functions import calculate_all_high_scores
-        df = st.session_state.get('df')
-        target_data = st.session_state.get('target_data', pd.DataFrame())
-        
-        if df is not None and not df.empty:
-            dept_scores, ward_scores = calculate_all_high_scores(df, target_data, "直近12週")
-            return len(dept_scores) + len(ward_scores) > 0
-        return False
-    except ImportError:
-        return False
-    except Exception:
-        return False

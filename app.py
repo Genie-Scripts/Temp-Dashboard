@@ -1,3 +1,6 @@
+# app.py (リファクタリング対応版)
+# 各機能モジュールを'report_generation'パッケージからインポートするように修正
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -12,9 +15,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- モジュールのインポート ---
+# スタイルや永続化など、ルートレベルのモジュールはそのまま
 from style import inject_global_css
-from report_generation.utils import initialize_all_mappings, logger
-
 from data_persistence import (
     auto_load_data, save_data_to_file, load_data_from_file,
     get_data_info, delete_saved_data, get_file_sizes,
@@ -22,42 +25,50 @@ from data_persistence import (
     get_backup_info, restore_from_backup
 )
 
-# --- モジュールのインポートとエラーハンドリング ---
-# 変数の初期化（重要：最初に定義）
+# ▼▼▼▼▼ 修正箇所 ▼▼▼▼▼
+# report_generationパッケージから各機能をインポートする
+try:
+    from report_generation.utils import initialize_all_mappings, logger
+except ImportError as e:
+    # 致命的なエラーなので、フォールバック用のロガーを作成
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.critical(f"必須モジュール 'utils' のインポートに失敗しました: {e}")
+    st.error("アプリケーションの起動に必要なモジュール(utils)がありません。処理を続行できません。")
+    st.stop()
+
+
+# --- 機能モジュールの段階的インポート ---
+# 変数の初期化
 FORECAST_AVAILABLE = False
 DEPT_PERFORMANCE_AVAILABLE = False
 WARD_PERFORMANCE_AVAILABLE = False
 
 # analysis_tabs のインポート
 try:
-    from analysis_tabs import create_data_tables_tab
+    from report_generation.analysis_tabs import create_data_tables_tab, create_individual_analysis_section
 except ImportError as e:
-    logger.error(f"analysis_tabs.create_data_tables_tab インポートエラー: {e}")
+    logger.error(f"analysis_tabs インポートエラー: {e}")
     create_data_tables_tab = lambda: st.error("データテーブル機能は利用できません。")
-
-try:
-    from analysis_tabs import create_individual_analysis_section
-except ImportError as e:
-    logger.error(f"analysis_tabs.create_individual_analysis_section インポートエラー: {e}")
     create_individual_analysis_section = lambda df_filtered, filter_config_from_caller: st.error("個別分析セクション機能は利用できません。")
 
 # データ処理タブ
 try:
-    from data_processing_tab import create_data_processing_tab
+    from report_generation.data_processing_tab import create_data_processing_tab
 except ImportError as e:
     logger.error(f"data_processing_tab インポートエラー: {e}")
     create_data_processing_tab = lambda: st.error("データ処理機能は利用できません。")
 
 # PDF出力タブ
 try:
-    import pdf_output_tab
+    from report_generation import pdf_output_tab
 except ImportError as e:
     logger.error(f"pdf_output_tab インポートエラー: {e}")
     pdf_output_tab = type('pdf_output_tab_mock', (object,), {'create_pdf_output_tab': lambda: st.error("PDF出力機能は利用できません。")})()
 
 # 予測分析タブ
 try:
-    from forecast_analysis_tab import display_forecast_analysis_tab
+    from report_generation.forecast_analysis_tab import display_forecast_analysis_tab
     FORECAST_AVAILABLE = True
 except ImportError as e:
     logger.error(f"forecast_analysis_tab インポートエラー: {e}")
@@ -66,21 +77,21 @@ except ImportError as e:
 
 # KPI計算機能
 try:
-    from kpi_calculator import calculate_kpis
+    from report_generation.kpi_calculator import calculate_kpis
 except ImportError as e:
     logger.error(f"kpi_calculator インポートエラー: {e}")
     calculate_kpis = None
 
 # ダッシュボード概要タブ
 try:
-    from dashboard_overview_tab import display_kpi_cards_only
+    from report_generation.dashboard_overview_tab import display_kpi_cards_only
 except ImportError as e:
     logger.error(f"dashboard_overview_tab インポートエラー: {e}")
     display_kpi_cards_only = lambda *args, **kwargs: st.error("経営ダッシュボードKPI表示機能は利用できません。")
 
 # 統合フィルター機能
 try:
-    from unified_filters import (create_unified_filter_sidebar, apply_unified_filters,
+    from report_generation.unified_filters import (create_unified_filter_sidebar, apply_unified_filters,
                                  get_unified_filter_summary, initialize_unified_filters,
                                  get_unified_filter_config, validate_unified_filters)
 except ImportError as e:
@@ -94,28 +105,28 @@ except ImportError as e:
 
 # 平均在院日数分析タブ
 try:
-    from alos_analysis_tab import display_alos_analysis_tab
+    from report_generation.alos_analysis_tab import display_alos_analysis_tab
 except ImportError as e:
     logger.error(f"alos_analysis_tab インポートエラー: {e}")
     display_alos_analysis_tab = lambda df_filtered_by_period, start_date_ts, end_date_ts, common_config=None: st.error("平均在院日数分析機能は利用できません。")
 
 # 曜日別入退院分析タブ
 try:
-    from dow_analysis_tab import display_dow_analysis_tab
+    from report_generation.dow_analysis_tab import display_dow_analysis_tab
 except ImportError as e:
     logger.error(f"dow_analysis_tab インポートエラー: {e}")
     display_dow_analysis_tab = lambda df, start_date, end_date, common_config=None: st.error("曜日別入退院分析機能は利用できません。")
 
 # 個別分析タブ
 try:
-    from individual_analysis_tab import display_individual_analysis_tab
+    from report_generation.individual_analysis_tab import display_individual_analysis_tab
 except ImportError as e:
     logger.error(f"individual_analysis_tab インポートエラー: {e}")
     display_individual_analysis_tab = lambda df_filtered_main: st.error("個別分析機能は利用できません。")
 
 # 診療科別パフォーマンスタブ
 try:
-    from department_performance_tab import create_department_performance_tab
+    from report_generation.department_performance_tab import create_department_performance_tab
     DEPT_PERFORMANCE_AVAILABLE = True
 except ImportError as e:
     logger.error(f"department_performance_tab インポートエラー: {e}")
@@ -124,16 +135,22 @@ except ImportError as e:
 
 # 病棟別パフォーマンスタブ
 try:
-    from ward_performance_tab import create_ward_performance_tab
+    from report_generation.ward_performance_tab import create_ward_performance_tab
     WARD_PERFORMANCE_AVAILABLE = True
 except ImportError as e:
     logger.error(f"ward_performance_tab インポートエラー: {e}")
     WARD_PERFORMANCE_AVAILABLE = False
     create_ward_performance_tab = lambda: st.error("病棟別パフォーマンス機能は利用できません。")
 
-# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-# 修正箇所：GitHub Publisherのインポートと呼び出しをcreate_sidebarに集約
-# ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+# GitHub公開機能 (これはルートレベルのままと仮定)
+try:
+    from github_publisher import create_github_publisher_interface
+except ImportError as e:
+    logger.error(f"github_publisher インポートエラー: {e}")
+    create_github_publisher_interface = lambda: st.sidebar.error("GitHub公開機能が利用できません。")
+
+# ▲▲▲▲▲ 修正箇所ここまで ▲▲▲▲▲
+
 def get_analysis_period():
     if not st.session_state.get('data_processed', False):
         return None, None, "データ未処理"
@@ -177,7 +194,7 @@ def check_forecast_dependencies():
 def create_sidebar_data_settings():
     """サイドバーのデータ設定セクション（既存コードベース強化版）"""
     st.sidebar.header("💾 データ設定")
-    
+
     # 現在のデータ状況表示（強化版）
     with st.sidebar.expander("📊 現在のデータ状況", expanded=True):
         if st.session_state.get('data_processed', False):
@@ -188,18 +205,18 @@ def create_sidebar_data_settings():
                 st.success("✅ データ読み込み済み")
                 st.write(f"📅 最新日付: {latest_date_str}")
                 st.write(f"📊 レコード数: {len(df):,}件")
-                
+
                 # データソース表示（強化）
                 source_text = {
-                    'auto_loaded': '自動読み込み', 
-                    'manual_loaded': '手動読み込み', 
+                    'auto_loaded': '自動読み込み',
+                    'manual_loaded': '手動読み込み',
                     'sidebar_upload': 'サイドバー',
                     'data_processing_tab': 'データ入力タブ',
                     'incremental_add': '追加読み込み',
                     'unknown': '不明'
                 }.get(data_source, '不明')
                 st.write(f"🔄 読み込み元: {source_text}")
-                
+
                 # データ期間情報（新規追加）
                 if '日付' in df.columns and not df['日付'].empty:
                     min_date = df['日付'].min()
@@ -207,7 +224,7 @@ def create_sidebar_data_settings():
                     period_days = (max_date - min_date).days + 1
                     st.write(f"📅 データ期間: {period_days}日間")
                     st.caption(f"{min_date.strftime('%Y/%m/%d')} ～ {max_date.strftime('%Y/%m/%d')}")
-                
+
                 data_info = get_data_info()
                 if data_info:
                     last_saved = data_info.get('last_saved', '不明')
@@ -232,7 +249,7 @@ def create_sidebar_data_settings():
                     st.caption(f"📊 {data_info.get('data_rows', 0):,}件")
                     if data_info.get('file_size_mb'):
                         st.caption(f"📁 {data_info['file_size_mb']} MB")
-                    
+
                     # 日付範囲情報
                     date_range = data_info.get('date_range', {})
                     if date_range.get('min_date') and date_range.get('max_date'):
@@ -241,7 +258,7 @@ def create_sidebar_data_settings():
                         st.caption(f"📅 {min_dt.strftime('%Y/%m/%d')} ～ {max_dt.strftime('%Y/%m/%d')}")
                 except Exception:
                     pass
-                
+
                 if st.button("🔄 保存データを読み込む", key="load_saved_data_sidebar_enhanced_v2", use_container_width=True):
                     df_loaded, target_data_loaded, metadata_loaded = load_data_from_file()
                     if df_loaded is not None:
@@ -263,13 +280,13 @@ def create_sidebar_data_settings():
         # 基本操作（保存・読込）
         st.markdown("**📁 基本操作**")
         col1_ds, col2_ds = st.columns(2)
-        
+
         with col1_ds:
             if st.button("💾 保存", key="save_current_data_sidebar_enhanced_v2", use_container_width=True):
                 if st.session_state.get('data_processed', False):
                     df_to_save = st.session_state.get('df')
                     target_data_to_save = st.session_state.get('target_data')
-                    
+
                     # 保存時にメタデータを追加
                     enhanced_metadata = {
                         'save_timestamp': datetime.datetime.now().isoformat(),
@@ -277,7 +294,7 @@ def create_sidebar_data_settings():
                         'processing_info': st.session_state.get('performance_metrics', {}),
                         'filter_state': st.session_state.get('current_unified_filter_config', {}),
                     }
-                    
+
                     if save_data_to_file(df_to_save, target_data_to_save, enhanced_metadata):
                         st.success("✅ 保存完了!")
                         st.rerun()
@@ -285,7 +302,7 @@ def create_sidebar_data_settings():
                         st.error("❌ 保存失敗")
                 else:
                     st.warning("保存するデータがありません")
-        
+
         with col2_ds:
             if st.button("📥 読込", key="load_saved_data_manual_v2", use_container_width=True):
                 df_loaded, target_data_loaded, metadata_loaded = load_data_from_file()
@@ -295,17 +312,17 @@ def create_sidebar_data_settings():
                     st.session_state['data_processed'] = True
                     st.session_state['data_source'] = 'manual_loaded'
                     st.session_state['data_metadata'] = metadata_loaded
-                    
+
                     if '日付' in df_loaded.columns and not df_loaded['日付'].empty:
                         latest_date = df_loaded['日付'].max()
                         st.session_state.latest_data_date_str = latest_date.strftime('%Y年%m月%d日')
                     else:
                         st.session_state.latest_data_date_str = "日付不明"
-                    
+
                     initialize_all_mappings(st.session_state.df, st.session_state.target_data)
                     if st.session_state.df is not None and not st.session_state.df.empty:
                         initialize_unified_filters(st.session_state.df)
-                    
+
                     st.success("✅ 読込完了!")
                     st.rerun()
                 else:
@@ -316,17 +333,17 @@ def create_sidebar_data_settings():
             st.markdown("---")
             st.markdown("**➕ 追加データ読み込み**")
             st.caption("現在のデータに新しいデータを追加")
-            
+
             additional_file = st.file_uploader(
-                "追加ファイル", 
-                type=["xlsx", "xls", "csv"], 
+                "追加ファイル",
+                type=["xlsx", "xls", "csv"],
                 key="additional_data_upload_sidebar_v2",
                 help="現在のデータに追加するファイル"
             )
-            
+
             if additional_file is not None:
                 col_mode, col_exec = st.columns(2)
-                
+
                 with col_mode:
                     merge_mode = st.selectbox(
                         "結合方式",
@@ -334,7 +351,7 @@ def create_sidebar_data_settings():
                         key="merge_mode_sidebar_v2",
                         help="追加: 単純結合、更新: 既存データ更新"
                     )
-                
+
                 with col_exec:
                     if st.button("🔄 実行", key="execute_additional_load_sidebar_v2", use_container_width=True):
                         try:
@@ -343,24 +360,24 @@ def create_sidebar_data_settings():
                                 df_additional = pd.read_csv(additional_file, encoding='utf-8')
                             else:
                                 df_additional = pd.read_excel(additional_file)
-                            
+
                             # 日付列の正規化
                             if '日付' in df_additional.columns:
                                 df_additional['日付'] = pd.to_datetime(df_additional['日付'], errors='coerce').dt.normalize()
                                 df_additional.dropna(subset=['日付'], inplace=True)
-                            
+
                             current_df = st.session_state.get('df')
                             combined_df = None  # 初期化
-                            
+
                             if merge_mode == "追加":
                                 combined_df = pd.concat([current_df, df_additional], ignore_index=True)
                                 combined_df.drop_duplicates(inplace=True)
-                                
+
                             elif merge_mode == "更新":
                                 if all(col in df_additional.columns for col in ['日付', '病棟コード', '診療科名']):
                                     merge_keys = ['日付', '病棟コード', '診療科名']
                                     df_additional_keys = df_additional[merge_keys].drop_duplicates()
-                                    
+
                                     mask = current_df.set_index(merge_keys).index.isin(
                                         df_additional_keys.set_index(merge_keys).index
                                     )
@@ -369,33 +386,33 @@ def create_sidebar_data_settings():
                                 else:
                                     st.error("更新モードには日付、病棟コード、診療科名の列が必要です")
                                     combined_df = None
-                            
+
                             # 正常に結合できた場合のみセッション状態を更新
                             if combined_df is not None:
                                 # セッション状態の更新
                                 st.session_state['df'] = combined_df
                                 st.session_state['data_source'] = 'incremental_add'
-                                
+
                                 if '日付' in combined_df.columns and not combined_df['日付'].empty:
                                     latest_date = combined_df['日付'].max()
                                     st.session_state.latest_data_date_str = latest_date.strftime('%Y年%m月%d日')
-                                
+
                                 # マッピングとフィルターの再初期化
                                 initialize_all_mappings(st.session_state.df, st.session_state.target_data)
                                 initialize_unified_filters(st.session_state.df)
-                                
+
                                 st.success(f"✅ {merge_mode}完了! レコード数: {len(combined_df):,}件")
                                 st.rerun()
-                            
+
                         except Exception as e:
                             st.error(f"❌ 追加読み込みエラー: {str(e)}")
 
         # リセット機能（強化版）
         st.markdown("---")
         st.markdown("**🔄 データリセット**")
-        
+
         col_reset1, col_reset2 = st.columns(2)
-        
+
         with col_reset1:
             if st.button("🔄 セッション\nクリア", key="reset_session_sidebar_v2", use_container_width=True):
                 keys_to_clear = [
@@ -407,11 +424,11 @@ def create_sidebar_data_settings():
                 for key in keys_to_clear:
                     if key in st.session_state:
                         del st.session_state[key]
-                
+
                 st.success("✅ セッションクリア完了")
                 st.info("💾 保存データは維持されています")
                 st.rerun()
-        
+
         with col_reset2:
             if st.button("🗑️ 完全\n削除", key="delete_all_data_sidebar_v2", use_container_width=True):
                 if st.session_state.get('confirm_delete_ready', False):
@@ -470,7 +487,7 @@ def create_sidebar_data_settings():
         else:
             st.info("バックアップファイルはありません")
             st.caption("データを保存すると自動的にバックアップが作成されます")
-        
+
         # 手動バックアップ作成（新規追加）
         st.markdown("---")
         if st.button("📦 手動バックアップ作成", key="create_manual_backup_sidebar_v2", use_container_width=True):
@@ -494,7 +511,7 @@ def create_sidebar_data_settings():
         )
         if uploaded_file_sidebar is not None:
             col_simple1, col_simple2 = st.columns(2)
-            
+
             with col_simple1:
                 replace_mode = st.radio(
                     "読み込み方式",
@@ -502,7 +519,7 @@ def create_sidebar_data_settings():
                     key="simple_upload_mode_sidebar_v2",
                     help="新規: 既存データ置換、追加: 既存データに追加"
                 )
-            
+
             with col_simple2:
                 if st.button("⚡ 実行", key="quick_process_sidebar_enhanced_v2", use_container_width=True):
                     try:
@@ -527,17 +544,17 @@ def create_sidebar_data_settings():
 
                         st.session_state['data_processed'] = True
                         st.session_state['target_data'] = None
-                        
+
                         if '日付' in st.session_state['df'].columns and not st.session_state['df']['日付'].empty:
                             latest_date = st.session_state['df']['日付'].max()
                             st.session_state.latest_data_date_str = latest_date.strftime('%Y年%m月%d日')
                         else:
                             st.session_state.latest_data_date_str = "日付不明"
-                        
+
                         initialize_all_mappings(st.session_state.df, None)
                         initialize_unified_filters(st.session_state.df)
                         st.session_state.mappings_initialized_after_processing = True
-                        
+
                         st.success(f"✅ {replace_mode}読み込み完了!")
                         st.rerun()
                     except Exception as e:
@@ -579,7 +596,7 @@ def create_sidebar_target_file_status():
                             st.sidebar.write(f"「{keyword}」: 該当なし")
 
 def create_sidebar():
-    """サイドバーの設定UI（GitHub自動公開機能の呼び出しをここに集約）"""
+    """サイドバーの設定UI"""
 
     # 1. 分析フィルター
     st.sidebar.header("🔍 分析フィルター")
@@ -592,12 +609,10 @@ def create_sidebar():
         st.sidebar.info("データを読み込むと分析フィルターが表示されます。")
     st.sidebar.markdown("---")
 
-    # 2. グローバル設定（設定値初期化を強化）
+    # 2. グローバル設定
     st.sidebar.header("⚙️ グローバル設定")
-    
-    # 設定値の初期化（config.pyからの読み込み強化）
+
     if 'settings_initialized' not in st.session_state:
-        # config.pyからのデフォルト値で初期化
         st.session_state.total_beds = DEFAULT_TOTAL_BEDS
         st.session_state.bed_occupancy_rate = DEFAULT_OCCUPANCY_RATE
         st.session_state.bed_occupancy_rate_percent = int(DEFAULT_OCCUPANCY_RATE * 100)
@@ -605,66 +620,65 @@ def create_sidebar():
         st.session_state.avg_admission_fee = DEFAULT_ADMISSION_FEE
         st.session_state.monthly_target_patient_days = DEFAULT_TARGET_PATIENT_DAYS
         st.session_state.monthly_target_admissions = DEFAULT_TARGET_ADMISSIONS
-        
-        # 保存された設定があれば上書き
+
         saved_settings = load_settings_from_file()
         if saved_settings:
             for key, value in saved_settings.items():
-                if key in st.session_state:  # 既存のキーのみ更新
+                if key in st.session_state:
                     st.session_state[key] = value
-        
+
         st.session_state.settings_initialized = True
-    
+
     with st.sidebar.expander("🏥 基本病院設定", expanded=False):
         def get_safe_value(key, default, value_type=int):
             value = st.session_state.get(key, default)
-            if isinstance(value, list): 
+            if isinstance(value, list):
                 value = value[0] if value else default
-            elif not isinstance(value, (int, float)): 
+            elif not isinstance(value, (int, float)):
                 value = default
             return value_type(value)
 
         total_beds = st.number_input(
-            "総病床数", 
-            min_value=HOSPITAL_SETTINGS['min_beds'], 
+            "総病床数",
+            min_value=HOSPITAL_SETTINGS['min_beds'],
             max_value=HOSPITAL_SETTINGS['max_beds'],
-            value=get_safe_value('total_beds', DEFAULT_TOTAL_BEDS), 
-            step=1, 
+            value=get_safe_value('total_beds', DEFAULT_TOTAL_BEDS),
+            step=1,
             help="病院の総病床数",
             key="sidebar_total_beds_global_v4"
         )
         st.session_state.total_beds = total_beds
-        
+
         current_occupancy_percent = st.session_state.get('bed_occupancy_rate_percent', int(DEFAULT_OCCUPANCY_RATE * 100))
         bed_occupancy_rate = st.slider(
-            "目標病床稼働率 (%)", 
+            "目標病床稼働率 (%)",
             min_value=int(HOSPITAL_SETTINGS['min_occupancy_rate'] * 100),
             max_value=int(HOSPITAL_SETTINGS['max_occupancy_rate'] * 100),
-            value=current_occupancy_percent, 
-            step=1, 
+            value=current_occupancy_percent,
+            step=1,
             help="目標とする病床稼働率",
             key="sidebar_bed_occupancy_rate_slider_global_v4"
         ) / 100
         st.session_state.bed_occupancy_rate = bed_occupancy_rate
         st.session_state.bed_occupancy_rate_percent = int(bed_occupancy_rate * 100)
-        
+
         avg_length_of_stay = st.number_input(
-            "平均在院日数目標", 
-            min_value=HOSPITAL_SETTINGS['min_avg_stay'], 
+            "平均在院日数目標",
+            min_value=HOSPITAL_SETTINGS['min_avg_stay'],
             max_value=HOSPITAL_SETTINGS['max_avg_stay'],
-            value=get_safe_value('avg_length_of_stay', DEFAULT_AVG_LENGTH_OF_STAY, float), 
-            step=0.1, 
+            value=get_safe_value('avg_length_of_stay', DEFAULT_AVG_LENGTH_OF_STAY, float),
+            step=0.1,
             help="目標とする平均在院日数",
             key="sidebar_avg_length_of_stay_global_v4"
         )
         st.session_state.avg_length_of_stay = avg_length_of_stay
-        
+
         avg_admission_fee = st.number_input(
-            "平均入院料（円/日）", 
-            min_value=1000, 
+            "平均入院料（円/日）",
+            min_value=1000,
             max_value=100000,
-            value=get_safe_value('avg_admission_fee', DEFAULT_ADMISSION_FEE), 
-            step=1000, 
+            value=get_safe_value('avg_admission_fee', DEFAULT_ADMISSION_FEE),
+            step=1000,
             help="1日あたりの平均入院料",
             key="sidebar_avg_admission_fee_global_v4"
         )
@@ -672,22 +686,22 @@ def create_sidebar():
 
     with st.sidebar.expander("🎯 KPI目標値設定", expanded=False):
         monthly_target_patient_days = st.number_input(
-            "月間延べ在院日数目標（人日）", 
-            min_value=100, 
+            "月間延べ在院日数目標（人日）",
+            min_value=100,
             max_value=50000,
-            value=get_safe_value('monthly_target_patient_days', DEFAULT_TARGET_PATIENT_DAYS), 
-            step=100, 
+            value=get_safe_value('monthly_target_patient_days', DEFAULT_TARGET_PATIENT_DAYS),
+            step=100,
             help="月間の延べ在院日数目標",
             key="sidebar_monthly_target_pd_global_v4"
         )
         st.session_state.monthly_target_patient_days = monthly_target_patient_days
-        
+
         monthly_target_admissions = st.number_input(
-            "月間新入院患者数目標（人）", 
-            min_value=10, 
+            "月間新入院患者数目標（人）",
+            min_value=10,
             max_value=5000,
-            value=get_safe_value('monthly_target_admissions', DEFAULT_TARGET_ADMISSIONS), 
-            step=10, 
+            value=get_safe_value('monthly_target_admissions', DEFAULT_TARGET_ADMISSIONS),
+            step=10,
             help="月間の新入院患者数目標",
             key="sidebar_monthly_target_adm_global_v4"
         )
@@ -707,26 +721,24 @@ def create_sidebar():
             st.sidebar.success("設定保存完了!")
         else:
             st.sidebar.error("設定保存失敗")
-    
-    # 現在の設定値確認
+
     with st.sidebar.expander("📋 現在の設定値確認", expanded=False):
         st.markdown("**🏥 基本設定**")
         st.write(f"• 総病床数: {st.session_state.get('total_beds', DEFAULT_TOTAL_BEDS)}床")
         st.write(f"• 目標病床稼働率: {st.session_state.get('bed_occupancy_rate', DEFAULT_OCCUPANCY_RATE)*100:.1f}%")
         st.write(f"• 目標平均在院日数: {st.session_state.get('avg_length_of_stay', DEFAULT_AVG_LENGTH_OF_STAY):.1f}日")
         st.write(f"• 平均入院料: {st.session_state.get('avg_admission_fee', DEFAULT_ADMISSION_FEE):,}円/日")
-        
+
         st.markdown("**🎯 KPI目標値**")
         st.write(f"• 月間延べ在院日数目標: {st.session_state.get('monthly_target_patient_days', DEFAULT_TARGET_PATIENT_DAYS):,}人日")
         st.write(f"• 月間新入院患者数目標: {st.session_state.get('monthly_target_admissions', DEFAULT_TARGET_ADMISSIONS):,}人")
-        
-        # 計算値も表示
+
         st.markdown("**📊 計算値**")
         target_daily_census = st.session_state.get('total_beds', DEFAULT_TOTAL_BEDS) * st.session_state.get('bed_occupancy_rate', DEFAULT_OCCUPANCY_RATE)
         target_daily_admissions = st.session_state.get('monthly_target_admissions', DEFAULT_TARGET_ADMISSIONS) / 30
         st.write(f"• 目標日平均在院患者数: {target_daily_census:.1f}人")
         st.write(f"• 目標日平均新入院患者数: {target_daily_admissions:.1f}人/日")
-    
+
     st.sidebar.markdown("---")
 
     # 3. データ設定
@@ -735,121 +747,86 @@ def create_sidebar():
 
     # 4. 目標値ファイル状況
     create_sidebar_target_file_status()
+
+    # ▼▼▼▼▼ 修正箇所 ▼▼▼▼▼
+    # GitHub公開機能の呼び出しと、不要になったデバッグコードの削除
     try:
-        from github_publisher import create_github_publisher_interface
-        create_github_publisher_interface() # この呼び出し一本に絞る
-        
-        # === ハイスコア機能の状況をログ出力（デバッグ用） ===
-        try:
-            from html_export_functions import calculate_all_high_scores
-            logger.info("✅ ハイスコア機能: インポート成功")
-        except ImportError:
-            logger.info("⚠️ ハイスコア機能: まだ実装されていません")
-        except Exception as e:
-            logger.error(f"⚠️ ハイスコア機能: エラー - {e}")
-            
-    except ImportError as e:
-        st.sidebar.markdown("---")
-        st.sidebar.header("🌐 統合ダッシュボード公開")
-        st.sidebar.error("自動公開機能でエラーが発生しました。")
-        st.sidebar.info("必要なファイル(github_publisher.pyなど)が不足している可能性があります。")
-        logger.error(f"GitHub Publisher Import Error: {e}", exc_info=True)
+        # この呼び出し一本に絞る
+        create_github_publisher_interface()
     except Exception as e:
         st.sidebar.markdown("---")
         st.sidebar.header("🌐 統合ダッシュボード公開")
         st.sidebar.error(f"自動公開機能で予期せぬエラー: {str(e)}")
-        # ハイスコア機能の実装状況も表示
-        st.sidebar.caption("🏆 ハイスコア機能は準備中です")
         logger.error(f"GitHub Publisher Unexpected Error: {e}", exc_info=True)
+    # ▲▲▲▲▲ 修正箇所ここまで ▲▲▲▲▲
     
     return True
 
 def create_management_dashboard_tab():
     st.header("📊 主要指標")
-    
+
     if not st.session_state.get('data_processed', False) or st.session_state.get('df') is None:
         st.warning("データを読み込み後に利用可能になります。")
         return
-    
+
     df_original = st.session_state.get('df')
     start_date_ts, end_date_ts, period_description = get_analysis_period()
-    
+
     if start_date_ts is None or end_date_ts is None:
         st.error("分析期間が設定されていません。サイドバーの「分析フィルター」で期間を設定してください。")
         return
-    
+
     df_for_dashboard = filter_data_by_analysis_period(df_original)
-    
+
     if df_for_dashboard.empty:
         st.warning("選択されたフィルター条件に合致するデータがありません。")
         return
-    
+
     total_beds = st.session_state.get('total_beds', 500)
     target_occupancy_rate_percent = st.session_state.get('bed_occupancy_rate', 0.85) * 100
-    
-    # ===========================================
-    # デバッグモード切り替え（右上に小さく配置）
-    # ===========================================
+
     col_main, col_debug = st.columns([4, 1])
     with col_debug:
         debug_mode = st.checkbox(
-            "デバッグ情報", 
-            value=False, 
+            "デバッグ情報",
+            value=False,
             key="dashboard_debug_mode",
             help="詳細な処理情報を表示"
         )
-    
-    # ===========================================
-    # KPIカード表示（メイン）
-    # ===========================================
+
     if display_kpi_cards_only:
         try:
-            # show_debugパラメータをサポートしているかチェック
             import inspect
             sig = inspect.signature(display_kpi_cards_only)
             if 'show_debug' in sig.parameters:
                 display_kpi_cards_only(
-                    df_for_dashboard, start_date_ts, end_date_ts, 
+                    df_for_dashboard, start_date_ts, end_date_ts,
                     total_beds, target_occupancy_rate_percent,
                     show_debug=debug_mode
                 )
             else:
                 display_kpi_cards_only(
-                    df_for_dashboard, start_date_ts, end_date_ts, 
+                    df_for_dashboard, start_date_ts, end_date_ts,
                     total_beds, target_occupancy_rate_percent
                 )
         except Exception as e:
             st.error(f"KPIカード表示でエラーが発生しました: {str(e)}")
             if debug_mode:
                 st.text(f"エラー詳細: {str(e)}")
-                try:
-                    sig = inspect.signature(display_kpi_cards_only)
-                    st.text(f"利用可能なパラメータ: {list(sig.parameters.keys())}")
-                except:
-                    st.text("パラメータ情報を取得できません")
-    else:
-        st.error("KPIカード表示機能が利用できません。dashboard_overview_tab.pyを確認してください。")
-    
-    # ===========================================
-    # 簡潔な分析条件表示（デバッグモード無効時のみ）
-    # ===========================================
+
     if not debug_mode:
         st.markdown("---")
-        
         col_period, col_records, col_target = st.columns(3)
-        
         with col_period:
             date_range_days = (end_date_ts - start_date_ts).days + 1
             st.metric(
-                "📊 分析期間", 
+                "📊 分析期間",
                 f"{date_range_days}日間",
                 f"{start_date_ts.strftime('%Y/%m/%d')} ～ {end_date_ts.strftime('%Y/%m/%d')}"
             )
-        
         with col_records:
             record_count = len(df_for_dashboard)
             st.metric("📋 分析レコード数", f"{record_count:,}件")
-        
         with col_target:
             target_data = st.session_state.get('target_data')
             if target_data is not None and not target_data.empty:
@@ -857,20 +834,19 @@ def create_management_dashboard_tab():
                 st.metric("🎯 目標値データ", f"{target_records}行", "使用中")
             else:
                 st.metric("🎯 目標値データ", "未設定", "")
-        
         st.caption("※ 期間変更はサイドバーの「分析フィルター」で行えます")
 
 def main():
     # セッション状態の初期化
     if 'app_initialized' not in st.session_state:
         st.session_state.app_initialized = True
-    if 'data_processed' not in st.session_state: 
+    if 'data_processed' not in st.session_state:
         st.session_state['data_processed'] = False
-    if 'df' not in st.session_state: 
+    if 'df' not in st.session_state:
         st.session_state['df'] = None
-    if 'forecast_model_results' not in st.session_state: 
+    if 'forecast_model_results' not in st.session_state:
         st.session_state.forecast_model_results = {}
-    if 'mappings_initialized_after_processing' not in st.session_state: 
+    if 'mappings_initialized_after_processing' not in st.session_state:
         st.session_state.mappings_initialized_after_processing = False
 
     # 設定値の初期化
@@ -889,7 +865,7 @@ def main():
         auto_loaded = auto_load_data()
         if auto_loaded and st.session_state.get('df') is not None:
             st.success("✅ 保存されたデータを自動読み込みしました")
-            if 'target_data' not in st.session_state: 
+            if 'target_data' not in st.session_state:
                 st.session_state.target_data = None
             initialize_all_mappings(st.session_state.df, st.session_state.target_data)
             if st.session_state.df is not None and not st.session_state.df.empty:
@@ -900,10 +876,8 @@ def main():
 
     # メインヘッダー
     st.markdown(f'<h1 class="main-header">{APP_ICON} {APP_TITLE}</h1>', unsafe_allow_html=True)
-    
-    # ----------- ここからタブUI→ドロップダウン型に切替 -----------
 
-    # メニュー項目定義（予測分析の有無も考慮）
+    # メニュー項目定義
     menu_options = [
         "📊 主要指標", "🏥 診療科別パフォーマンス", "🏨 病棟別パフォーマンス",
         "🗓️ 平均在院日数分析", "📅 曜日別入退院分析", "🔍 個別分析"
@@ -917,7 +891,7 @@ def main():
 
     # サイドバー作成
     create_sidebar()
-    
+
     # データ入力画面
     if selected_menu == "📥 データ入力":
         try:
@@ -936,94 +910,52 @@ def main():
         current_filter_config = get_unified_filter_config()
 
         if selected_menu == "📊 主要指標":
-            try: 
-                create_management_dashboard_tab()
-            except Exception as e: 
-                st.error(f"主要指標でエラー: {str(e)}\n{traceback.format_exc()}")
+            create_management_dashboard_tab()
         elif selected_menu == "🏥 診療科別パフォーマンス":
-            try:
-                if DEPT_PERFORMANCE_AVAILABLE:
-                    create_department_performance_tab()
-                else:
-                    st.error("診療科別パフォーマンス機能が利用できません。")
-            except Exception as e:
-                st.error(f"診療科別パフォーマンスでエラー: {str(e)}\n{traceback.format_exc()}")
+            if DEPT_PERFORMANCE_AVAILABLE:
+                create_department_performance_tab()
+            else:
+                st.error("診療科別パフォーマンス機能が利用できません。")
         elif selected_menu == "🏨 病棟別パフォーマンス":
-            try:
-                if WARD_PERFORMANCE_AVAILABLE:
-                    create_ward_performance_tab()
-                else:
-                    st.error("病棟別パフォーマンス機能が利用できません。")
-            except Exception as e:
-                st.error(f"病棟別パフォーマンスでエラー: {str(e)}\n{traceback.format_exc()}")
+            if WARD_PERFORMANCE_AVAILABLE:
+                create_ward_performance_tab()
+            else:
+                st.error("病棟別パフォーマンス機能が利用できません。")
         elif selected_menu == "🗓️ 平均在院日数分析":
-            try:
-                if display_alos_analysis_tab:
-                    start_dt, end_dt, _ = get_analysis_period()
-                    if start_dt and end_dt:
-                         display_alos_analysis_tab(df_filtered_unified, start_dt, end_dt, common_config_main)
-                    else: 
-                        st.warning("平均在院日数分析: 分析期間が設定されていません。")
-                else: 
-                    st.error("平均在院日数分析機能が利用できません。")
-            except Exception as e: 
-                st.error(f"平均在院日数分析でエラー: {str(e)}\n{traceback.format_exc()}")
+            start_dt, end_dt, _ = get_analysis_period()
+            if start_dt and end_dt:
+                 display_alos_analysis_tab(df_filtered_unified, start_dt, end_dt, common_config_main)
+            else:
+                st.warning("平均在院日数分析: 分析期間が設定されていません。")
         elif selected_menu == "📅 曜日別入退院分析":
-            try:
-                if display_dow_analysis_tab:
-                    start_dt, end_dt, _ = get_analysis_period()
-                    if start_dt and end_dt:
-                        display_dow_analysis_tab(df_filtered_unified, start_dt, end_dt, common_config_main)
-                    else: 
-                        st.warning("曜日別入退院分析: 分析期間が設定されていません。")
-                else: 
-                    st.error("曜日別入退院分析機能が利用できません。")
-            except Exception as e: 
-                st.error(f"曜日別入退院分析でエラー: {str(e)}\n{traceback.format_exc()}")
+            start_dt, end_dt, _ = get_analysis_period()
+            if start_dt and end_dt:
+                display_dow_analysis_tab(df_filtered_unified, start_dt, end_dt, common_config_main)
+            else:
+                st.warning("曜日別入退院分析: 分析期間が設定されていません。")
         elif selected_menu == "🔍 個別分析":
-            try:
-                if create_individual_analysis_section:
-                    create_individual_analysis_section(df_filtered_unified, current_filter_config)
-                else: 
-                    st.error("個別分析機能が利用できません。")
-            except Exception as e: 
-                st.error(f"個別分析でエラー: {str(e)}\n{traceback.format_exc()}")
+            create_individual_analysis_section(df_filtered_unified, current_filter_config)
         elif selected_menu == "🔮 予測分析" and FORECAST_AVAILABLE:
-            try:
-                deps_ok = check_forecast_dependencies()
-                if deps_ok:
-                    original_df_for_forecast = st.session_state.get('df')
-                    st.session_state['df'] = df_filtered_unified
-                    display_forecast_analysis_tab()
-                    st.session_state['df'] = original_df_for_forecast
-                else: 
-                    st.info("予測分析には追加ライブラリが必要です。")
-            except Exception as e: 
-                st.error(f"予測分析でエラー: {str(e)}\n{traceback.format_exc()}")
+            if check_forecast_dependencies():
+                original_df_for_forecast = st.session_state.get('df')
+                st.session_state['df'] = df_filtered_unified
+                display_forecast_analysis_tab()
+                st.session_state['df'] = original_df_for_forecast
+            else:
+                st.info("予測分析には追加ライブラリが必要です。")
         elif selected_menu == "📤 データ出力":
             st.header("📤 データ出力")
             output_sub_tab1, output_sub_tab2 = st.tabs(["📋 データテーブル", "📄 PDF出力"])
             with output_sub_tab1:
-                try: 
-                    if callable(create_data_tables_tab):
-                        create_data_tables_tab()
-                    else:
-                        st.error("データテーブル機能は利用できません。")
-                except Exception as e: 
-                    st.error(f"データテーブル表示でエラー: {str(e)}")
-                    if debug_mode:  # デバッグモードの場合のみ詳細表示
-                        st.text(traceback.format_exc())
+                create_data_tables_tab()
             with output_sub_tab2:
-                try: 
-                    pdf_output_tab.create_pdf_output_tab()
-                except Exception as e: 
-                    st.error(f"PDF出力機能でエラー: {str(e)}\n{traceback.format_exc()}")
+                pdf_output_tab.create_pdf_output_tab()
     else:
         # データが読み込まれていない場合
         if selected_menu != "📥 データ入力":
             st.info("📊 データを読み込み後に利用可能になります。")
             data_info = get_data_info()
-            if data_info: 
+            if data_info:
                 st.info("💾 保存されたデータがあります。以下から読み込むことができます。")
                 col1, col2, col3 = st.columns(3)
                 with col1:
@@ -1063,7 +995,7 @@ def main():
                             st.error("❌ データ読み込みに失敗しました")
                 with col_load2:
                     st.caption("または「データ入力」から新しいデータをアップロード")
-            else: 
+            else:
                 st.info("📋 「データ入力」タブから新しいデータをアップロードしてください。")
 
     # フッター
