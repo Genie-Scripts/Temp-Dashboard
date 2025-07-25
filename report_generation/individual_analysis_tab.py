@@ -13,7 +13,7 @@ try:
     # ★★★ 修正箇所 ★★★: 新しいALOSグラフ関数をインポート
     from chart import create_interactive_patient_chart, create_interactive_dual_axis_chart, create_interactive_alos_chart
     from report_generation.utils import get_display_name_for_dept
-    from unified_filters import get_unified_filter_summary, get_unified_filter_config
+    from .unified_filters import get_unified_filter_summary, get_unified_filter_config
 except ImportError as e:
     logger.error(f"個別分析タブに必要なモジュールのインポートに失敗: {e}", exc_info=True)
     st.error(f"個別分析タブに必要なモジュールのインポートに失敗しました: {e}")

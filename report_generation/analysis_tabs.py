@@ -28,11 +28,11 @@ from report_generation.utils import safe_date_filter
 
 # 既存モジュールからのインポート
 try:
-    from alos_analysis_tab import display_alos_analysis_tab
-    from dow_analysis_tab import display_dow_analysis_tab
-    from individual_analysis_tab import display_individual_analysis_tab
-    from forecast_analysis_tab import display_forecast_analysis_tab
-    from forecast import generate_filtered_summaries
+    from .alos_analysis_tab import display_alos_analysis_tab
+    from .dow_analysis_tab import display_dow_analysis_tab
+    from .individual_analysis_tab import display_individual_analysis_tab
+    from .forecast_analysis_tab import display_forecast_analysis_tab
+    from .forecast import generate_filtered_summaries
     from chart import (
         create_interactive_patient_chart,
         create_interactive_dual_axis_chart,
