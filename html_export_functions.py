@@ -56,7 +56,26 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         cards_all = _generate_metric_cards_html(overall_html_kpi, is_ward=False)
         charts_all = _generate_charts_html(overall_df, overall_html_kpi)
         analysis_all = _generate_action_plan_html(overall_html_kpi, overall_feasibility, overall_simulation, hospital_targets)
-        overall_content = cards_all + charts_all + analysis_all
+        
+        # ⭐ 新規追加：週間ハイライトの生成（ハイスコア計算を先に実行）
+        try:
+            dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
+            highlight_html = f"""
+            <div class="weekly-highlight-banner">
+                <div class="highlight-container">
+                    <div class="highlight-icon">💡</div>
+                    <div class="highlight-content">
+                        <strong>今週のポイント</strong>
+                        <span class="highlight-items">{_generate_weekly_highlights_compact(dept_scores, ward_scores)}</span>
+                    </div>
+                </div>
+            </div>
+            """
+            overall_content = highlight_html + cards_all + charts_all + analysis_all
+        except Exception as e:
+            logger.error(f"週間ハイライト生成エラー: {e}")
+            overall_content = cards_all + charts_all + analysis_all
+        
         content_html += f'<div id="view-all" class="view-content active">{overall_content}</div>'
 
         # --- 診療科別ビューの生成 ---
@@ -103,8 +122,10 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
 
         # --- ハイスコアビューの生成 ---
         try:
-            dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
-            
+            # dept_scores, ward_scores は既に全体ビューで計算済みの場合はスキップ
+            if 'dept_scores' not in locals() or 'ward_scores' not in locals():
+                dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
+
             # 詳細表示とハイライトのHTML生成
             score_details_html = _generate_score_detail_html(dept_scores, ward_scores)
             highlights_html = _generate_weekly_highlights(dept_scores, ward_scores)
@@ -1234,6 +1255,115 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         gap: 20px;
                     }}
                 }}
+                
+                /* 週間ハイライトバナー */
+                .weekly-highlight-banner {
+                    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                    border-left: 4px solid var(--info-color);
+                    margin: 0 0 25px 0;
+                    padding: 18px 25px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                    animation: slideDown 0.4s ease-out;
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                .weekly-highlight-banner::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    width: 100px;
+                    height: 100px;
+                    background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+                    transform: translate(30px, -30px);
+                }
+                
+                .highlight-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 18px;
+                    position: relative;
+                    z-index: 1;
+                }
+                
+                .highlight-icon {
+                    font-size: 1.8em;
+                    animation: pulse 2s infinite;
+                    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+                }
+                
+                .highlight-content {
+                    flex: 1;
+                }
+                
+                .highlight-content strong {
+                    color: var(--primary-color);
+                    font-size: 1.1em;
+                    margin-right: 12px;
+                    font-weight: 700;
+                }
+                
+                .highlight-items {
+                    color: var(--gray-700);
+                    font-weight: 500;
+                    line-height: 1.6;
+                    font-size: 1.05em;
+                }
+                
+                /* スマホ対応 */
+                @media (max-width: 768px) {
+                    .weekly-highlight-banner {
+                        margin: 0 0 20px 0;
+                        padding: 15px 18px;
+                        border-radius: 0;
+                    }
+                    
+                    .highlight-container {
+                        flex-direction: column;
+                        text-align: center;
+                        gap: 10px;
+                    }
+                    
+                    .highlight-icon {
+                        font-size: 1.5em;
+                    }
+                    
+                    .highlight-content strong {
+                        display: block;
+                        margin-bottom: 8px;
+                        font-size: 1em;
+                    }
+                    
+                    .highlight-items {
+                        display: block;
+                        font-size: 0.95em;
+                        line-height: 1.5;
+                    }
+                }
+                
+                /* アニメーション */
+                @keyframes slideDown {
+                    from { 
+                        opacity: 0; 
+                        transform: translateY(-20px); 
+                    }
+                    to { 
+                        opacity: 1; 
+                        transform: translateY(0); 
+                    }
+                }
+                
+                @keyframes pulse {
+                    0%, 100% { 
+                        transform: scale(1); 
+                    }
+                    50% { 
+                        transform: scale(1.15); 
+                    }
+                }
+                
                 /* ========== ここから追加 ========== */
                 /* タブ関連のスタイル */
                 .info-tabs {{
@@ -2245,6 +2375,41 @@ def _calculate_bed_efficiency_score(bed_utilization: float, achievement_rate: fl
         
     except:
         return 0
+
+def _generate_weekly_highlights_compact(dept_scores: List[Dict], ward_scores: List[Dict]) -> str:
+    """トップページ用のコンパクトな週間ハイライト生成"""
+    highlights = []
+    
+    try:
+        # 診療科のトップパフォーマー
+        if dept_scores and dept_scores[0]['total_score'] >= 80:
+            highlights.append(f"🏆 {dept_scores[0]['entity_name']}が{dept_scores[0]['total_score']:.0f}点の高スコア！")
+        elif dept_scores and dept_scores[0]['improvement_rate'] > 10:
+            highlights.append(f"📈 {dept_scores[0]['entity_name']}が期間平均比+{dept_scores[0]['improvement_rate']:.0f}%の改善！")
+        
+        # 目標達成部門数
+        high_achievers = len([s for s in dept_scores + ward_scores if s['latest_achievement_rate'] >= 98])
+        if high_achievers >= 5:
+            highlights.append(f"✨ {high_achievers}部門が目標達成率98%以上を記録！")
+        elif high_achievers >= 3:
+            highlights.append(f"🎯 {high_achievers}部門が目標を達成！")
+        
+        # 病棟の特別な成果
+        if ward_scores and ward_scores[0].get('bed_efficiency_score', 0) > 0:
+            ward_name = ward_scores[0].get('display_name', ward_scores[0]['entity_name'])
+            highlights.append(f"🏥 {ward_name}は病床効率も優秀で総合力の高さを発揮！")
+        
+        # 最大2つまでに制限（スペースの都合上）
+        highlights = highlights[:2]
+        
+        if not highlights:
+            highlights.append("📊 各部門で着実な改善が進んでいます！")
+        
+        return " ".join(highlights)
+        
+    except Exception as e:
+        logger.error(f"コンパクトハイライト生成エラー: {e}")
+        return "📊 今週も各部門で頑張りが見られました！"
 
 def _generate_score_detail_html(dept_scores: List[Dict], ward_scores: List[Dict]) -> str:
     """TOP1の詳細スコア表示HTML生成"""
