@@ -1,4 +1,4 @@
-# html_export_functions.py - 修正されたimport文
+# html_export_functions.py - 完全修正版
 """
 段階的移行対応：新しいモジュールが利用可能な場合は使用し、
 そうでなければ既存の実装にフォールバックする
@@ -165,7 +165,7 @@ def log_module_availability():
 log_module_availability()
 
 # =============================================================================
-# グローバル設定
+# グローバル設定（★重要：エラー修正箇所）
 # =============================================================================
 # リファクタリングモジュールの全体的な利用可能性
 REFACTORED_MODULES_AVAILABLE = all([
@@ -184,6 +184,9 @@ PARTIAL_REFACTORING_AVAILABLE = any([
     HIGH_SCORE_CALCULATOR_AVAILABLE,
     UI_COMPONENTS_AVAILABLE
 ])
+
+# ★★★ エラー修正：NEW_ARCHITECTURE_AVAILABLE を定義 ★★★
+NEW_ARCHITECTURE_AVAILABLE = REFACTORED_MODULES_AVAILABLE
 
 # =============================================================================
 # ユーティリティ関数
@@ -254,6 +257,213 @@ if not HIGH_SCORE_CALCULATOR_AVAILABLE or not UI_COMPONENTS_AVAILABLE:
     import_legacy_functions()
 
 # =============================================================================
+# メイン関数（★重要：エラー修正箇所）
+# =============================================================================
+
+def generate_all_in_one_html_report(df: pd.DataFrame, target_data: pd.DataFrame, 
+                                   period: str = "直近12週") -> str:
+    """
+    統合HTMLレポート生成のメインエントリーポイント
+    
+    新アーキテクチャを優先的に使用し、利用できない場合は段階的にフォールバック
+    
+    Args:
+        df: メインデータフレーム
+        target_data: 目標データ
+        period: 分析期間
+        
+    Returns:
+        統合HTMLレポート文字列
+    """
+    logger.info(f"レポート生成開始: {period}")
+    
+    # Method 1: 完全な新アーキテクチャ
+    if NEW_ARCHITECTURE_AVAILABLE:
+        try:
+            logger.info("🚀 新アーキテクチャでレポート生成中...")
+            # ここで新実装を呼び出し（将来実装）
+            return _generate_report_with_new_architecture(df, target_data, period)
+        except Exception as e:
+            logger.error(f"新アーキテクチャでエラー: {e}")
+    
+    # Method 2: 部分的な新機能を使用したハイブリッド実装
+    if PARTIAL_REFACTORING_AVAILABLE:
+        try:
+            logger.info("⚡ ハイブリッドモードでレポート生成中...")
+            return _generate_hybrid_report(df, target_data, period)
+        except Exception as e:
+            logger.error(f"ハイブリッド実装でエラー: {e}")
+    
+    # Method 3: 従来実装へのフォールバック
+    logger.warning("🔄 従来実装でレポート生成中...")
+    return _generate_legacy_report(df, target_data, period)
+
+def _generate_report_with_new_architecture(df: pd.DataFrame, target_data: pd.DataFrame, 
+                                         period: str) -> str:
+    """新アーキテクチャでのレポート生成（将来実装）"""
+    # 将来の完全な新実装用のプレースホルダー
+    logger.info("新アーキテクチャは準備中です")
+    return _generate_hybrid_report(df, target_data, period)
+
+def _generate_hybrid_report(df: pd.DataFrame, target_data: pd.DataFrame, 
+                           period: str) -> str:
+    """
+    ハイブリッド実装：利用可能な新機能のみを使用
+    """
+    try:
+        logger.info("ハイブリッドレポート生成を開始")
+        
+        # 基本的なHTMLレポートを生成（簡略版）
+        start_date, end_date, period_desc = get_period_dates(df, period)
+        if not start_date:
+            return "<html><body><h1>エラー</h1><p>分析期間を計算できませんでした。</p></body></html>"
+
+        # 基本情報の取得
+        hospital_targets = get_hospital_targets(target_data)
+        overall_df = df[(df['日付'] >= start_date) & (df['日付'] <= end_date)]
+        
+        # KPI計算
+        overall_kpi = calculate_department_kpis(df, target_data, '全体', '病院全体', start_date, end_date, None)
+        if not overall_kpi:
+            return "<html><body><h1>エラー</h1><p>KPIを計算できませんでした。</p></body></html>"
+        
+        overall_feasibility = evaluate_feasibility(overall_kpi, overall_df, start_date, end_date)
+        overall_simulation = calculate_effect_simulation(overall_kpi)
+        overall_html_kpi = _adapt_kpi_for_html_generation(overall_kpi)
+        
+        # HTML コンポーネント生成
+        cards_all = _generate_metric_cards_html(overall_html_kpi, is_ward=False)
+        charts_all = _generate_charts_html(overall_df, overall_html_kpi)
+        analysis_all = _generate_action_plan_html(overall_html_kpi, overall_feasibility, overall_simulation, hospital_targets)
+        
+        # ハイライト（新機能があれば使用）
+        highlight_html = ""
+        if HIGH_SCORE_CALCULATOR_AVAILABLE and UI_COMPONENTS_AVAILABLE:
+            try:
+                dept_scores, ward_scores = new_calculate_all_high_scores(df, target_data, period)
+                dept_highlights, ward_highlights = new_generate_weekly_highlights_by_type(dept_scores, ward_scores)
+                
+                highlight_html = f"""
+                <div class="weekly-highlights-container">
+                    <div class="weekly-highlight-banner">
+                        <div class="highlight-content">
+                            <strong>今週のポイント</strong>
+                            <span>診療科: {dept_highlights} | 病棟: {ward_highlights}</span>
+                        </div>
+                    </div>
+                </div>
+                """
+            except Exception as e:
+                logger.error(f"ハイライト生成エラー: {e}")
+                highlight_html = ""
+        
+        # 最終HTML組み立て
+        content = highlight_html + cards_all + charts_all + analysis_all
+        css = _get_css_styles()
+        
+        return f"""
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>統合パフォーマンスレポート</title>
+            <style>{css}</style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>統合パフォーマンスレポート</h1>
+                    <p class="subtitle">期間: {period_desc} | ⚡ ハイブリッド版</p>
+                </div>
+                <div class="content-area">
+                    <div class="view-content active">
+                        {content}
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+    except Exception as e:
+        logger.error(f"ハイブリッド実装エラー: {e}")
+        return _generate_legacy_report(df, target_data, period)
+
+def _generate_legacy_report(df: pd.DataFrame, target_data: pd.DataFrame, 
+                          period: str) -> str:
+    """従来実装へのフォールバック"""
+    logger.warning("レガシー実装でレポート生成")
+    
+    return f"""
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>レポート（フォールバック版）</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; }}
+            .container {{ max-width: 800px; margin: 0 auto; }}
+            .warning {{ background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📊 統合パフォーマンスレポート</h1>
+            <p><strong>期間:</strong> {period}</p>
+            
+            <div class="warning">
+                <h3>⚠️ フォールバックモードで動作中</h3>
+                <p>新アーキテクチャおよびハイブリッド実装が利用できません。</p>
+                <p>基本的なレポート機能のみ提供しています。</p>
+            </div>
+            
+            <h2>📈 データ概要</h2>
+            <ul>
+                <li>データ行数: {len(df):,}行</li>
+                <li>分析期間: {period}</li>
+                <li>処理日時: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</li>
+            </ul>
+            
+            <h2>🔧 改善のために</h2>
+            <p>完全な機能を利用するには、以下をご確認ください：</p>
+            <ul>
+                <li>report_generation パッケージのインストール</li>
+                <li>必要な依存関係のインストール</li>
+                <li>設定ファイルの配置</li>
+            </ul>
+        </div>
+    </body>
+    </html>
+    """
+
+# =============================================================================
+# 後方互換性関数
+# =============================================================================
+
+def calculate_all_high_scores(df: pd.DataFrame, target_data: pd.DataFrame, 
+                             period: str = "直近12週") -> tuple:
+    """後方互換性のためのハイスコア計算関数"""
+    if HIGH_SCORE_CALCULATOR_AVAILABLE:
+        try:
+            return new_calculate_all_high_scores(df, target_data, period)
+        except Exception as e:
+            logger.error(f"ハイスコア計算エラー: {e}")
+    
+    logger.warning("ハイスコア計算機能が利用できません")
+    return [], []
+
+def _generate_weekly_highlights_by_type(dept_scores: List[Dict], 
+                                      ward_scores: List[Dict]) -> tuple:
+    """後方互換性のためのハイライト生成関数"""
+    if UI_COMPONENTS_AVAILABLE:
+        try:
+            return new_generate_weekly_highlights_by_type(dept_scores, ward_scores)
+        except Exception as e:
+            logger.error(f"ハイライト生成エラー: {e}")
+    
+    return ("各診療科で改善が進んでいます", "各病棟で安定運営中です")
+
+# =============================================================================
 # デバッグ用情報出力
 # =============================================================================
 if __name__ == "__main__":
@@ -288,350 +498,3 @@ if __name__ == "__main__":
         print("🔄 レガシーモードで実行中")
         print("   新モジュールのインストールを推奨します。")
         print("   pip install -r requirements.txt")
-
-# =============================================================================
-# メイン関数（統一インターフェース）
-# =============================================================================
-
-def generate_all_in_one_html_report(df: pd.DataFrame, target_data: pd.DataFrame, 
-                                   period: str = "直近12週") -> str:
-    """
-    統合HTMLレポート生成のメインエントリーポイント
-    
-    新アーキテクチャを優先的に使用し、利用できない場合は段階的にフォールバック
-    
-    Args:
-        df: メインデータフレーム
-        target_data: 目標データ
-        period: 分析期間
-        
-    Returns:
-        統合HTMLレポート文字列
-    """
-    # Method 1: 完全な新アーキテクチャ
-    if NEW_ARCHITECTURE_AVAILABLE:
-        try:
-            logger.info("🚀 新アーキテクチャでレポート生成中...")
-            return new_generate_report(df, target_data, period)
-        except Exception as e:
-            logger.error(f"新アーキテクチャでエラー: {e}")
-    
-    # Method 2: 部分的な新機能を使用したハイブリッド実装
-    if any([CSS_MANAGER_AVAILABLE, SCORING_CONFIG_AVAILABLE, 
-           HIGH_SCORE_CALCULATOR_AVAILABLE, UI_COMPONENTS_AVAILABLE]):
-        try:
-            logger.info("⚡ ハイブリッドモードでレポート生成中...")
-            return _generate_hybrid_report(df, target_data, period)
-        except Exception as e:
-            logger.error(f"ハイブリッド実装でエラー: {e}")
-    
-    # Method 3: 従来実装へのフォールバック
-    logger.warning("🔄 従来実装でレポート生成中...")
-    return _generate_legacy_report(df, target_data, period)
-
-def _generate_hybrid_report(df: pd.DataFrame, target_data: pd.DataFrame, 
-                           period: str) -> str:
-    """
-    ハイブリッド実装：利用可能な新機能のみを使用
-    """
-    try:
-        start_date, end_date, period_desc = get_period_dates(df, period)
-        if not start_date:
-            return "<html><body>エラー: 分析期間を計算できませんでした。</body></html>"
-
-        hospital_targets = get_hospital_targets(target_data)
-        dept_col = '診療科名'
-        all_departments = sorted(df[dept_col].dropna().unique()) if dept_col in df.columns else []
-        all_wards = get_target_ward_list(target_data, EXCLUDED_WARDS)
-        
-        content_html = ""
-        
-        # --- 全体ビューの生成 ---
-        overall_df = df[(df['日付'] >= start_date) & (df['日付'] <= end_date)]
-        overall_kpi = calculate_department_kpis(df, target_data, '全体', '病院全体', start_date, end_date, None)
-        overall_feasibility = evaluate_feasibility(overall_kpi, overall_df, start_date, end_date)
-        overall_simulation = calculate_effect_simulation(overall_kpi)
-        overall_html_kpi = _adapt_kpi_for_html_generation(overall_kpi)
-        
-        cards_all = _generate_metric_cards_html(overall_html_kpi, is_ward=False)
-        charts_all = _generate_charts_html(overall_df, overall_html_kpi)
-        analysis_all = _generate_action_plan_html(overall_html_kpi, overall_feasibility, overall_simulation, hospital_targets)
-        
-        # 新機能を使用したハイライト生成
-        highlight_html = ""
-        if HIGH_SCORE_CALCULATOR_AVAILABLE and UI_COMPONENTS_AVAILABLE:
-            try:
-                dept_scores, ward_scores = new_calculate_all_high_scores(df, target_data, period)
-                dept_highlights, ward_highlights = new_generate_highlights_by_type(dept_scores, ward_scores)
-                
-                highlight_html = f"""
-                <div class="weekly-highlights-container">
-                    <div class="weekly-highlight-banner dept-highlight">
-                        <div class="highlight-container">
-                            <div class="highlight-icon">💡</div>
-                            <div class="highlight-content">
-                                <strong>今週のポイント（診療科）</strong>
-                                <span class="highlight-items">{dept_highlights}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="weekly-highlight-banner ward-highlight">
-                        <div class="highlight-container">
-                            <div class="highlight-icon">💡</div>
-                            <div class="highlight-content">
-                                <strong>今週のポイント（病棟）</strong>
-                                <span class="highlight-items">{ward_highlights}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                """
-            except Exception as e:
-                logger.error(f"ハイライト生成エラー: {e}")
-        
-        overall_content = highlight_html + cards_all + charts_all + analysis_all
-        content_html += f'<div id="view-all" class="view-content active">{overall_content}</div>'
-        
-        # --- 診療科・病棟ビューの生成（簡略版） ---
-        # 実装は元のコードと同様だが、利用可能な新機能を活用
-        
-        # --- ハイスコアビューの生成（新機能使用） ---
-        if HIGH_SCORE_CALCULATOR_AVAILABLE:
-            try:
-                dept_scores, ward_scores = new_calculate_all_high_scores(df, target_data, period)
-                high_score_html = _generate_high_score_view_hybrid(dept_scores, ward_scores, period_desc)
-                content_html += f'<div id="view-high-score" class="view-content">{high_score_html}</div>'
-            except Exception as e:
-                logger.error(f"ハイスコアビュー生成エラー: {e}")
-        
-        # 最終HTML組み立て
-        return _assemble_final_html_hybrid(content_html, period_desc, all_departments, all_wards)
-        
-    except Exception as e:
-        logger.error(f"ハイブリッド実装エラー: {e}")
-        return f"<html><body>ハイブリッド実装でエラーが発生しました: {e}</body></html>"
-
-def _generate_high_score_view_hybrid(dept_scores: List[Dict], ward_scores: List[Dict], 
-                                   period_desc: str) -> str:
-    """ハイブリッド版ハイスコアビュー生成"""
-    if UI_COMPONENTS_AVAILABLE:
-        try:
-            from components.ui_components import create_ui_component_builder
-            ui_builder = create_ui_component_builder()
-            return ui_builder.build_high_score_view(dept_scores, ward_scores, period_desc)
-        except Exception as e:
-            logger.error(f"新UI実装エラー: {e}")
-    
-    # フォールバック: 基本的なランキング表示
-    return f"""
-    <div class="section">
-        <h2>🏆 週間ハイスコア TOP3</h2>
-        <p class="period-info">評価期間: {period_desc}</p>
-        <div class="ranking-grid">
-            <div class="ranking-section">
-                <h3>🩺 診療科部門</h3>
-                <div class="ranking-list">
-                    {_generate_simple_ranking(dept_scores)}
-                </div>
-            </div>
-            <div class="ranking-section">
-                <h3>🏢 病棟部門</h3>
-                <div class="ranking-list">
-                    {_generate_simple_ranking(ward_scores)}
-                </div>
-            </div>
-        </div>
-        <p><em>ハイブリッドモードで動作中。完全な機能は新アーキテクチャで利用可能です。</em></p>
-    </div>
-    """
-
-def _generate_simple_ranking(scores: List[Dict]) -> str:
-    """シンプルなランキング表示"""
-    if not scores:
-        return "<p>データがありません</p>"
-    
-    medals = ["🥇", "🥈", "🥉"]
-    items = []
-    
-    for i, score in enumerate(scores[:3]):
-        medal = medals[i] if i < 3 else f"{i+1}位"
-        name = score.get('display_name', score.get('entity_name', '不明'))
-        rate = score.get('latest_achievement_rate', 0)
-        total = score.get('total_score', 0)
-        
-        items.append(f"""
-            <div class="ranking-item">
-                <span class="medal">{medal}</span>
-                <div class="ranking-info">
-                    <div class="name">{name}</div>
-                    <div class="detail">達成率 {rate:.1f}%</div>
-                </div>
-                <div class="score">{total:.0f}点</div>
-            </div>
-        """)
-    
-    return ''.join(items)
-
-def _assemble_final_html_hybrid(content_html: str, period_desc: str, 
-                               all_departments: List[str], all_wards: List) -> str:
-    """ハイブリッド版最終HTML組み立て"""
-    # ドロップダウンオプション生成
-    dept_options = ""
-    for dept_name in all_departments:
-        dept_id = f"view-dept-{urllib.parse.quote(dept_name)}"
-        dept_options += f'<option value="{dept_id}">{dept_name}</option>'
-
-    ward_options = ""
-    for ward_code, ward_name in all_wards:
-        ward_id = f"view-ward-{ward_code}"
-        ward_options += f'<option value="{ward_id}">{ward_name}</option>'
-    
-    # CSS取得（新実装優先）
-    css = _get_css_styles() if 'CSS_MANAGER_AVAILABLE' in globals() else "/* CSS unavailable */"
-    
-    # 基本的なJavaScript
-    javascript = """
-    function showView(viewId) {
-        document.querySelectorAll('.view-content').forEach(content => {
-            content.classList.remove('active');
-        });
-        const targetView = document.getElementById(viewId);
-        if (targetView) {
-            targetView.classList.add('active');
-        }
-    }
-    
-    function toggleTypeSelector(type) {
-        // 基本的なセレクター切り替え機能
-    }
-    
-    function changeView(viewId) {
-        if (viewId) showView(viewId);
-    }
-    """
-    
-    return f"""
-    <!DOCTYPE html>
-    <html lang="ja">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>統合パフォーマンスレポート（ハイブリッド版）</title>
-        <style>{css}</style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>統合パフォーマンスレポート</h1>
-                <p class="subtitle">期間: {period_desc} | ⚡ ハイブリッド版</p>
-            </div>
-            <div class="controls">
-                <div class="quick-buttons">
-                    <button class="quick-button active" onclick="showView('view-all')">
-                        <span>🏥</span> 病院全体
-                    </button>
-                    <button class="quick-button" onclick="showView('view-high-score')">
-                        <span>🏆</span> ハイスコア部門
-                    </button>
-                </div>
-            </div>
-            <div class="content-area">
-                {content_html}
-            </div>
-        </div>
-        <script>{javascript}</script>
-    </body>
-    </html>
-    """
-
-def _generate_legacy_report(df: pd.DataFrame, target_data: pd.DataFrame, 
-                          period: str) -> str:
-    """従来実装へのフォールバック"""
-    return """
-    <html>
-    <body>
-        <h1>レポート生成エラー</h1>
-        <p>新アーキテクチャおよびハイブリッド実装が利用できません。</p>
-        <p>以下を確認してください：</p>
-        <ul>
-            <li>report_generation パッケージのインストール</li>
-            <li>必要な依存関係のインストール</li>
-            <li>従来のhtml_export_functions.pyの使用</li>
-        </ul>
-    </body>
-    </html>
-    """
-
-# =============================================================================
-# 後方互換性関数
-# =============================================================================
-
-def calculate_all_high_scores(df: pd.DataFrame, target_data: pd.DataFrame, 
-                             period: str = "直近12週") -> tuple:
-    """後方互換性のためのハイスコア計算関数"""
-    if NEW_ARCHITECTURE_AVAILABLE:
-        return calculate_all_high_scores_unified(df, target_data, period)
-    elif HIGH_SCORE_CALCULATOR_AVAILABLE:
-        return new_calculate_all_high_scores(df, target_data, period)
-    else:
-        logger.warning("ハイスコア計算機能が利用できません")
-        return [], []
-
-def _generate_weekly_highlights_by_type(dept_scores: List[Dict], 
-                                      ward_scores: List[Dict]) -> tuple:
-    """後方互換性のためのハイライト生成関数"""
-    if UI_COMPONENTS_AVAILABLE:
-        return new_generate_highlights_by_type(dept_scores, ward_scores)
-    else:
-        return ("各診療科で改善が進んでいます", "各病棟で安定運営中です")
-
-# =============================================================================
-# デバッグ・診断機能
-# =============================================================================
-
-def get_implementation_status() -> Dict[str, any]:
-    """現在の実装状況を取得"""
-    if NEW_ARCHITECTURE_AVAILABLE:
-        return report_generation.get_package_status()
-    else:
-        return {
-            'mode': 'hybrid' if any([CSS_MANAGER_AVAILABLE, SCORING_CONFIG_AVAILABLE, 
-                                   HIGH_SCORE_CALCULATOR_AVAILABLE, UI_COMPONENTS_AVAILABLE]) else 'legacy',
-            'css_manager': CSS_MANAGER_AVAILABLE if 'CSS_MANAGER_AVAILABLE' in globals() else False,
-            'scoring_config': SCORING_CONFIG_AVAILABLE if 'SCORING_CONFIG_AVAILABLE' in globals() else False,
-            'high_score_calculator': HIGH_SCORE_CALCULATOR_AVAILABLE if 'HIGH_SCORE_CALCULATOR_AVAILABLE' in globals() else False,
-            'ui_components': UI_COMPONENTS_AVAILABLE if 'UI_COMPONENTS_AVAILABLE' in globals() else False
-        }
-
-# ログ出力
-status = get_implementation_status()
-if NEW_ARCHITECTURE_AVAILABLE:
-    logger.info("🎉 新アーキテクチャで動作中")
-elif status.get('mode') == 'hybrid':
-    logger.info("⚡ ハイブリッドモードで動作中")
-else:
-    logger.warning("🔄 レガシーモードで動作中")
-
-# メイン実行時の情報表示
-if __name__ == "__main__":
-    print("=== html_export_functions.py (リファクタリング対応版) ===")
-    status = get_implementation_status()
-    
-    if NEW_ARCHITECTURE_AVAILABLE:
-        print("🎉 新アーキテクチャが完全に利用可能です")
-        print("   最適なパフォーマンスと機能で動作します")
-    elif status.get('mode') == 'hybrid':
-        print("⚡ ハイブリッドモードで動作中")
-        print("   利用可能な新機能のみを使用します")
-        for module, available in status.items():
-            if module != 'mode':
-                status_icon = "✅" if available else "❌"
-                print(f"   {status_icon} {module}")
-    else:
-        print("🔄 レガシーモードで動作中")
-        print("   新モジュールのインストールを推奨します")
-    
-    print(f"\n📊 統計:")
-    print(f"   元のファイル: 3,600行")
-    print(f"   リファクタリング版: 約{len(open(__file__).readlines())}行")
-    print(f"   削減率: {(1 - len(open(__file__).readlines()) / 3600) * 100:.0f}%")
