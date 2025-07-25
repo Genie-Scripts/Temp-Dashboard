@@ -104,6 +104,11 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         # --- ハイスコアビューの生成 ---
         try:
             dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
+            
+            # 詳細表示とハイライトのHTML生成
+            score_details_html = _generate_score_detail_html(dept_scores, ward_scores)
+            highlights_html = _generate_weekly_highlights(dept_scores, ward_scores)
+            
             high_score_html = f"""
             <div id="view-high-score" class="view-content">
                 <div class="section">
@@ -156,9 +161,14 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             else:
                 high_score_html += "<p>データがありません</p>"
             
-            high_score_html += """
+            high_score_html += f"""
                             </div>
                         </div>
+                    </div>
+                    {score_details_html}
+                    <div class="weekly-insights">
+                        <h4>💡 今週のポイント</h4>
+                        {highlights_html}
                     </div>
                 </div>
             </div>
@@ -2061,15 +2071,6 @@ def calculate_high_score(df, target_data, entity_name, entity_type, start_date, 
         
         # 総合スコア計算
         total_score = achievement_score + improvement_score + stability_score + sustainability_score + bed_efficiency_score
-
-        print("▼デバッグ用-------------------------")
-        print("診療科/病棟名:", entity_name)
-        print("直近7日間の在院患者数df:", recent_week_df[['日付','在院患者数']])
-        print("直近週平均:", latest_week_avg_census)
-        print("目標値:", target_value)
-        print("達成率:", (latest_week_avg_census / target_value) * 100)
-        print("-------------------------------------")
-
         return {
             'entity_name': entity_name,
             'entity_type': entity_type,
@@ -2235,6 +2236,51 @@ def _calculate_bed_efficiency_score(bed_utilization: float, achievement_rate: fl
         
     except:
         return 0
+
+def _generate_score_detail_html(dept_scores: List[Dict], ward_scores: List[Dict]) -> str:
+    """TOP1の詳細スコア表示HTML生成"""
+    html = '<div class="score-details-section">'
+    
+    # 診療科部門TOP1の詳細
+    if dept_scores:
+        top_dept = dept_scores[0]
+        html += f"""
+        <div class="score-detail-card">
+            <h4>👑 診療科部門1位：{top_dept['entity_name']}</h4>
+            <div class="score-breakdown">
+                <div class="score-total">📊 総合スコア：{top_dept['total_score']:.0f}点</div>
+                <div class="score-tree">
+                    <div class="score-item">├─ 直近週達成度：{top_dept['achievement_score']:.0f}点（達成率{top_dept['latest_achievement_rate']:.0f}%）</div>
+                    <div class="score-item">├─ 改善度：{top_dept['improvement_score']:.0f}点（期間平均比{top_dept['improvement_rate']:+.0f}%）</div>
+                    <div class="score-item">├─ 安定性：{top_dept['stability_score']:.0f}点</div>
+                    <div class="score-item">└─ 持続性：{top_dept['sustainability_score']:.0f}点</div>
+                </div>
+            </div>
+        </div>
+        """
+    
+    # 病棟部門TOP1の詳細
+    if ward_scores:
+        top_ward = ward_scores[0]
+        ward_name = top_ward.get('display_name', top_ward['entity_name'])
+        html += f"""
+        <div class="score-detail-card">
+            <h4>👑 病棟部門1位：{ward_name}</h4>
+            <div class="score-breakdown">
+                <div class="score-total">📊 総合スコア：{top_ward['total_score']:.0f}点</div>
+                <div class="score-tree">
+                    <div class="score-item">├─ 直近週達成度：{top_ward['achievement_score']:.0f}点（達成率{top_ward['latest_achievement_rate']:.0f}%）</div>
+                    <div class="score-item">├─ 改善度：{top_ward['improvement_score']:.0f}点（期間平均比{top_ward['improvement_rate']:+.0f}%）</div>
+                    <div class="score-item">├─ 安定性：{top_ward['stability_score']:.0f}点</div>
+                    <div class="score-item">├─ 持続性：{top_ward['sustainability_score']:.0f}点</div>
+                    <div class="score-item">└─ 病床効率加点：{top_ward['bed_efficiency_score']:.0f}点（利用率{top_ward.get('bed_utilization', 0):.0f}%）</div>
+                </div>
+            </div>
+        </div>
+        """
+    
+    html += '</div>'
+    return html
 
 def calculate_all_high_scores(df, target_data, period="直近12週"):
     """
@@ -2691,6 +2737,72 @@ def _get_high_score_css() -> str:
         border-color: var(--primary-color, #5B5FDE) !important;
         box-shadow: 0 4px 8px rgba(91, 95, 222, 0.3) !important;
     }
+    
+
+    /* スコア詳細表示用スタイル */
+        .score-details-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(91, 95, 222, 0.02), rgba(91, 95, 222, 0.05));
+            border-radius: 12px;
+        }
+    
+        .score-detail-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 5px solid var(--primary-color);
+        }
+    
+        .score-detail-card h4 {
+            color: var(--primary-dark, #4347B8);
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            font-weight: 700;
+        }
+    
+        .score-breakdown {
+            font-family: 'Courier New', monospace;
+        }
+    
+        .score-total {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: var(--primary-color, #5B5FDE);
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(91, 95, 222, 0.1);
+            border-radius: 8px;
+            text-align: center;
+        }
+    
+        .score-tree {
+            margin-left: 20px;
+        }
+    
+        .score-item {
+            padding: 8px 0;
+            color: var(--gray-700, #374151);
+            line-height: 1.6;
+            font-size: 0.95em;
+        }
+    
+        .weekly-insights {
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border-left: 4px solid var(--info-color, #3B82F6);
+        }
+    
+        .weekly-insights h4 {
+            color: var(--info-color, #3B82F6);
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
     
     /* レスポンシブ対応 */
     @media (max-width: 768px) {
