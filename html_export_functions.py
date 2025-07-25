@@ -44,9 +44,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         dept_col = '診療科名'
         all_departments = sorted(df[dept_col].dropna().unique()) if dept_col in df.columns else []
         all_wards = get_target_ward_list(target_data, EXCLUDED_WARDS)
-
+        
         content_html = ""
-
+        
         # --- 全体ビューの生成 ---
         overall_df = df[(df['日付'] >= start_date) & (df['日付'] <= end_date)]
         overall_kpi = calculate_department_kpis(df, target_data, '全体', '病院全体', start_date, end_date, None)
@@ -95,7 +95,8 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
         
         # ハイライトHTMLを含めて全体コンテンツを構成
         overall_content = highlight_html + cards_all + charts_all + analysis_all
-    content_html += f'<div id="view-all" class="view-content active">{overall_content}</div>'
+        content_html += f'<div id="view-all" class="view-content active">{overall_content}</div>'
+
 
         # --- 診療科別ビューの生成 ---
         for dept_name in all_departments:
