@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 from style import inject_global_css
-from utils import initialize_all_mappings, logger # loggerをインポート
+from report_generation.utils import initialize_all_mappings, logger
 
 from data_persistence import (
     auto_load_data, save_data_to_file, load_data_from_file,
