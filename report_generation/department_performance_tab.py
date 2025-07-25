@@ -1,4 +1,4 @@
-# department_performance_tab.py - 診療科別パフォーマンスダッシュボード（努力度表示版・トレンド分析対応）
+# department_performance_tab.py
 # -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
@@ -12,32 +12,37 @@ from config import EXCLUDED_WARDS
 
 logger = logging.getLogger(__name__)
 
+# ▼▼▼ 修正箇所 ▼▼▼
 # 既存のインポートに加えて詳細表示機能を追加
 try:
-    from unified_filters import get_unified_filter_config
-    from unified_html_export import generate_unified_html_export
-    from enhanced_streamlit_display import display_enhanced_action_dashboard
-    from enhanced_action_analysis import generate_comprehensive_action_data
+    # これらも report_generation パッケージ内のモジュールと仮定し、相対パスに修正
+    from .unified_filters import get_unified_filter_config
+    from .unified_html_export import generate_unified_html_export
+    from .enhanced_streamlit_display import display_enhanced_action_dashboard
+    from .enhanced_action_analysis import generate_comprehensive_action_data
 except ImportError as e:
     st.error(f"必要なモジュールのインポートに失敗しました: {e}")
+    st.info("unified_filters.pyなどがreport_generationパッケージ内に配置されているか確認してください。")
     st.stop()
+# ▲▲▲ 修正ここまで ▲▲▲
 
 def get_mobile_report_generator():
     """mobile_report_generatorを遅延インポート"""
     try:
+        # これは外部モジュールと仮定
         from mobile_report_generator import generate_department_mobile_report
         return generate_department_mobile_report
     except ImportError as e:
         st.error(f"mobile_report_generator インポートエラー: {e}")
         return None
 
+# utilsはパッケージ外から呼ばれるのでこのままでOK
 from report_generation.utils import (
     safe_date_filter, get_display_name_for_dept, create_dept_mapping_table,
     get_period_dates, calculate_department_kpis, decide_action_and_reasoning,
     evaluate_feasibility, calculate_effect_simulation, calculate_los_appropriate_range,
     get_hospital_targets
 )
-
 def get_color(val):
     """達成率に応じた色を取得"""
     if val >= 100:

@@ -1,4 +1,5 @@
 # report_generation/__init__.py
+
 """
 統合レポート生成パッケージ（メイン）
 
@@ -7,7 +8,7 @@
 
 主要な機能:
 - レポート生成 (ReportGenerator)
-- ハイスコア計算 (HighScoreCalculator) 
+- ハイスコア計算 (HighScoreCalculator)
 - UI コンポーネント (UIComponentBuilder)
 - スコア設定管理 (ScoringConfig)
 """
@@ -47,8 +48,8 @@ try:
     logger.info("✅ HighScoreCalculator をロードしました")
 except ImportError as e:
     logger.warning(f"❌ HighScoreCalculator のインポートに失敗: {e}")
-    HighScoreCalculator = ScoreResult = None
-    calculate_high_score = calculate_all_high_scores = None
+    HighScoreCalculator = None
+    calculate_high_score = None
     HIGH_SCORE_AVAILABLE = False
 
 # 設定管理
@@ -377,40 +378,40 @@ __all__ = [
     '__version__',
     '__author__',
     '__description__',
-    
+
     # メインクラス
     'ReportGenerator',
     'HighScoreCalculator',
-    'ScoreResult',
+    # 'ScoreResult',  # ▼▼▼ 削除 ▼▼▼
     'ScoringConfig',
     'UIComponentBuilder',
     'HTMLTemplates',
     'CSSManager',
     'TemplateManager',
-    
+
     # ファクトリ関数
     'create_report_generator',
     'create_high_score_calculator',
     'create_ui_component_builder',
     'create_template_manager',
-    
+
     # メイン機能（統一インターフェース）
     'generate_all_in_one_html_report',
     'calculate_all_high_scores_unified',
     'create_weekly_highlights_unified',
-    
+
     # ユーティリティ関数
     'get_package_status',
     'validate_installation',
     'diagnose_package',
     'performance_test',
-    
+
     # 後方互換性
     'calculate_high_score',
-    'calculate_all_high_scores',
+    # 'calculate_all_high_scores', # ▼▼▼ 削除 ▼▼▼
     'generate_weekly_highlights_by_type',
     'generate_weekly_highlights_compact',
-    
+
     # 設定関数
     'get_scoring_weights',
     'get_achievement_thresholds',
