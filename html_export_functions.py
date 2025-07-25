@@ -66,7 +66,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     <div class="highlight-icon">💡</div>
                     <div class="highlight-content">
                         <strong>今週のポイント</strong>
-                        <span class="highlight-items">{{_generate_weekly_highlights_compact(dept_scores, ward_scores)}}</span>
+                        <span class="highlight-items">{_generate_weekly_highlights_compact(dept_scores, ward_scores)}</span>
                     </div>
                 </div>
             </div>
@@ -122,10 +122,8 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
 
         # --- ハイスコアビューの生成 ---
         try:
-            # dept_scores, ward_scores は既に全体ビューで計算済みの場合はスキップ
             if 'dept_scores' not in locals() or 'ward_scores' not in locals():
                 dept_scores, ward_scores = calculate_all_high_scores(df, target_data, period)
-
             # 詳細表示とハイライトのHTML生成
             score_details_html = _generate_score_detail_html(dept_scores, ward_scores)
             highlights_html = _generate_weekly_highlights(dept_scores, ward_scores)
@@ -134,7 +132,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             <div id="view-high-score" class="view-content">
                 <div class="section">
                     <h2>🏆 週間ハイスコア TOP3</h2>
-                    <p class="period-info">評価期間: {{period_desc}}</p>
+                    <p class="period-info">評価期間: {period_desc}</p>
                     <div class="ranking-grid">
                         <div class="ranking-section">
                             <h3>🩺 診療科部門</h3>
@@ -145,13 +143,13 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 for i, score in enumerate(dept_scores[:3]):
                     medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
                     high_score_html += f"""
-                                <div class="ranking-item rank-{{i+1}}">
-                                    <span class="medal">{{medal}}</span>
+                                <div class="ranking-item rank-{i+1}">
+                                    <span class="medal">{medal}</span>
                                     <div class="ranking-info">
-                                        <div class="name">{{score['entity_name']}}</div>
-                                        <div class="detail">達成率 {{score['latest_achievement_rate']:.1f}}%</div>
+                                        <div class="name">{score['entity_name']}</div>
+                                        <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
                                     </div>
-                                    <div class="score">{{score['total_score']:.0f}}点</div>
+                                    <div class="score">{score['total_score']:.0f}点</div>
                                 </div>
                     """
             else:
@@ -170,13 +168,13 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
                     ward_name = score.get('display_name', score['entity_name'])
                     high_score_html += f"""
-                                <div class="ranking-item rank-{{i+1}}">
-                                    <span class="medal">{{medal}}</span>
+                                <div class="ranking-item rank-{i+1}">
+                                    <span class="medal">{medal}</span>
                                     <div class="ranking-info">
-                                        <div class="name">{{ward_name}}</div>
-                                        <div class="detail">達成率 {{score['latest_achievement_rate']:.1f}}%</div>
+                                        <div class="name">{ward_name}</div>
+                                        <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
                                     </div>
-                                    <div class="score">{{score['total_score']:.0f}}点</div>
+                                    <div class="score">{score['total_score']:.0f}点</div>
                                 </div>
                     """
             else:
@@ -186,10 +184,10 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             </div>
                         </div>
                     </div>
-                    {{score_details_html}}
+                    {score_details_html}
                     <div class="weekly-insights">
                         <h4>💡 今週のポイント</h4>
-                        {{highlights_html}}
+                        {highlights_html}
                     </div>
                 </div>
             </div>
@@ -440,7 +438,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             <li><span class="badge danger">要注意</span> 直近週が期間平均比-10%以下</li>
                         </ul>
                         <div class="note-box">
-                            <strong>📝 注意：</strong>「期間平均比」は、分析対象期間（{{period}}）の平均値に対する直近週実績の変化率です
+                            <strong>📝 注意：</strong>「期間平均比」は、分析対象期間（{period}）の平均値に対する直近週実績の変化率です
                         </div>
                     </div>
                     
@@ -475,7 +473,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             <dd>分析期間の最新1週間（月曜〜日曜）の実績値。<strong style="color: #e91e63;">アクション判定の主要評価軸</strong></dd>
                             
                             <dt>期間平均</dt>
-                            <dd>分析対象期間（{{period}}）全体の平均値。直近週との比較基準として使用</dd>
+                            <dd>分析対象期間（{period}）全体の平均値。直近週との比較基準として使用</dd>
                             
                             <dt>🎯 直近週目標達成率（主要KPI）</dt>
                             <dd>（直近週実績値 ÷ 目標値）× 100%。<strong style="color: #5b5fde;">98%以上で目標達成と判定</strong></dd>
@@ -548,13 +546,13 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             <title>統合パフォーマンスレポート（直近週重視版）</title>
             <style>
                 /* ベース設定 */
-                * {{{{
+                * {{
                     margin: 0;
                     padding: 0;
                     box-sizing: border-box;
-                }}}}
+                }}
                 
-                :root {{{{
+                :root {{
                     /* カラーパレット */
                     --primary-color: #5B5FDE;
                     --primary-dark: #4347B8;
@@ -586,9 +584,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     /* トランジション */
                     --transition-fast: 150ms ease-in-out;
                     --transition-normal: 300ms ease-in-out;
-                }}}}
+                }}
                 
-                body {{{{
+                body {{
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
                     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
                     min-height: 100vh;
@@ -596,10 +594,10 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     line-height: 1.6;
                     -webkit-font-smoothing: antialiased;
                     -moz-osx-font-smoothing: grayscale;
-                }}}}
+                }}
                 
                 /* コンテナ */
-                .container {{{{
+                .container {{
                     max-width: 1200px;
                     margin: 0 auto;
                     background: white;
@@ -608,19 +606,19 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     overflow: hidden;
                     margin-top: 20px;
                     margin-bottom: 20px;
-                }}}}
+                }}
                 
                 /* ヘッダー */
-                .header {{{{
+                .header {{
                     background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
                     color: white;
                     padding: 40px 30px;
                     text-align: center;
                     position: relative;
                     overflow: hidden;
-                }}}}
+                }}
                 
-                .header::before {{{{
+                .header::before {{
                     content: '';
                     position: absolute;
                     top: 0;
@@ -630,9 +628,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,112C672,96,768,96,864,112C960,128,1056,160,1152,160C1248,160,1344,128,1392,112L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>');
                     background-size: cover;
                     opacity: 0.3;
-                }}}}
+                }}
                 
-                h1 {{{{
+                h1 {{
                     margin: 0;
                     font-size: 2.5em;
                     font-weight: 700;
@@ -640,18 +638,18 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     position: relative;
                     z-index: 1;
                     text-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }}}}
+                }}
                 
-                .subtitle {{{{
+                .subtitle {{
                     opacity: 0.95;
                     margin-top: 8px;
                     font-size: 1.1em;
                     position: relative;
                     z-index: 1;
-                }}}}
+                }}
                 
                 /* 改善された情報ボタン */
-                .info-button {{{{
+                .info-button {{
                     position: absolute;
                     top: 20px;
                     right: 20px;
@@ -669,35 +667,35 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     display: flex;
                     align-items: center;
                     gap: 8px;
-                }}}}
+                }}
                 
-                .info-button:hover {{{{
+                .info-button:hover {{
                     background: rgba(255, 255, 255, 0.3);
                     transform: translateY(-2px);
                     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                }}}}
+                }}
                 
-                .info-button:active {{{{
+                .info-button:active {{
                     transform: translateY(0);
-                }}}}
+                }}
                 
                 /* コントロール部分 */
-                .controls {{{{
+                .controls {{
                     padding: 30px;
                     background: linear-gradient(to bottom, var(--gray-50), white);
                     border-bottom: 1px solid var(--gray-200);
-                }}}}
+                }}
                 
                 /* クイックボタン（改善版） */
-                .quick-buttons {{{{
+                .quick-buttons {{
                     display: flex;
                     justify-content: center;
                     gap: 12px;
                     margin-bottom: 25px;
                     flex-wrap: wrap;
-                }}}}
+                }}
                 
-                .quick-button {{{{
+                .quick-button {{
                     padding: 12px 24px;
                     background: white;
                     color: var(--gray-700);
@@ -713,9 +711,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     box-shadow: var(--shadow-sm);
                     position: relative;
                     overflow: hidden;
-                }}}}
+                }}
                 
-                .quick-button::before {{{{
+                .quick-button::before {{
                     content: '';
                     position: absolute;
                     top: 0;
@@ -724,52 +722,52 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     height: 100%;
                     background: linear-gradient(90deg, transparent, rgba(91, 95, 222, 0.1), transparent);
                     transition: left 0.5s;
-                }}}}
+                }}
                 
-                .quick-button:hover {{{{
+                .quick-button:hover {{
                     transform: translateY(-2px);
                     box-shadow: var(--shadow-md);
                     border-color: var(--primary-color);
                     color: var(--primary-color);
-                }}}}
+                }}
                 
-                .quick-button:hover::before {{{{
+                .quick-button:hover::before {{
                     left: 100%;
-                }}}}
+                }}
                 
-                .quick-button.active {{{{
+                .quick-button.active {{
                     background: var(--primary-color);
                     color: white;
                     border-color: var(--primary-color);
                     box-shadow: 0 4px 12px rgba(91, 95, 222, 0.3);
                     transform: translateY(-1px);
-                }}}}
+                }}
                 
-                .quick-button.active:hover {{{{
+                .quick-button.active:hover {{
                     transform: translateY(-3px);
                     box-shadow: 0 6px 16px rgba(91, 95, 222, 0.4);
-                }}}}
+                }}
                 
-                .quick-button span {{{{
+                .quick-button span {{
                     font-size: 1.2em;
                     display: inline-block;
                     transition: transform 0.3s;
-                }}}}
+                }}
                 
-                .quick-button:hover span {{{{
+                .quick-button:hover span {{
                     transform: scale(1.1);
-                }}}}
+                }}
                 
                 /* セレクターグループ（改善版） */
-                .selector-group {{{{
+                .selector-group {{
                     display: flex;
                     justify-content: center;
                     align-items: center;
                     gap: 20px;
                     flex-wrap: wrap;
-                }}}}
+                }}
                 
-                .selector-wrapper {{{{
+                .selector-wrapper {{
                     display: flex;
                     align-items: center;
                     gap: 12px;
@@ -778,21 +776,21 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     border-radius: 50px;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
                     transition: all 0.3s ease;
-                }}}}
+                }}
                 
-                .selector-wrapper:hover {{{{
+                .selector-wrapper:hover {{
                     box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-                }}}}
+                }}
                 
-                .selector-label {{{{
+                .selector-label {{
                     font-weight: 600;
                     color: var(--gray-600);
                     font-size: 0.95em;
                     white-space: nowrap;
-                }}}}
+                }}
                 
                 /* カスタムセレクト（改善版） */
-                select {{{{
+                select {{
                     padding: 10px 40px 10px 16px;
                     font-size: 0.95em;
                     border-radius: 25px;
@@ -809,48 +807,48 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     appearance: none;
                     -webkit-appearance: none;
                     -moz-appearance: none;
-                }}}}
+                }}
                 
-                select:hover {{{{
+                select:hover {{
                     border-color: var(--primary-light);
                     background-color: var(--gray-50);
-                }}}}
+                }}
                 
-                select:focus {{{{
+                select:focus {{
                     outline: 0;
                     border-color: var(--primary-color);
                     box-shadow: 0 0 0 3px rgba(91, 95, 222, 0.1);
-                }}}}
+                }}
                 
                 /* コンテンツエリア */
-                .content-area {{{{
+                .content-area {{
                     padding: 30px;
                     background: var(--gray-50);
-                }}}}
+                }}
                 
                 /* ビューコンテンツ */
-                .view-content {{{{
+                .view-content {{
                     display: none;
                     animation: fadeIn 0.3s ease-in-out;
-                }}}}
+                }}
                 
-                .view-content.active {{{{
+                .view-content.active {{
                     display: block;
-                }}}}
+                }}
                 
-                @keyframes fadeIn {{{{
-                    from {{{{
+                @keyframes fadeIn {{
+                    from {{
                         opacity: 0;
                         transform: translateY(10px);
-                    }}}}
-                    to {{{{
+                    }}
+                    to {{
                         opacity: 1;
                         transform: translateY(0);
-                    }}}}
-                }}}}
+                    }}
+                }}
                 
                 /* セクション（改善版） */
-                .section {{{{
+                .section {{
                     background: white;
                     border-radius: 16px;
                     padding: 32px;
@@ -858,13 +856,13 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                     border: 1px solid rgba(0,0,0,0.05);
                     transition: all 0.3s ease;
-                }}}}
+                }}
                 
-                .section:hover {{{{
+                .section:hover {{
                     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-                }}}}
+                }}
                 
-                .section h2 {{{{
+                .section h2 {{
                     color: var(--gray-800);
                     font-size: 1.5em;
                     margin-bottom: 24px;
@@ -874,17 +872,17 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     align-items: center;
                     gap: 8px;
                     font-weight: 700;
-                }}}}
+                }}
                 
                 /* メトリクスカード */
-                .summary-cards {{{{
+                .summary-cards {{
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
                     gap: 20px;
                     margin-bottom: 30px;
-                }}}}
+                }}
                 
-                .summary-card {{{{
+                .summary-card {{
                     background: white;
                     border-radius: 16px;
                     padding: 24px;
@@ -894,9 +892,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     border: 1px solid var(--gray-100);
                     position: relative;
                     overflow: hidden;
-                }}}}
+                }}
                 
-                .summary-card::before {{{{
+                .summary-card::before {{
                     content: '';
                     position: absolute;
                     top: 0;
@@ -905,39 +903,39 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     height: 4px;
                     background: var(--gray-200);
                     transition: all 0.3s ease;
-                }}}}
+                }}
                 
-                .summary-card.card-good::before {{{{
+                .summary-card.card-good::before {{
                     background: linear-gradient(90deg, var(--success-color), #22d3ee);
-                }}}}
+                }}
                 
-                .summary-card.card-warning::before {{{{
+                .summary-card.card-warning::before {{
                     background: linear-gradient(90deg, var(--warning-color), #fbbf24);
-                }}}}
+                }}
                 
-                .summary-card.card-danger::before {{{{
+                .summary-card.card-danger::before {{
                     background: linear-gradient(90deg, var(--danger-color), #f87171);
-                }}}}
+                }}
                 
-                .summary-card.card-info::before {{{{
+                .summary-card.card-info::before {{
                     background: linear-gradient(90deg, var(--info-color), #60a5fa);
-                }}}}
+                }}
                 
-                .summary-card:hover {{{{
+                .summary-card:hover {{
                     transform: translateY(-4px);
                     box-shadow: 0 8px 16px rgba(0,0,0,0.12);
-                }}}}
+                }}
                 
-                .summary-card h3 {{{{
+                .summary-card h3 {{
                     font-size: 0.9em;
                     color: var(--gray-600);
                     margin-bottom: 12px;
                     font-weight: 600;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
-                }}}}
+                }}
                 
-                .summary-card .value {{{{
+                .summary-card .value {{
                     font-size: 2.2em;
                     font-weight: 700;
                     margin-bottom: 8px;
@@ -946,31 +944,31 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     -webkit-background-clip: text;
                     -webkit-text-fill-color: transparent;
                     background-clip: text;
-                }}}}
+                }}
                 
-                .summary-card.card-good .value {{{{
+                .summary-card.card-good .value {{
                     background: linear-gradient(135deg, var(--success-color), #10b981);
                     -webkit-background-clip: text;
                     -webkit-text-fill-color: transparent;
                     background-clip: text;
-                }}}}
+                }}
                 
-                .summary-card.card-warning .value {{{{
+                .summary-card.card-warning .value {{
                     background: linear-gradient(135deg, var(--warning-color), #f59e0b);
                     -webkit-background-clip: text;
                     -webkit-text-fill-color: transparent;
                     background-clip: text;
-                }}}}
+                }}
                 
-                .summary-card.card-danger .value {{{{
+                .summary-card.card-danger .value {{
                     background: linear-gradient(135deg, var(--danger-color), #ef4444);
                     -webkit-background-clip: text;
                     -webkit-text-fill-color: transparent;
                     background-clip: text;
-                }}}}
+                }}
                 
                 /* 情報パネル（改善版） */
-                .info-panel {{{{
+                .info-panel {{
                     display: none;
                     position: fixed;
                     top: 0;
@@ -982,13 +980,13 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     z-index: 1000;
                     overflow-y: auto;
                     animation: fadeIn 0.3s ease-out;
-                }}}}
+                }}
                 
-                .info-panel.active {{{{
+                .info-panel.active {{
                     display: block;
-                }}}}
+                }}
                 
-                .info-content {{{{
+                .info-content {{
                     max-width: 900px;
                     margin: 40px auto;
                     background: white;
@@ -999,20 +997,20 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     animation: slideIn 0.3s ease-out;
                     max-height: 90vh;
                     overflow-y: auto;
-                }}}}
+                }}
                 
-                @keyframes slideIn {{{{
-                    from {{{{
+                @keyframes slideIn {{
+                    from {{
                         opacity: 0;
                         transform: translateY(-20px);
-                    }}}}
-                    to {{{{
+                    }}
+                    to {{
                         opacity: 1;
                         transform: translateY(0);
-                    }}}}
-                }}}}
+                    }}
+                }}
                 
-                .close-button {{{{
+                .close-button {{
                     position: absolute;
                     top: 20px;
                     right: 20px;
@@ -1028,14 +1026,14 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                }}}}
+                }}
                 
-                .close-button:hover {{{{
+                .close-button:hover {{
                     background: var(--gray-200);
                     transform: rotate(90deg);
-                }}}}
+                }}
                 
-                .info-content h2 {{{{
+                .info-content h2 {{
                     color: var(--gray-800);
                     margin-bottom: 30px;
                     font-size: 1.8em;
@@ -1044,23 +1042,23 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     display: flex;
                     align-items: center;
                     gap: 10px;
-                }}}}
+                }}
                 
-                .info-section {{{{
+                .info-section {{
                     margin-bottom: 35px;
-                }}}}
+                }}
                 
-                .info-section h3 {{{{
+                .info-section h3 {{
                     color: var(--gray-700);
                     margin-bottom: 15px;
                     font-size: 1.3em;
                     display: flex;
                     align-items: center;
                     gap: 8px;
-                }}}}
+                }}
                 
                 /* 優先度ボックス（改善版） */
-                .priority-box {{{{
+                .priority-box {{
                     background: white;
                     border: 2px solid var(--gray-200);
                     border-radius: 12px;
@@ -1069,9 +1067,9 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     transition: all 0.3s ease;
                     position: relative;
                     overflow: hidden;
-                }}}}
+                }}
                 
-                .priority-box::before {{{{
+                .priority-box::before {{
                     content: '';
                     position: absolute;
                     top: 0;
@@ -1079,83 +1077,83 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     width: 5px;
                     height: 100%;
                     background: var(--gray-300);
-                }}}}
+                }}
                 
-                .priority-box.urgent {{{{
+                .priority-box.urgent {{
                     background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(239, 68, 68, 0.02) 100%);
                     border-color: rgba(239, 68, 68, 0.3);
-                }}}}
+                }}
                 
-                .priority-box.urgent::before {{{{
+                .priority-box.urgent::before {{
                     background: var(--danger-color);
-                }}}}
+                }}
                 
-                .priority-box.medium {{{{
+                .priority-box.medium {{
                     background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(245, 158, 11, 0.02) 100%);
                     border-color: rgba(245, 158, 11, 0.3);
-                }}}}
+                }}
                 
-                .priority-box.medium::before {{{{
+                .priority-box.medium::before {{
                     background: var(--warning-color);
-                }}}}
+                }}
                 
-                .priority-box.low {{{{
+                .priority-box.low {{
                     background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.02) 100%);
                     border-color: rgba(16, 185, 129, 0.3);
-                }}}}
+                }}
                 
-                .priority-box.low::before {{{{
+                .priority-box.low::before {{
                     background: var(--success-color);
-                }}}}
+                }}
                 
-                .priority-box:hover {{{{
+                .priority-box:hover {{
                     transform: translateX(5px);
                     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                }}}}
+                }}
                 
                 /* 評価基準テーブル（改善版） */
-                .criteria-table {{{{
+                .criteria-table {{
                     width: 100%;
                     border-collapse: collapse;
                     margin-top: 20px;
                     border-radius: 8px;
                     overflow: hidden;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-                }}}}
+                }}
                 
-                .criteria-table th {{{{
+                .criteria-table th {{
                     background: linear-gradient(135deg, var(--gray-100), var(--gray-50));
                     padding: 14px;
                     text-align: left;
                     font-weight: 600;
                     color: var(--gray-700);
                     border-bottom: 2px solid var(--gray-200);
-                }}}}
+                }}
                 
-                .criteria-table td {{{{
+                .criteria-table td {{
                     padding: 14px;
                     border-bottom: 1px solid var(--gray-100);
                     background: white;
                     transition: background 0.2s ease;
-                }}}}
+                }}
                 
-                .criteria-table tr:hover td {{{{
+                .criteria-table tr:hover td {{
                     background: var(--gray-50);
-                }}}}
+                }}
                 
-                .criteria-table tr:last-child td {{{{
+                .criteria-table tr:last-child td {{
                     border-bottom: none;
-                }}}}
+                }}
                 
                 /* ランキング関連（既存） */
-                .ranking-grid {{{{
+                .ranking-grid {{
                     display: grid;
                     grid-template-columns: 1fr 1fr;
                     gap: 30px;
                     margin-bottom: 30px;
-                }}}}
+                }}
                 
-                .ranking-section h3 {{{{
+                .ranking-section h3 {{
                     color: var(--primary-color);
                     margin-bottom: 20px;
                     font-size: 1.2em;
@@ -1164,16 +1162,16 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     background: linear-gradient(135deg, rgba(91, 95, 222, 0.1) 0%, rgba(91, 95, 222, 0.05) 100%);
                     border-radius: 10px;
                     font-weight: 700;
-                }}}}
+                }}
                 
-                .ranking-list {{{{
+                .ranking-list {{
                     background: var(--gray-50);
                     border-radius: 12px;
                     padding: 20px;
                     border: 1px solid var(--gray-200);
-                }}}}
+                }}
                 
-                .ranking-item {{{{
+                .ranking-item {{
                     display: flex;
                     align-items: center;
                     gap: 15px;
@@ -1184,198 +1182,89 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     box-shadow: 0 2px 6px rgba(0,0,0,0.08);
                     border-left: 4px solid var(--gray-300);
                     transition: all 0.3s ease;
-                }}}}
+                }}
                 
-                .ranking-item:hover {{{{
+                .ranking-item:hover {{
                     transform: translateX(5px);
                     box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-                }}}}
+                }}
                 
-                .ranking-item.rank-1 {{{{
+                .ranking-item.rank-1 {{
                     border-left-color: #FFD700;
                     background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, white 100%);
-                }}}}
+                }}
                 
-                .ranking-item.rank-2 {{{{
+                .ranking-item.rank-2 {{
                     border-left-color: #C0C0C0;
                     background: linear-gradient(135deg, rgba(192, 192, 192, 0.1) 0%, white 100%);
-                }}}}
+                }}
                 
-                .ranking-item.rank-3 {{{{
+                .ranking-item.rank-3 {{
                     border-left-color: #CD7F32;
                     background: linear-gradient(135deg, rgba(205, 127, 50, 0.1) 0%, white 100%);
-                }}}}
+                }}
                 
                 /* レスポンシブ対応 */
-                @media (max-width: 768px) {{{{
-                    .container {{{{
+                @media (max-width: 768px) {{
+                    .container {{
                         margin: 0;
                         border-radius: 0;
-                    }}}}
+                    }}
                     
-                    .header {{{{
+                    .header {{
                         padding: 30px 20px;
-                    }}}}
+                    }}
                     
-                    h1 {{{{
+                    h1 {{
                         font-size: 2em;
-                    }}}}
+                    }}
                     
-                    .info-button {{{{
+                    .info-button {{
                         position: static;
                         margin-top: 15px;
                         display: inline-flex;
                         margin-left: auto;
                         margin-right: auto;
-                    }}}}
+                    }}
                     
-                    .controls {{{{
+                    .controls {{
                         padding: 20px;
-                    }}}}
+                    }}
                     
-                    .quick-buttons {{{{
+                    .quick-buttons {{
                         gap: 8px;
-                    }}}}
+                    }}
                     
-                    .quick-button {{{{
+                    .quick-button {{
                         padding: 10px 16px;
                         font-size: 0.9em;
-                    }}}}
+                    }}
                     
-                    select {{{{
+                    select {{
                         min-width: 200px;
-                    }}}}
+                    }}
                     
-                    .selector-wrapper {{{{
+                    .selector-wrapper {{
                         padding: 6px 12px 6px 16px;
-                    }}}}
+                    }}
                     
-                    .ranking-grid {{{{
+                    .ranking-grid {{
                         grid-template-columns: 1fr;
                         gap: 20px;
-                    }}}}
-                }}}}
-                
-                /* 週間ハイライトバナー */
-                .weekly-highlight-banner {{
-                    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-                    border-left: 4px solid var(--info-color);
-                    margin: 0 0 25px 0;
-                    padding: 18px 25px;
-                    border-radius: 10px;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-                    animation: slideDown 0.4s ease-out;
-                    position: relative;
-                    overflow: hidden;
-                }}
-                
-                .weekly-highlight-banner::before {{
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    right: 0;
-                    width: 100px;
-                    height: 100px;
-                    background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
-                    transform: translate(30px, -30px);
-                }}
-                
-                .highlight-container {{
-                    display: flex;
-                    align-items: center;
-                    gap: 18px;
-                    position: relative;
-                    z-index: 1;
-                }}
-                
-                .highlight-icon {{
-                    font-size: 1.8em;
-                    animation: pulse 2s infinite;
-                    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
-                }}
-                
-                .highlight-content {{
-                    flex: 1;
-                }}
-                
-                .highlight-content strong {{
-                    color: var(--primary-color);
-                    font-size: 1.1em;
-                    margin-right: 12px;
-                    font-weight: 700;
-                }}
-                
-                .highlight-items {{
-                    color: var(--gray-700);
-                    font-weight: 500;
-                    line-height: 1.6;
-                    font-size: 1.05em;
-                }}
-                
-                /* スマホ対応 */
-                @media (max-width: 768px) {{
-                    .weekly-highlight-banner {{
-                        margin: 0 0 20px 0;
-                        padding: 15px 18px;
-                        border-radius: 0;
-                    }}
-                    
-                    .highlight-container {{
-                        flex-direction: column;
-                        text-align: center;
-                        gap: 10px;
-                    }}
-                    
-                    .highlight-icon {{
-                        font-size: 1.5em;
-                    }}
-                    
-                    .highlight-content strong {{
-                        display: block;
-                        margin-bottom: 8px;
-                        font-size: 1em;
-                    }}
-                    
-                    .highlight-items {{
-                        display: block;
-                        font-size: 0.95em;
-                        line-height: 1.5;
                     }}
                 }}
-                
-                /* アニメーション */
-                @keyframes slideDown {{
-                    from {{ 
-                        opacity: 0; 
-                        transform: translateY(-20px); 
-                    }}
-                    to {{ 
-                        opacity: 1; 
-                        transform: translateY(0); 
-                    }}
-                }}
-                
-                @keyframes pulse {{
-                    0%, 100% {{ 
-                        transform: scale(1); 
-                    }}
-                    50% {{ 
-                        transform: scale(1.15); 
-                    }}
-                }}
-                
                 /* ========== ここから追加 ========== */
                 /* タブ関連のスタイル */
-                .info-tabs {{{{
+                .info-tabs {{
                     display: flex;
                     gap: 8px;
                     margin-bottom: 25px;
                     border-bottom: 2px solid var(--gray-200);
                     overflow-x: auto;
                     -webkit-overflow-scrolling: touch;
-                }}}}
+                }}
     
-                .info-tab {{{{
+                .info-tab {{
                     padding: 10px 20px;
                     background: none;
                     border: none;
@@ -1389,38 +1278,38 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     align-items: center;
                     gap: 6px;
                     white-space: nowrap;
-                }}}}
+                }}
     
-                .info-tab:hover {{{{
+                .info-tab:hover {{
                     color: var(--primary-color);
                     background: rgba(91, 95, 222, 0.05);
-                }}}}
+                }}
     
-                .info-tab.active {{{{
+                .info-tab.active {{
                     color: var(--primary-color);
                     border-bottom-color: var(--primary-color);
                     background: rgba(91, 95, 222, 0.1);
-                }}}}
+                }}
     
-                .info-tab span {{{{
+                .info-tab span {{
                     font-size: 1.1em;
-                }}}}
+                }}
     
-                .tab-pane {{{{
+                .tab-pane {{
                     display: none;
                     animation: fadeIn 0.3s ease-in-out;
-                }}}}
+                }}
     
-                .tab-pane.active {{{{
+                .tab-pane.active {{
                     display: block;
-                }}}}
+                }}
     
                 /* ハイスコア評価専用スタイル */
-                .score-breakdown {{{{
+                .score-breakdown {{
                     margin: 20px 0;
-                }}}}
+                }}
     
-                .score-item {{{{
+                .score-item {{
                     display: flex;
                     align-items: center;
                     gap: 15px;
@@ -1428,160 +1317,269 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     padding: 10px;
                     background: var(--gray-50);
                     border-radius: 8px;
-                }}}}
+                }}
     
-                .score-item.special {{{{
+                .score-item.special {{
                     background: rgba(91, 95, 222, 0.05);
                     border: 1px dashed var(--primary-color);
-                }}}}
+                }}
     
-                .score-label {{{{
+                .score-label {{
                     flex: 0 0 120px;
                     font-weight: 600;
                     color: var(--gray-700);
-                }}}}
+                }}
     
-                .score-value {{{{
+                .score-value {{
                     flex: 0 0 60px;
                     text-align: right;
                     font-weight: 700;
                     color: var(--primary-color);
-                }}}}
+                }}
     
-                .score-bar {{{{
+                .score-bar {{
                     height: 20px;
                     background: linear-gradient(90deg, var(--primary-color), var(--primary-light));
                     border-radius: 10px;
                     transition: width 0.5s ease;
-                }}}}
+                }}
     
-                .score-detail {{{{
+                .score-detail {{
                     margin: 30px 0;
-                }}}}
+                }}
     
-                .score-detail h4 {{{{
+                .score-detail h4 {{
                     color: var(--gray-700);
                     margin-bottom: 15px;
                     font-size: 1.1em;
-                }}}}
+                }}
     
-                .score-table {{{{
+                .score-table {{
                     width: 100%;
                     border-collapse: collapse;
                     border-radius: 8px;
                     overflow: hidden;
                     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-                }}}}
+                }}
     
-                .score-table th {{{{
+                .score-table th {{
                     background: var(--gray-100);
                     padding: 12px;
                     text-align: left;
                     font-weight: 600;
                     color: var(--gray-700);
-                }}}}
+                }}
     
-                .score-table td {{{{
+                .score-table td {{
                     padding: 10px 12px;
                     border-bottom: 1px solid var(--gray-100);
-                }}}}
+                }}
     
-                .score-table tr:last-child td {{{{
+                .score-table tr:last-child td {{
                     border-bottom: none;
-                }}}}
+                }}
     
-                .score-table tr.excellent {{{{
+                .score-table tr.excellent {{
                     background: rgba(16, 185, 129, 0.05);
-                }}}}
+                }}
     
-                .score-table tr.good {{{{
+                .score-table tr.good {{
                     background: rgba(59, 130, 246, 0.05);
-                }}}}
+                }}
     
-                .score-table tr.warning {{{{
+                .score-table tr.warning {{
                     background: rgba(245, 158, 11, 0.05);
-                }}}}
+                }}
     
-                .score-table tr.danger {{{{
+                .score-table tr.danger {{
                     background: rgba(239, 68, 68, 0.05);
-                }}}}
+                }}
     
-                .sustainability-grid {{{{
+                .sustainability-grid {{
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
                     gap: 20px;
                     margin-top: 20px;
-                }}}}
+                }}
     
-                .sustainability-type {{{{
+                .sustainability-type {{
                     background: var(--gray-50);
                     padding: 20px;
                     border-radius: 10px;
                     border: 1px solid var(--gray-200);
-                }}}}
+                }}
     
-                .sustainability-type h5 {{{{
+                .sustainability-type h5 {{
                     color: var(--primary-color);
                     margin-bottom: 12px;
                     font-size: 1em;
-                }}}}
+                }}
     
-                .sustainability-type ul {{{{
+                .sustainability-type ul {{
                     list-style: none;
                     padding: 0;
-                }}}}
+                }}
     
-                .sustainability-type li {{{{
+                .sustainability-type li {{
                     padding: 8px 0;
                     display: flex;
                     align-items: center;
                     gap: 10px;
-                }}}}
+                }}
     
-                .special-item-box {{{{
+                .special-item-box {{
                     background: linear-gradient(135deg, rgba(91, 95, 222, 0.05), rgba(91, 95, 222, 0.02));
                     border: 2px solid rgba(91, 95, 222, 0.2);
                     border-radius: 10px;
                     padding: 20px;
                     margin-top: 15px;
-                }}}}
+                }}
     
-                .special-item-box ul {{{{
+                .special-item-box ul {{
                     list-style: none;
                     padding: 0;
                     margin-top: 10px;
-                }}}}
+                }}
     
-                .special-item-box li {{{{
+                .special-item-box li {{
                     padding: 6px 0;
-                }}}}
+                }}
     
-                .flow-note {{{{
+                .flow-note {{
                     background: var(--gray-50);
                     padding: 15px;
                     border-radius: 8px;
                     margin-top: 20px;
                     border-left: 3px solid var(--primary-color);
-                }}}}
+                }}
     
                 /* レスポンシブ対応（タブ用） */
-                @media (max-width: 768px) {{{{
-                    .info-tabs {{{{
+                @media (max-width: 768px) {{
+                    .info-tabs {{
                         flex-wrap: nowrap;
                         overflow-x: scroll;
                         -webkit-overflow-scrolling: touch;
                         padding-bottom: 5px;
-                    }}}}
+                    }}
                     
-                    .info-tab {{{{
+                    .info-tab {{
                         padding: 8px 15px;
                         font-size: 0.9em;
-                    }}}}
+                    }}
                     
-                    .sustainability-grid {{{{
+                    .sustainability-grid {{
                         grid-template-columns: 1fr;
-                    }}}}
-                }}}}
+                    }}
+                }}
+
+
+                /* 週間ハイライトバナー */
+                .weekly-highlight-banner {
+                    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                    border-left: 4px solid var(--info-color);
+                    margin: 0 0 25px 0;
+                    padding: 18px 25px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                    animation: slideDown 0.4s ease-out;
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                .weekly-highlight-banner::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    width: 100px;
+                    height: 100px;
+                    background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+                    transform: translate(30px, -30px);
+                }
+                
+                .highlight-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 18px;
+                    position: relative;
+                    z-index: 1;
+                }
+                
+                .highlight-icon {
+                    font-size: 1.8em;
+                    animation: pulse 2s infinite;
+                    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+                }
+                
+                .highlight-content {
+                    flex: 1;
+                }
+                
+                .highlight-content strong {
+                    color: var(--primary-color);
+                    font-size: 1.1em;
+                    margin-right: 12px;
+                    font-weight: 700;
+                }
+                
+                .highlight-items {
+                    color: var(--gray-700);
+                    font-weight: 500;
+                    line-height: 1.6;
+                    font-size: 1.05em;
+                }
+                
+                /* スマホ対応 */
+                @media (max-width: 768px) {
+                    .weekly-highlight-banner {
+                        margin: 0 0 20px 0;
+                        padding: 15px 18px;
+                        border-radius: 0;
+                    }
+                    
+                    .highlight-container {
+                        flex-direction: column;
+                        text-align: center;
+                        gap: 10px;
+                    }
+                    
+                    .highlight-icon {
+                        font-size: 1.5em;
+                    }
+                    
+                    .highlight-content strong {
+                        display: block;
+                        margin-bottom: 8px;
+                        font-size: 1em;
+                    }
+                    
+                    .highlight-items {
+                        display: block;
+                        font-size: 0.95em;
+                        line-height: 1.5;
+                    }
+                }
+                
+                /* アニメーション */
+                @keyframes slideDown {
+                    from { 
+                        opacity: 0; 
+                        transform: translateY(-20px); 
+                    }
+                    to { 
+                        opacity: 1; 
+                        transform: translateY(0); 
+                    }
+                }
+                
+                @keyframes pulse {
+                    0%, 100% { 
+                        transform: scale(1); 
+                    }
+                    50% { 
+                        transform: scale(1.15); 
+                    }
+                }
                 /* ========== ここまで追加 ========== */
                 /* 既存のCSS統合 */
                 {_get_css_styles()}
@@ -1591,7 +1589,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             <div class="container">
                 <div class="header">
                     <h1>統合パフォーマンスレポート</h1>
-                    <p class="subtitle">期間: {{period_desc}} | 🔥 直近週重視版</p>
+                    <p class="subtitle">期間: {period_desc} | 🔥 直近週重視版</p>
                     <button class="info-button" onclick="toggleInfoPanel()">
                         <span style="font-size: 1.1em;">ℹ️</span>
                         <span>評価基準・用語説明</span>
@@ -1618,7 +1616,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             <label class="selector-label" for="dept-selector">🩺 診療科</label>
                             <select id="dept-selector" onchange="changeView(this.value)">
                                 <option value="">診療科を選択してください</option>
-                                {{dept_options}}
+                                {dept_options}
                             </select>
                         </div>
                         
@@ -1626,57 +1624,57 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             <label class="selector-label" for="ward-selector">🏢 病棟</label>
                             <select id="ward-selector" onchange="changeView(this.value)">
                                 <option value="">病棟を選択してください</option>
-                                {{ward_options}}
+                                {ward_options}
                             </select>
                         </div>
                     </div>
                 </div>
                 <div class="content-area">
-                    {{content_html}}
+                    {content_html}
                 </div>
             </div>
-            {{info_panel_html}}
+            {info_panel_html}
             <script>
                 // デバッグ用
                 console.log('Script loaded');
                 
                 let currentType = null;
                 
-                function showView(viewId) {{{{
+                function showView(viewId) {{
                     console.log('showView called with:', viewId);
                     
                     // 全てのビューを非表示
-                    document.querySelectorAll('.view-content').forEach(content => {{{{
+                    document.querySelectorAll('.view-content').forEach(content => {{
                         content.classList.remove('active');
-                    }}}});
+                    }});
                     
                     // 指定されたビューを表示
                     const targetView = document.getElementById(viewId);
-                    if (targetView) {{{{
+                    if (targetView) {{
                         targetView.classList.add('active');
                         console.log('View activated:', viewId);
                         
                         // Plotlyチャートの再描画をトリガー
-                        setTimeout(function() {{{{
+                        setTimeout(function() {{
                             window.dispatchEvent(new Event('resize'));
                             
-                            if (window.Plotly) {{{{
+                            if (window.Plotly) {{
                                 const plots = targetView.querySelectorAll('.plotly-graph-div');
-                                plots.forEach(plot => {{{{
+                                plots.forEach(plot => {{
                                     Plotly.Plots.resize(plot);
-                                }}}});
-                            }}}}
-                        }}}}, 100);
-                    }}}} else {{{{
+                                }});
+                            }}
+                        }}, 100);
+                    }} else {{
                         console.error('View not found:', viewId);
-                    }}}}
+                    }}
                     
                     // クイックボタンのアクティブ状態を更新
-                    document.querySelectorAll('.quick-button').forEach(btn => {{{{
+                    document.querySelectorAll('.quick-button').forEach(btn => {{
                         btn.classList.remove('active');
-                    }}}});
+                    }});
                     
-                    if (viewId === 'view-all') {{{{
+                    if (viewId === 'view-all') {{
                         document.querySelector('.quick-button').classList.add('active');
                         // セレクターを隠す
                         document.getElementById('dept-selector-wrapper').style.display = 'none';
@@ -1684,130 +1682,130 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         document.getElementById('dept-selector').value = '';
                         document.getElementById('ward-selector').value = '';
                         currentType = null;
-                    }}}} else if (viewId === 'view-high-score') {{{{
+                    }} else if (viewId === 'view-high-score') {{
                         // ハイスコアボタンをアクティブに（インデックスで指定）
                         const buttons = document.querySelectorAll('.quick-button');
-                        if (buttons.length > 3) {{{{
+                        if (buttons.length > 3) {{
                             buttons[3].classList.add('active');
-                        }}}}
+                        }}
                         // セレクターを隠す
                         document.getElementById('dept-selector-wrapper').style.display = 'none';
                         document.getElementById('ward-selector-wrapper').style.display = 'none';
                         currentType = null;
-                    }}}}
-                }}}}
+                    }}
+                }}
                 
-                function toggleTypeSelector(type) {{{{
+                function toggleTypeSelector(type) {{
                     console.log('toggleTypeSelector called with:', type);
                     
                     // 全てのビューを非表示
-                    document.querySelectorAll('.view-content').forEach(content => {{{{
+                    document.querySelectorAll('.view-content').forEach(content => {{
                         content.classList.remove('active');
-                    }}}});
+                    }});
                     
                     // セレクターの表示切替
-                    if (type === 'dept') {{{{
+                    if (type === 'dept') {{
                         document.getElementById('dept-selector-wrapper').style.display = 'flex';
                         document.getElementById('ward-selector-wrapper').style.display = 'none';
                         document.getElementById('ward-selector').value = '';
-                    }}}} else if (type === 'ward') {{{{
+                    }} else if (type === 'ward') {{
                         document.getElementById('dept-selector-wrapper').style.display = 'none';
                         document.getElementById('ward-selector-wrapper').style.display = 'flex';
                         document.getElementById('dept-selector').value = '';
-                    }}}}
+                    }}
                     
                     currentType = type;
                     
                     // クイックボタンのアクティブ状態を更新
-                    document.querySelectorAll('.quick-button').forEach((btn, index) => {{{{
+                    document.querySelectorAll('.quick-button').forEach((btn, index) => {{
                         btn.classList.toggle('active', 
                             (index === 1 && type === 'dept') || 
                             (index === 2 && type === 'ward')
                         );
-                    }}}});
-                }}}}
+                    }});
+                }}
                 
-                function changeView(viewId) {{{{
+                function changeView(viewId) {{
                     console.log('changeView called with:', viewId);
-                    if (viewId) {{{{
+                    if (viewId) {{
                         showView(viewId);
-                    }}}}
-                }}}}
+                    }}
+                }}
                 
-                function toggleInfoPanel() {{{{
+                function toggleInfoPanel() {{
                     console.log('toggleInfoPanel called');
                     const panel = document.getElementById('info-panel');
-                    if (panel) {{{{
+                    if (panel) {{
                         panel.classList.toggle('active');
                         console.log('Info panel toggled');
-                    }}}} else {{{{
+                    }} else {{
                         console.error('Info panel not found');
-                    }}}}
-                }}}}
+                    }}
+                }}
                 // ========== ここから追加 ==========
                 // タブ切り替え機能
-                function showInfoTab(tabName) {{{{
+                function showInfoTab(tabName) {{
                     console.log('Switching to tab:', tabName);
                     
                     // すべてのタブとコンテンツを非アクティブに
-                    document.querySelectorAll('.info-tab').forEach(tab => {{{{
+                    document.querySelectorAll('.info-tab').forEach(tab => {{
                         tab.classList.remove('active');
-                    }}}});
-                    document.querySelectorAll('.tab-pane').forEach(pane => {{{{
+                    }});
+                    document.querySelectorAll('.tab-pane').forEach(pane => {{
                         pane.classList.remove('active');
-                    }}}});
+                    }});
                     
                     // 選択されたタブとコンテンツをアクティブに
                     const activeTab = Array.from(document.querySelectorAll('.info-tab')).find(tab => 
                         tab.getAttribute('onclick') && tab.getAttribute('onclick').includes(tabName)
                     );
-                    if (activeTab) {{{{
+                    if (activeTab) {{
                         activeTab.classList.add('active');
-                    }}}}
+                    }}
                     
                     const activePane = document.getElementById(tabName + '-tab');
-                    if (activePane) {{{{
+                    if (activePane) {{
                         activePane.classList.add('active');
-                    }}}}
-                }}}}
+                    }}
+                }}
                 // ========== ここまで追加 ==========
                 // パネル外クリックで閉じる
-                document.addEventListener('DOMContentLoaded', function() {{{{
+                document.addEventListener('DOMContentLoaded', function() {{
                     console.log('DOM Content Loaded');
                     
                     const infoPanel = document.getElementById('info-panel');
-                    if (infoPanel) {{{{
-                        infoPanel.addEventListener('click', function(e) {{{{
-                            if (e.target === this) {{{{
+                    if (infoPanel) {{
+                        infoPanel.addEventListener('click', function(e) {{
+                            if (e.target === this) {{
                                 toggleInfoPanel();
-                            }}}}
-                        }}}});
-                    }}}}
+                            }}
+                        }});
+                    }}
                     
                     // 初期表示時にPlotlyチャートを確実に表示
-                    setTimeout(function() {{{{
+                    setTimeout(function() {{
                         window.dispatchEvent(new Event('resize'));
-                        if (window.Plotly) {{{{
+                        if (window.Plotly) {{
                             const plots = document.querySelectorAll('#view-all .plotly-graph-div');
-                            plots.forEach(plot => {{{{
+                            plots.forEach(plot => {{
                                 Plotly.Plots.resize(plot);
-                            }}}});
-                        }}}}
-                    }}}}, 300);
-                }}}});
+                            }});
+                        }}
+                    }}, 300);
+                }});
                 
                 // ブラウザのリサイズ時にもチャートを再描画
-                window.addEventListener('resize', function() {{{{
-                    if (window.Plotly) {{{{
+                window.addEventListener('resize', function() {{
+                    if (window.Plotly) {{
                         const activeView = document.querySelector('.view-content.active');
-                        if (activeView) {{{{
+                        if (activeView) {{
                             const plots = activeView.querySelectorAll('.plotly-graph-div');
-                            plots.forEach(plot => {{{{
+                            plots.forEach(plot => {{
                                 Plotly.Plots.resize(plot);
-                            }}}});
-                        }}}}
-                    }}}}
-                }}}});
+                            }});
+                        }}
+                    }}
+                }});
 			</script>
         </body>
         </html>
@@ -1975,14 +1973,14 @@ def _get_all_styles():
         {_get_css_styles()}
         
         /* ハイスコア部門専用スタイル */
-        .ranking-grid {{{{
+        .ranking-grid {{
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 30px;
             margin-bottom: 30px;
-        }}}}
+        }}
         
-        .ranking-item {{{{
+        .ranking-item {{
             display: flex;
             align-items: center;
             gap: 15px;
@@ -1993,7 +1991,7 @@ def _get_all_styles():
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             border-left: 4px solid #D1D5DB;
             transition: all 0.2s ease;
-        }}}}
+        }}
         
         /* 以下、既存のハイスコア用CSSを追加 */
     """
@@ -2420,14 +2418,14 @@ def _generate_score_detail_html(dept_scores: List[Dict], ward_scores: List[Dict]
         top_dept = dept_scores[0]
         html += f"""
         <div class="score-detail-card">
-            <h4>👑 診療科部門1位：{{top_dept['entity_name']}}</h4>
+            <h4>👑 診療科部門1位：{top_dept['entity_name']}</h4>
             <div class="score-breakdown">
-                <div class="score-total">📊 総合スコア：{{top_dept['total_score']:.0f}}点</div>
+                <div class="score-total">📊 総合スコア：{top_dept['total_score']:.0f}点</div>
                 <div class="score-tree">
-                    <div class="score-item">├─ 直近週達成度：{{top_dept['achievement_score']:.0f}}点（達成率{{top_dept['latest_achievement_rate']:.0f}}%）</div>
-                    <div class="score-item">├─ 改善度：{{top_dept['improvement_score']:.0f}}点（期間平均比{{top_dept['improvement_rate']:+.0f}}%）</div>
-                    <div class="score-item">├─ 安定性：{{top_dept['stability_score']:.0f}}点</div>
-                    <div class="score-item">└─ 持続性：{{top_dept['sustainability_score']:.0f}}点</div>
+                    <div class="score-item">├─ 直近週達成度：{top_dept['achievement_score']:.0f}点（達成率{top_dept['latest_achievement_rate']:.0f}%）</div>
+                    <div class="score-item">├─ 改善度：{top_dept['improvement_score']:.0f}点（期間平均比{top_dept['improvement_rate']:+.0f}%）</div>
+                    <div class="score-item">├─ 安定性：{top_dept['stability_score']:.0f}点</div>
+                    <div class="score-item">└─ 持続性：{top_dept['sustainability_score']:.0f}点</div>
                 </div>
             </div>
         </div>
@@ -2439,15 +2437,15 @@ def _generate_score_detail_html(dept_scores: List[Dict], ward_scores: List[Dict]
         ward_name = top_ward.get('display_name', top_ward['entity_name'])
         html += f"""
         <div class="score-detail-card">
-            <h4>👑 病棟部門1位：{{ward_name}}</h4>
+            <h4>👑 病棟部門1位：{ward_name}</h4>
             <div class="score-breakdown">
-                <div class="score-total">📊 総合スコア：{{top_ward['total_score']:.0f}}点</div>
+                <div class="score-total">📊 総合スコア：{top_ward['total_score']:.0f}点</div>
                 <div class="score-tree">
-                    <div class="score-item">├─ 直近週達成度：{{top_ward['achievement_score']:.0f}}点（達成率{{top_ward['latest_achievement_rate']:.0f}}%）</div>
-                    <div class="score-item">├─ 改善度：{{top_ward['improvement_score']:.0f}}点（期間平均比{{top_ward['improvement_rate']:+.0f}}%）</div>
-                    <div class="score-item">├─ 安定性：{{top_ward['stability_score']:.0f}}点</div>
-                    <div class="score-item">├─ 持続性：{{top_ward['sustainability_score']:.0f}}点</div>
-                    <div class="score-item">└─ 病床効率加点：{{top_ward['bed_efficiency_score']:.0f}}点（利用率{{top_ward.get('bed_utilization', 0):.0f}}%）</div>
+                    <div class="score-item">├─ 直近週達成度：{top_ward['achievement_score']:.0f}点（達成率{top_ward['latest_achievement_rate']:.0f}%）</div>
+                    <div class="score-item">├─ 改善度：{top_ward['improvement_score']:.0f}点（期間平均比{top_ward['improvement_rate']:+.0f}%）</div>
+                    <div class="score-item">├─ 安定性：{top_ward['stability_score']:.0f}点</div>
+                    <div class="score-item">├─ 持続性：{top_ward['sustainability_score']:.0f}点</div>
+                    <div class="score-item">└─ 病床効率加点：{top_ward['bed_efficiency_score']:.0f}点（利用率{top_ward.get('bed_utilization', 0):.0f}%）</div>
                 </div>
             </div>
         </div>
@@ -2516,13 +2514,13 @@ def _generate_ranking_list_html(scores: List[Dict], entity_type: str) -> str:
         achievement = score['latest_achievement_rate']
         
         html += f"""
-        <div class="ranking-item rank-{{i+1}}">
-            <span class="medal">{{medal}}</span>
+        <div class="ranking-item rank-{i+1}">
+            <span class="medal">{medal}</span>
             <div class="ranking-info">
-                <div class="name">{{name}}</div>
-                <div class="detail">達成率 {{achievement:.1f}}%</div>
+                <div class="name">{name}</div>
+                <div class="detail">達成率 {achievement:.1f}%</div>
             </div>
-            <div class="score">{{score['total_score']:.0f}}点</div>
+            <div class="score">{score['total_score']:.0f}点</div>
         </div>
         """
     
