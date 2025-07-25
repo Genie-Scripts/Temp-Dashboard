@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+        <!-- Progressive Web App対応 -->
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="theme-color" content="#7fb069">
+        <meta name="description" content="病院経営 ward別パフォーマンス">
+        <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏥</text></svg>">
+        
+        <!-- Open Graph -->
+        <meta property="og:title" content="ward別パフォーマンス">
+        <meta property="og:description" content="データに基づく科学的な改善提案 - 直近4週間 (06/27～07/24)">
+        <meta property="og:type" content="website">
+        
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>病棟別パフォーマンス - 直近4週間 (06/27～07/24)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #f5f7fa; font-family: 'Noto Sans JP', Meiryo, sans-serif; padding: 20px; line-height: 1.6; }
+        .container { max-width: 1920px; margin: 0 auto; }
+        h1 { text-align: center; color: #293a27; margin-bottom: 10px; font-size: 2em; }
+        .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 1.1em; }
+        
+        /* タブスタイル */
+        .tab-navigation { display: flex; justify-content: center; margin-bottom: 30px; border-bottom: 2px solid #e0e0e0; }
+        .tab-button { 
+            background: none; border: none; padding: 12px 24px; cursor: pointer; 
+            font-size: 1em; color: #666; border-bottom: 3px solid transparent; 
+            transition: all 0.3s ease; margin: 0 5px;
+        }
+        .tab-button:hover { color: #293a27; background: #f0f0f0; }
+        .tab-button.active { color: #293a27; border-bottom-color: #7fb069; font-weight: 600; }
+        
+        .tab-content { display: none; }
+        .grid-container { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+        .metric-card { 
+            background: white; border-radius: 12px; border-left: 6px solid #ccc; 
+            padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s ease; 
+        }
+        .metric-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
+        .metric-card h5 { color: #293a27; font-size: 1.2em; margin-bottom: 12px; }
+        .metric-line { margin-bottom: 8px; font-size: 0.95em; }
+        .achievement { margin-top: 12px; font-size: 1.1em; }
+        
+        /* アクションカードスタイル */
+        .action-card { 
+            background: white; border-radius: 12px; border-left: 6px solid #ccc; 
+            padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 20px; 
+        }
+        .action-card h5 { color: #293a27; margin-bottom: 10px; }
+        .action-summary { margin-bottom: 10px; font-size: 0.9em; }
+        .action-details { font-size: 0.85em; color: #666; }
+        
+        /* FABホームボタン */
+        .fab-home {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            z-index: 9999;
+            cursor: pointer;
+        }
+        
+        .fab-home:hover {
+            transform: scale(1.1) translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+        
+        .fab-home:active {
+            transform: scale(0.95);
+        }
+        
+        .fab-home .fab-icon {
+            font-size: 1.8em;
+            line-height: 1;
+        }
+        
+        /* ツールチップ */
+        .fab-home::before {
+            content: "ホームに戻る";
+            position: absolute;
+            right: 70px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .fab-home:hover::before {
+            opacity: 1;
+        }
+        
+        /* モバイル対応 */
+        @media (max-width: 768px) { 
+            .tab-navigation { flex-wrap: wrap; }
+            .tab-button { flex: 1; min-width: 120px; font-size: 0.9em; padding: 10px 16px; }
+            .grid-container { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+            .metric-card { padding: 15px; }
+            .metric-card h5 { font-size: 1em; }
+            .metric-line { font-size: 0.85em; }
+            
+            .fab-home {
+                bottom: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+            }
+            
+            .fab-home .fab-icon {
+                font-size: 1.5em;
+            }
+            
+            .fab-home::before {
+                display: none;
+            }
+        }
+        
+        @media print { 
+            .tab-navigation { display: none; }
+            .tab-content { display: block !important; }
+            .metric-card, .action-card { break-inside: avoid; }
+            .fab-home { display: none; }
+        }
+    </style>
+    <script>
+        function showTab(tabId) {
+            // すべてのタブを非表示
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(tab => tab.style.display = 'none');
+            
+            // すべてのボタンからactiveクラスを削除
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            
+            // 選択されたタブを表示
+            document.getElementById(tabId).style.display = 'block';
+            
+            // 選択されたボタンにactiveクラスを追加
+            event.target.classList.add('active');
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 病棟別パフォーマンス</h1>
+        <p class="subtitle">期間: 直近4週間 (06/27～07/24)</p>
+        
+        <div class="tab-navigation">
+            <button class="tab-button active" onclick="showTab('tab-alos-trend')">平均在院日数（トレンド分析）</button><button class="tab-button " onclick="showTab('tab-action')">アクション提案（詳細）</button>
+        </div>
+        
+        <div id="tab-alos-trend" class="tab-content" style="display: block;"><div class="grid-container">
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>2階A病棟</h5>
+                <div class="metric-line">期間平均: <strong>10.0 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>11.2 日</strong></div>
+                <div class="metric-line">変化: <strong>+1.2 日 (+12.3%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.9-9.8日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>2階B病棟</h5>
+                <div class="metric-line">期間平均: <strong>16.1 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>25.5 日</strong></div>
+                <div class="metric-line">変化: <strong>+9.3 日 (+57.8%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 3.6-20.5日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>3階A病棟</h5>
+                <div class="metric-line">期間平均: <strong>7.7 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>10.1 日</strong></div>
+                <div class="metric-line">変化: <strong>+2.4 日 (+31.5%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.6-8.6日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>4階A病棟</h5>
+                <div class="metric-line">期間平均: <strong>15.2 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>18.5 日</strong></div>
+                <div class="metric-line">変化: <strong>+3.3 日 (+21.7%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.8-2.7日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>4階C病棟</h5>
+                <div class="metric-line">期間平均: <strong>23.4 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>24.6 日</strong></div>
+                <div class="metric-line">変化: <strong>+1.2 日 (+5.2%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.4-3.7日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>6階A病棟</h5>
+                <div class="metric-line">期間平均: <strong>11.7 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>12.8 日</strong></div>
+                <div class="metric-line">変化: <strong>+1.2 日 (+9.9%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.7-11.3日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>6階B病棟</h5>
+                <div class="metric-line">期間平均: <strong>10.0 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>10.8 日</strong></div>
+                <div class="metric-line">変化: <strong>+0.8 日 (+7.9%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#4CAF50;">✅ 適正範囲内</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.8-11.5日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>8階A病棟</h5>
+                <div class="metric-line">期間平均: <strong>14.9 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>29.2 日</strong></div>
+                <div class="metric-line">変化: <strong>+14.3 日 (+95.4%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.1-15.5日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #F44336;">
+                <h5>9階B病棟</h5>
+                <div class="metric-line">期間平均: <strong>15.9 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>20.9 日</strong></div>
+                <div class="metric-line">変化: <strong>+5.0 日 (+31.6%)</strong></div>
+                <div class="achievement" style="color: #F44336;">🔴 延長傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.4-14.8日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #FFC107;">
+                <h5>4B-ICU</h5>
+                <div class="metric-line">期間平均: <strong>0.0 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>0.0 日</strong></div>
+                <div class="metric-line">変化: <strong>+0.0 日 (+0.0%)</strong></div>
+                <div class="achievement" style="color: #FFC107;">🟡 安定</div>
+                <div style="text-align: right; font-size: 0.9em; color:#999;"></div>
+                
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #FFC107;">
+                <h5>5階B病棟</h5>
+                <div class="metric-line">期間平均: <strong>8.3 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>8.2 日</strong></div>
+                <div class="metric-line">変化: <strong>-0.1 日 (-0.9%)</strong></div>
+                <div class="achievement" style="color: #FFC107;">🟡 安定</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.5-6.3日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #FFC107;">
+                <h5>7階B病棟</h5>
+                <div class="metric-line">期間平均: <strong>13.3 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>13.6 日</strong></div>
+                <div class="metric-line">変化: <strong>+0.3 日 (+2.5%)</strong></div>
+                <div class="achievement" style="color: #FFC107;">🟡 安定</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.7-5.6日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #FFC107;">
+                <h5>9階A病棟</h5>
+                <div class="metric-line">期間平均: <strong>7.6 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>7.6 日</strong></div>
+                <div class="metric-line">変化: <strong>+0.1 日 (+0.8%)</strong></div>
+                <div class="achievement" style="color: #FFC107;">🟡 安定</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.6-2.8日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>5階A病棟</h5>
+                <div class="metric-line">期間平均: <strong>6.4 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>5.6 日</strong></div>
+                <div class="metric-line">変化: <strong>-0.7 日 (-11.6%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#4CAF50;">✅ 適正範囲内</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 1.3-9.9日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>8階B病棟</h5>
+                <div class="metric-line">期間平均: <strong>13.3 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>12.5 日</strong></div>
+                <div class="metric-line">変化: <strong>-0.8 日 (-5.7%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#FF9800;">⚠️ 要確認</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.7-8.7日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>7階A病棟</h5>
+                <div class="metric-line">期間平均: <strong>8.5 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>7.3 日</strong></div>
+                <div class="metric-line">変化: <strong>-1.2 日 (-13.6%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#4CAF50;">✅ 適正範囲内</div>
+                <div style="margin-top:4px; font-size:0.8em; color:#666;">適正範囲: 0.1-12.7日</div>
+            </div>
+            
+            <div class="metric-card" style="border-left-color: #4CAF50;">
+                <h5>4B-HCU</h5>
+                <div class="metric-line">期間平均: <strong>72.7 日</strong></div>
+                <div class="metric-line">直近週実績: <strong>65.0 日</strong></div>
+                <div class="metric-line">変化: <strong>-7.7 日 (-10.6%)</strong></div>
+                <div class="achievement" style="color: #4CAF50;">🟢 短縮傾向</div>
+                <div style="text-align: right; font-size: 0.9em; color:#999;"></div>
+                
+            </div>
+            </div></div><div id="tab-action" class="tab-content" style="display: none;"><div class="hospital-summary">
+            <div class="summary-card" style="border-left-color: #f5d76e;">
+                <div class="summary-header">在院患者数</div>
+                <div class="summary-content">580人目標 → 526.9人実績 (90.8%) -53.1人</div>
+            </div>
+            <div class="summary-card" style="border-left-color: #e08283;">
+                <div class="summary-header">新入院患者数</div>
+                <div class="summary-content">80人/日目標 → 52.1人/日実績 (65.2%) -27.9人/日</div>
+            </div>
+        </div>
+        
+        <div class="actions-grid">
+            
+                <div class="action-card" style="border-left-color: #F44336;">
+                    <div class="card-header">
+                        <h3>2階A病棟</h3>
+                        <div class="effort-status-main" style="color: #F44336; font-weight: bold; font-size: 1.1em;">
+                            🚨 🚨要改善 (要改善)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標達成に向けた積極的な取り組みが必要
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #F4433615; border-radius: 5px; font-size: 0.9em;">
+                            ⬇️ 改善スピード: 要注意 
+                            (-2.8%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：48人目標 → <strong>36.7人実績</strong> (77.3%) ❌ -10.8人</div>
+                        <div class="metric-line">• 新入院：3.2人/日期間平均 → 1.1人/日直近週 (↘️減少)</div>
+                        <div class="metric-line">• 在院日数：10.0日期間平均 → 11.2日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+1.4人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+3.2人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【両方検討】</h4>
+                        <div class="reasoning">大幅な不足のため、新入院増加と在院日数適正化の両面からアプローチが必要</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #e08283;">目標達成により病院全体ギャップの20.3%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #F44336;">
+                    <div class="card-header">
+                        <h3>9階A病棟</h3>
+                        <div class="effort-status-main" style="color: #F44336; font-weight: bold; font-size: 1.1em;">
+                            🚨 🚨要改善 (要改善)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標達成に向けた積極的な取り組みが必要
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #F4433615; border-radius: 5px; font-size: 0.9em;">
+                            ⬇️ 改善スピード: 要注意 
+                            (-6.8%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：22人目標 → <strong>15.3人実績</strong> (69.2%) ❌ -6.8人</div>
+                        <div class="metric-line">• 新入院：2.0人/日期間平均 → 2.0人/日直近週 (➡️安定)</div>
+                        <div class="metric-line">• 在院日数：7.6日期間平均 → 7.6日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+1.1人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+2.0人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【両方検討】</h4>
+                        <div class="reasoning">大幅な不足のため、新入院増加と在院日数適正化の両面からアプローチが必要</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #e08283;">目標達成により病院全体ギャップの12.8%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #F44336;">
+                    <div class="card-header">
+                        <h3>4B-HCU</h3>
+                        <div class="effort-status-main" style="color: #F44336; font-weight: bold; font-size: 1.1em;">
+                            🚨 🚨要改善 (要改善)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標達成に向けた積極的な取り組みが必要
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #4CAF5015; border-radius: 5px; font-size: 0.9em;">
+                            🚀 改善スピード: 高速改善 
+                            (+15.6%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：10人目標 → <strong>9.3人実績</strong> (96.7%) ✅ -0.3人</div>
+                        <div class="metric-line">• 新入院：0.6人/日期間平均 → 0.4人/日直近週 (↘️減少)</div>
+                        <div class="metric-line">• 在院日数：72.7日期間平均 → 65.0日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+10.4人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+0.6人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【両方検討】</h4>
+                        <div class="reasoning">大幅な不足のため、新入院増加と在院日数適正化の両面からアプローチが必要</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #e08283;">目標達成により病院全体ギャップの0.6%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FFC107;">
+                    <div class="card-header">
+                        <h3>6階A病棟</h3>
+                        <div class="effort-status-main" style="color: #FFC107; font-weight: bold; font-size: 1.1em;">
+                            📈 📈要努力 (注意)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し、さらなる努力を
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #FFC10715; border-radius: 5px; font-size: 0.9em;">
+                            ➡️ 改善スピード: 横ばい 
+                            (-0.5%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：48人目標 → <strong>44.0人実績</strong> (92.6%) ❌ -3.5人</div>
+                        <div class="metric-line">• 新入院：3.2人/日期間平均 → 2.9人/日直近週 (↘️減少)</div>
+                        <div class="metric-line">• 在院日数：11.7日期間平均 → 12.8日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+1.7人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+3.2人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【在院日数調整】</h4>
+                        <div class="reasoning">在院日数に調整余地があり効果的</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #f5d76e;">目標達成により病院全体ギャップの6.6%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FF9800;">
+                    <div class="card-header">
+                        <h3>6階B病棟</h3>
+                        <div class="effort-status-main" style="color: #FF9800; font-weight: bold; font-size: 1.1em;">
+                            💪 💪追い上げ中 (改善)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し！改善中（+0.8人）
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #8BC34A15; border-radius: 5px; font-size: 0.9em;">
+                            ⬆️ 改善スピード: 順調改善 
+                            (+1.7%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：48人目標 → <strong>44.9人実績</strong> (94.4%) ❌ -2.6人</div>
+                        <div class="metric-line">• 新入院：3.6人/日期間平均 → 3.6人/日直近週 (➡️安定)</div>
+                        <div class="metric-line">• 在院日数：10.0日期間平均 → 10.8日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+1.4人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+3.6人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【新入院重視】</h4>
+                        <div class="reasoning">病床余裕があり、新入院増加がより実現可能</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #f5d76e;">目標達成により病院全体ギャップの5.0%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FF9800;">
+                    <div class="card-header">
+                        <h3>2階B病棟</h3>
+                        <div class="effort-status-main" style="color: #FF9800; font-weight: bold; font-size: 1.1em;">
+                            💪 💪追い上げ中 (改善)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し！改善中（+3.5人）
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #4CAF5015; border-radius: 5px; font-size: 0.9em;">
+                            🚀 改善スピード: 高速改善 
+                            (+7.5%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：47人目標 → <strong>47.3人実績</strong> (101.5%) ✅ +0.7人</div>
+                        <div class="metric-line">• 新入院：2.1人/日期間平均 → 1.6人/日直近週 (↘️減少)</div>
+                        <div class="metric-line">• 在院日数：16.1日期間平均 → 25.5日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+2.3人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+2.1人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【在院日数調整】</h4>
+                        <div class="reasoning">在院日数に調整余地があり効果的</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #f5d76e;">目標達成済み</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FFC107;">
+                    <div class="card-header">
+                        <h3>9階B病棟</h3>
+                        <div class="effort-status-main" style="color: #FFC107; font-weight: bold; font-size: 1.1em;">
+                            📈 📈要努力 (注意)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し、さらなる努力を
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #F4433615; border-radius: 5px; font-size: 0.9em;">
+                            ⬇️ 改善スピード: 要注意 
+                            (-4.0%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：48人目標 → <strong>41.9人実績</strong> (88.1%) ❌ -5.6人</div>
+                        <div class="metric-line">• 新入院：2.2人/日期間平均 → 2.1人/日直近週 (↘️減少)</div>
+                        <div class="metric-line">• 在院日数：15.9日期間平均 → 20.9日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+2.3人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+2.2人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【新入院重視】</h4>
+                        <div class="reasoning">病床余裕があり、新入院増加がより実現可能</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #f5d76e;">目標達成により病院全体ギャップの10.6%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FF9800;">
+                    <div class="card-header">
+                        <h3>8階A病棟</h3>
+                        <div class="effort-status-main" style="color: #FF9800; font-weight: bold; font-size: 1.1em;">
+                            💪 💪追い上げ中 (改善)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し！改善中（+1.1人）
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #4CAF5015; border-radius: 5px; font-size: 0.9em;">
+                            🚀 改善スピード: 高速改善 
+                            (+2.5%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：46人目標 → <strong>41.7人実績</strong> (91.5%) ❌ -3.9人</div>
+                        <div class="metric-line">• 新入院：2.1人/日期間平均 → 1.7人/日直近週 (↘️減少)</div>
+                        <div class="metric-line">• 在院日数：14.9日期間平均 → 29.2日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+2.1人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+2.1人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【新入院重視】</h4>
+                        <div class="reasoning">病床余裕があり、新入院増加がより実現可能</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #f5d76e;">目標達成により病院全体ギャップの7.3%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FFC107;">
+                    <div class="card-header">
+                        <h3>7階A病棟</h3>
+                        <div class="effort-status-main" style="color: #FFC107; font-weight: bold; font-size: 1.1em;">
+                            📈 📈要努力 (注意)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し、さらなる努力を
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #F4433615; border-radius: 5px; font-size: 0.9em;">
+                            ⬇️ 改善スピード: 要注意 
+                            (-3.6%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：43人目標 → <strong>38.7人実績</strong> (89.6%) ❌ -4.5人</div>
+                        <div class="metric-line">• 新入院：3.8人/日期間平均 → 4.1人/日直近週 (↗️増加)</div>
+                        <div class="metric-line">• 在院日数：8.5日期間平均 → 7.3日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+1.2人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+3.8人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【新入院重視】</h4>
+                        <div class="reasoning">病床余裕があり、新入院増加がより実現可能</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #f5d76e;">目標達成により病院全体ギャップの8.4%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FF9800;">
+                    <div class="card-header">
+                        <h3>3階A病棟</h3>
+                        <div class="effort-status-main" style="color: #FF9800; font-weight: bold; font-size: 1.1em;">
+                            💪 💪追い上げ中 (改善)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し！改善中（+2.1人）
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #4CAF5015; border-radius: 5px; font-size: 0.9em;">
+                            🚀 改善スピード: 高速改善 
+                            (+4.5%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：46人目標 → <strong>41.9人実績</strong> (91.8%) ❌ -3.7人</div>
+                        <div class="metric-line">• 新入院：4.9人/日期間平均 → 4.3人/日直近週 (↘️減少)</div>
+                        <div class="metric-line">• 在院日数：7.7日期間平均 → 10.1日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+1.1人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+4.9人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【新入院重視】</h4>
+                        <div class="reasoning">病床余裕があり、新入院増加がより実現可能</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #f5d76e;">目標達成により病院全体ギャップの7.0%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FF9800;">
+                    <div class="card-header">
+                        <h3>8階B病棟</h3>
+                        <div class="effort-status-main" style="color: #FF9800; font-weight: bold; font-size: 1.1em;">
+                            💪 💪追い上げ中 (改善)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し！改善中（+1.4人）
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #4CAF5015; border-radius: 5px; font-size: 0.9em;">
+                            🚀 改善スピード: 高速改善 
+                            (+3.3%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：43人目標 → <strong>39.3人実績</strong> (91.8%) ❌ -3.5人</div>
+                        <div class="metric-line">• 新入院：2.2人/日期間平均 → 2.9人/日直近週 (↗️増加)</div>
+                        <div class="metric-line">• 在院日数：13.3日期間平均 → 12.5日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+1.9人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+2.2人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【新入院重視】</h4>
+                        <div class="reasoning">病床余裕があり、新入院増加がより実現可能</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #f5d76e;">目標達成により病院全体ギャップの6.6%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FFC107;">
+                    <div class="card-header">
+                        <h3>5階B病棟</h3>
+                        <div class="effort-status-main" style="color: #FFC107; font-weight: bold; font-size: 1.1em;">
+                            📈 📈要努力 (注意)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し、さらなる努力を
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #F4433615; border-radius: 5px; font-size: 0.9em;">
+                            ⬇️ 改善スピード: 要注意 
+                            (-1.6%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：38人目標 → <strong>32.9人実績</strong> (86.9%) ❌ -4.9人</div>
+                        <div class="metric-line">• 新入院：4.5人/日期間平均 → 4.7人/日直近週 (↗️増加)</div>
+                        <div class="metric-line">• 在院日数：8.3日期間平均 → 8.2日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+1.2人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+4.5人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【新入院重視】</h4>
+                        <div class="reasoning">病床に余裕があり、新入院増加が効果的</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #f5d76e;">目標達成により病院全体ギャップの9.3%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FF9800;">
+                    <div class="card-header">
+                        <h3>7階B病棟</h3>
+                        <div class="effort-status-main" style="color: #FF9800; font-weight: bold; font-size: 1.1em;">
+                            💪 💪追い上げ中 (改善)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し！改善中（+1.1人）
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #4CAF5015; border-radius: 5px; font-size: 0.9em;">
+                            🚀 改善スピード: 高速改善 
+                            (+3.7%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：31人目標 → <strong>27.3人実績</strong> (89.2%) ❌ -3.3人</div>
+                        <div class="metric-line">• 新入院：6.6人/日期間平均 → 7.4人/日直近週 (↗️増加)</div>
+                        <div class="metric-line">• 在院日数：13.3日期間平均 → 13.6日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+1.9人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+6.6人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【新入院重視】</h4>
+                        <div class="reasoning">病床に余裕があり、新入院増加が効果的</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #f5d76e;">目標達成により病院全体ギャップの6.2%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FFC107;">
+                    <div class="card-header">
+                        <h3>5階A病棟</h3>
+                        <div class="effort-status-main" style="color: #FFC107; font-weight: bold; font-size: 1.1em;">
+                            📈 📈要努力 (注意)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し、さらなる努力を
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #F4433615; border-radius: 5px; font-size: 0.9em;">
+                            ⬇️ 改善スピード: 要注意 
+                            (-0.6%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：44人目標 → <strong>41.9人実績</strong> (94.9%) ❌ -2.2人</div>
+                        <div class="metric-line">• 新入院：5.6人/日期間平均 → 6.1人/日直近週 (↗️増加)</div>
+                        <div class="metric-line">• 在院日数：6.4日期間平均 → 5.6日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+0.9人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+5.6人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【現状維持】</h4>
+                        <div class="reasoning">目標をほぼ達成しており、良好な状況を継続</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #7fb069;">目標達成により病院全体ギャップの4.2%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FF9800;">
+                    <div class="card-header">
+                        <h3>4階C病棟</h3>
+                        <div class="effort-status-main" style="color: #FF9800; font-weight: bold; font-size: 1.1em;">
+                            💪 💪追い上げ中 (改善)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し！改善中（+0.0人）
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #FFC10715; border-radius: 5px; font-size: 0.9em;">
+                            ➡️ 改善スピード: 横ばい 
+                            (+0.2%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：18人目標 → <strong>17.6人実績</strong> (97.6%) ✅ -0.4人</div>
+                        <div class="metric-line">• 新入院：2.2人/日期間平均 → 2.3人/日直近週 (➡️安定)</div>
+                        <div class="metric-line">• 在院日数：23.4日期間平均 → 24.6日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+3.3人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+2.2人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【現状維持】</h4>
+                        <div class="reasoning">目標をほぼ達成しており、良好な状況を継続</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #7fb069;">目標達成により病院全体ギャップの0.8%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #7fb069;">
+                    <div class="card-header">
+                        <h3>4階A病棟</h3>
+                        <div class="effort-status-main" style="color: #7fb069; font-weight: bold; font-size: 1.1em;">
+                            🎯 🎯達成継続 (良好)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標達成を継続中
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #F4433615; border-radius: 5px; font-size: 0.9em;">
+                            ⬇️ 改善スピード: 要注意 
+                            (-2.6%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：5人目標 → <strong>5.3人実績</strong> (97.9%) ✅ -0.1人</div>
+                        <div class="metric-line">• 新入院：3.1人/日期間平均 → 2.4人/日直近週 (↘️減少)</div>
+                        <div class="metric-line">• 在院日数：15.2日期間平均 → 18.5日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+2.2人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+3.1人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【現状維持】</h4>
+                        <div class="reasoning">目標をほぼ達成しており、良好な状況を継続</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #7fb069;">目標達成により病院全体ギャップの0.2%改善</div>
+                    </div>
+                </div>
+                
+                <div class="action-card" style="border-left-color: #FFC107;">
+                    <div class="card-header">
+                        <h3>4B-ICU</h3>
+                        <div class="effort-status-main" style="color: #FFC107; font-weight: bold; font-size: 1.1em;">
+                            📈 📈要努力 (注意)
+                        </div>
+                        <div class="effort-description" style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                            目標まであと少し、さらなる努力を
+                        </div>
+                        <div class="improvement-speed" style="margin-top: 8px; padding: 5px 10px; background: #F4433615; border-radius: 5px; font-size: 0.9em;">
+                            ⬇️ 改善スピード: 要注意 
+                            (-7.3%/週)
+                        </div>
+                    </div>
+                    
+                    <div class="analysis-section">
+                        <h4>現状分析</h4>
+                        <div class="metric-line">• 在院患者数：5人目標 → <strong>4.9人実績</strong> (89.9%) ❌ -0.5人</div>
+                        <div class="metric-line">• 新入院：0.1人/日期間平均 → 0.3人/日直近週 (↗️増加)</div>
+                        <div class="metric-line">• 在院日数：0.0日期間平均 → 0.0日直近週 ❓
+                        </div>
+                    </div>
+                    
+                    <div class="feasibility-section">
+                        <h4>実現可能性評価</h4>
+                        <div class="feasibility-line">• 新入院増加：評価なし</div>
+                        <div class="feasibility-line">• 在院日数調整：評価なし</div>
+                    </div>
+                    
+                    <div class="simulation-section">
+                        <h4>効果シミュレーション</h4>
+                        
+            <div class="simple-simulation">
+                <div class="simulation-item">
+                    <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
+                    → 日平均在院患者数 <strong>+0.0人</strong>
+                </div>
+                
+                <div class="simulation-item" style="margin-top: 10px;">
+                    <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
+                    → 日平均在院患者数 <strong>+0.1人</strong>
+                </div>
+            </div>
+        
+                    </div>
+                    
+                    <div class="action-section">
+                        <h4>推奨アクション【現状維持】</h4>
+                        <div class="reasoning">目標をほぼ達成しており、良好な状況を継続</div>
+                    </div>
+                    
+                    <div class="effect-section">
+                        <h4>期待効果</h4>
+                        <div class="effect-text" style="color: #7fb069;">目標達成により病院全体ギャップの1.0%改善</div>
+                    </div>
+                </div>
+                
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px; color: #666; font-size: 0.9em;">
+            <p>✨目標突破中 🎯達成継続 💪追い上げ中 📈要努力 🚨要改善</p>
+            <p>生成日時:  | 目標達成努力度に基づく評価</p>
+        </div>
+    </div>
+</div>
+        
+        <footer style="text-align: center; margin-top: 40px; color: #999; border-top: 1px solid #eee; padding-top: 20px;">
+            <p>生成日時: 2025年07月25日 05:04:39</p>
+            <p>🏥 経営企画室</p>
+        </footer>
+    </div>
+    
+    <a href="./index.html" class="fab-home" aria-label="ホームに戻る">
+        <span class="fab-icon">🏠</span>
+    </a>
+<style>
+            
+            /* モバイル最適化CSS */
+            @media (max-width: 768px) {
+                .actions-grid {
+                    grid-template-columns: 1fr !important;
+                    gap: 15px !important;
+                }
+                
+                .action-card {
+                    padding: 15px !important;
+                    margin-bottom: 10px !important;
+                }
+                
+                .card-header h3 {
+                    font-size: 1.1em !important;
+                }
+                
+                .hospital-summary {
+                    grid-template-columns: 1fr !important;
+                }
+            }
+            
+            /* ダークモード対応 */
+            @media (prefers-color-scheme: dark) {
+                body {
+                    background: #1a1a1a !important;
+                    color: #e0e0e0 !important;
+                }
+                
+                .action-card {
+                    background: #2d2d2d !important;
+                    color: #e0e0e0 !important;
+                }
+            }
+            </style></body>
+</html>
