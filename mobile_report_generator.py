@@ -2332,7 +2332,7 @@ def _adapt_kpi_for_html_generation(raw_kpi: dict) -> dict:
     # 在院患者数関連
     adapted_kpi['avg_patients'] = raw_kpi.get('daily_avg_census', 0)
     adapted_kpi['target_patients'] = raw_kpi.get('daily_census_target')
-    adapted_kpi['achievement_rate'] = raw_kpi.get('daily_census_achievement', 0)
+    adapted_kpi['achievement_rate'] = raw_kpi.get('recent_week_census_achievement', 0) # 変更箇所
     
     # 週間新入院目標値を追加（これが重要！）
     adapted_kpi['target_admissions'] = raw_kpi.get('weekly_admissions_target', 0)
