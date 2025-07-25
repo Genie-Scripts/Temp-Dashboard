@@ -2036,10 +2036,19 @@ def calculate_high_score(df, target_data, entity_name, entity_type, start_date, 
         ]
         
         improvement_rate = 0
-        if not period_before_recent_week_df.empty:
-            period_avg = period_before_recent_week_df['在院患者数'].mean()
-            if period_avg > 0:
+        if not period_before_recent_week_df.empty and len(period_before_recent_week_df) >= 7:
+            # 日付ごとに集計してから平均を取る
+            period_before_grouped = period_before_recent_week_df.groupby('日付')['在院患者数'].sum().reset_index()
+            period_avg = period_before_grouped['在院患者数'].mean()
+            
+            if period_avg > 10:  # 最小閾値を設定
                 improvement_rate = ((latest_week_avg_census - period_avg) / period_avg) * 100
+                # 改善率の上限・下限を設定
+                improvement_rate = max(-50, min(50, improvement_rate))
+            else:
+                # データが少ない場合は差分を使用
+                improvement_rate = min(20, (latest_week_avg_census - period_avg))
+        
         improvement_score = _calculate_improvement_score(improvement_rate)
 
         # --- 安定性・持続性のための週次データ作成（この部分は変更なし） ---
