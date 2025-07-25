@@ -5,7 +5,6 @@ import logging
 import urllib.parse
 from typing import List, Dict, Optional
 from css_styles import CSSStyles
-from high_score_calculator import calculate_all_high_scores 
 
 # --- 必要なモジュールをインポート ---
 from utils import (
@@ -2175,6 +2174,263 @@ def _get_legacy_integrated_css():
 # Phase1: ハイスコア計算機能
 # ========================
 
+def calculate_high_score(df, target_data, entity_name, entity_type, start_date, end_date, group_col=None):
+    """
+    診療科・病棟のハイスコアを計算（100点満点）【計算方法修正版】
+    """
+    try:
+        # 基本KPI取得
+        if entity_type == 'dept':
+            kpi = calculate_department_kpis(df, target_data, entity_name, entity_name, start_date, end_date, group_col)
+        else:
+            kpi = calculate_ward_kpis(df, target_data, entity_name, entity_name, start_date, end_date, group_col)
+        
+        if not kpi or not kpi.get('daily_census_target'):
+            return None
+        
+        target_value = kpi['daily_census_target']
+        
+        # 対象データフィルタリング
+        entity_df = df[df[group_col] == entity_name].copy() if group_col and entity_name else df.copy()
+        if entity_df.empty:
+            return None
+
+        # ★ 修正点 1: 「直近7日間」のデータを正確に切り出す
+        recent_week_end = end_date
+        recent_week_start = end_date - pd.Timedelta(days=6)
+        recent_week_df = entity_df[
+            (entity_df['日付'] >= recent_week_start) & 
+            (entity_df['日付'] <= recent_week_end)
+        ]
+        
+        if recent_week_df.empty:
+            return None # 直近週のデータがなければ計算不可
+            
+        # ★ 修正点 2: 「直近週の平均在院患者数」を7日間平均で計算
+        recent_week_df_grouped = recent_week_df.groupby('日付')['在院患者数'].sum().reset_index()
+        latest_week_avg_census = recent_week_df_grouped['在院患者数'].mean()
+
+        # 1. 直近週達成度（50点）- 新しい計算方法を適用
+        latest_achievement_rate = (latest_week_avg_census / target_value) * 100
+        achievement_score = _calculate_achievement_score(latest_achievement_rate)
+
+        # 2. 改善度（25点）- 比較対象期間を「直近週より前」に設定
+        period_before_recent_week_df = entity_df[
+            (entity_df['日付'] >= start_date) & 
+            (entity_df['日付'] < recent_week_start)
+        ]
+        
+        improvement_rate = 0
+        if not period_before_recent_week_df.empty and len(period_before_recent_week_df) >= 7:
+            # 日付ごとに集計してから平均を取る
+            period_before_grouped = period_before_recent_week_df.groupby('日付')['在院患者数'].sum().reset_index()
+            period_avg = period_before_grouped['在院患者数'].mean()
+            
+            if period_avg > 10:  # 最小閾値を設定
+                improvement_rate = ((latest_week_avg_census - period_avg) / period_avg) * 100
+                # 改善率の上限・下限を設定
+                improvement_rate = max(-50, min(50, improvement_rate))
+            else:
+                # データが少ない場合は差分を使用
+                improvement_rate = min(20, (latest_week_avg_census - period_avg))
+        
+        improvement_score = _calculate_improvement_score(improvement_rate)
+
+        # --- 安定性・持続性のための週次データ作成（この部分は変更なし） ---
+        period_df = entity_df[(entity_df['日付'] >= start_date) & (entity_df['日付'] <= end_date)].copy()
+        if period_df.empty or len(period_df) < 7: return None
+        
+        period_df['週番号'] = period_df['日付'].dt.isocalendar().week
+        period_df['年'] = period_df['日付'].dt.year
+        period_df['年週'] = period_df['年'].astype(str) + '-W' + period_df['週番号'].astype(str).str.zfill(2)
+        
+        weekly_data = period_df.groupby('年週').agg(
+            {'在院患者数': 'mean', '日付': 'max'}
+        ).sort_values('日付').reset_index()
+        
+        if len(weekly_data) < 2: return None
+        
+        # 3. 安定性（15点）
+        recent_3weeks = weekly_data['在院患者数'].tail(3)
+        stability_score = _calculate_stability_score(recent_3weeks)
+        
+        # 4. 持続性（10点）
+        sustainability_score = _calculate_sustainability_score(weekly_data, target_value)
+        
+        # 5. 病棟特別項目（病棟のみ、5点）
+        bed_efficiency_score = 0
+        if entity_type == 'ward' and kpi.get('bed_count', 0) > 0:
+            bed_utilization = (latest_week_avg_census / kpi['bed_count']) * 100
+            bed_efficiency_score = _calculate_bed_efficiency_score(bed_utilization, latest_achievement_rate)
+        
+        # 総合スコア計算
+        total_score = achievement_score + improvement_score + stability_score + sustainability_score + bed_efficiency_score
+        return {
+            'entity_name': entity_name,
+            'entity_type': entity_type,
+            'total_score': min(105, max(0, total_score)),
+            'achievement_score': achievement_score,
+            'improvement_score': improvement_score,
+            'stability_score': stability_score,
+            'sustainability_score': sustainability_score,
+            'bed_efficiency_score': bed_efficiency_score,
+            'latest_achievement_rate': latest_achievement_rate, # ★ 修正された値
+            'improvement_rate': improvement_rate,
+            'latest_inpatients': latest_week_avg_census, # ★ 修正された値
+            'target_inpatients': target_value,
+            'period_avg': period_avg if 'period_avg' in locals() else 0,
+            'bed_utilization': (latest_week_avg_census / kpi.get('bed_count', 1)) * 100 if entity_type == 'ward' else 0
+        }
+        
+    except Exception as e:
+        logger.error(f"ハイスコア計算エラー ({entity_name}): {e}")
+        return None
+
+def _calculate_achievement_score(achievement_rate: float) -> float:
+    """直近週達成度スコア計算（50点満点）"""
+    if achievement_rate >= 110:
+        return 50
+    elif achievement_rate >= 105:
+        return 45
+    elif achievement_rate >= 100:
+        return 40
+    elif achievement_rate >= 98:
+        return 35
+    elif achievement_rate >= 95:
+        return 25
+    elif achievement_rate >= 90:
+        return 15
+    elif achievement_rate >= 85:
+        return 5
+    else:
+        return 0
+
+def _calculate_improvement_score(improvement_rate: float) -> float:
+    """改善度スコア計算（25点満点）"""
+    if improvement_rate >= 15:
+        return 25
+    elif improvement_rate >= 10:
+        return 20
+    elif improvement_rate >= 5:
+        return 15
+    elif improvement_rate >= 2:
+        return 10
+    elif improvement_rate >= -2:
+        return 5
+    elif improvement_rate >= -5:
+        return 3
+    elif improvement_rate >= -10:
+        return 1
+    else:
+        return 0
+
+def _calculate_stability_score(recent_values: pd.Series) -> float:
+    """安定性スコア計算（15点満点）"""
+    if len(recent_values) < 2:
+        return 0
+    
+    try:
+        mean_val = recent_values.mean()
+        if mean_val <= 0:
+            return 0
+        
+        cv = (recent_values.std() / mean_val) * 100  # 変動係数
+        
+        if cv < 5:
+            return 15
+        elif cv < 10:
+            return 12
+        elif cv < 15:
+            return 8
+        elif cv < 20:
+            return 4
+        else:
+            return 0
+    except:
+        return 0
+
+def _calculate_sustainability_score(weekly_data: pd.DataFrame, target_value: float) -> float:
+    """持続性スコア計算（10点満点）"""
+    if len(weekly_data) < 2 or target_value <= 0:
+        return 0
+    
+    try:
+        # 達成率と改善フラグの計算
+        weekly_data = weekly_data.copy()
+        weekly_data['achievement_rate'] = (weekly_data['在院患者数'] / target_value) * 100
+        weekly_data['prev_value'] = weekly_data['在院患者数'].shift(1)
+        weekly_data['improvement'] = weekly_data['在院患者数'] > weekly_data['prev_value']
+        
+        # 直近4週のデータ（または全データ）
+        recent_4weeks = weekly_data.tail(4)
+        
+        scores = []
+        
+        # 継続改善系チェック
+        consecutive_improvements = 0
+        for i in range(len(recent_4weeks) - 1, 0, -1):
+            if pd.notna(recent_4weeks.iloc[i]['improvement']) and recent_4weeks.iloc[i]['improvement']:
+                consecutive_improvements += 1
+            else:
+                break
+        
+        if consecutive_improvements >= 4:
+            scores.append(10)
+        elif consecutive_improvements >= 3:
+            scores.append(7)
+        elif consecutive_improvements >= 2:
+            scores.append(4)
+        
+        # 継続達成系チェック
+        consecutive_achievements = 0
+        for i in range(len(recent_4weeks) - 1, -1, -1):
+            if recent_4weeks.iloc[i]['achievement_rate'] >= 98:
+                consecutive_achievements += 1
+            else:
+                break
+        
+        if consecutive_achievements >= 4:
+            scores.append(10)
+        elif consecutive_achievements >= 3:
+            scores.append(7)
+        elif consecutive_achievements >= 2:
+            scores.append(4)
+        
+        # 持続高パフォーマンス系チェック
+        if len(recent_4weeks) >= 4:
+            avg_achievement = recent_4weeks['achievement_rate'].mean()
+            achievements_count = (recent_4weeks['achievement_rate'] >= 98).sum()
+            no_below_90 = (recent_4weeks['achievement_rate'] >= 90).all()
+            
+            if avg_achievement >= 98:
+                scores.append(6)
+            elif achievements_count >= 3:
+                scores.append(4)
+            elif no_below_90:
+                scores.append(3)
+        
+        return max(scores) if scores else 0
+        
+    except Exception as e:
+        logger.error(f"持続性スコア計算エラー: {e}")
+        return 0
+
+def _calculate_bed_efficiency_score(bed_utilization: float, achievement_rate: float) -> float:
+    """病床効率スコア計算（5点満点）"""
+    try:
+        if achievement_rate >= 98:  # 目標達成時
+            if bed_utilization >= 95:
+                return 5
+            elif bed_utilization >= 90:
+                return 3
+        
+        # 注：利用率向上チェック（+10%以上）は別途前期データが必要
+        # 現時点では基本的な効率のみで評価
+        return 0
+        
+    except:
+        return 0
+
 def _generate_weekly_highlights_by_type(dept_scores: List[Dict], ward_scores: List[Dict]) -> tuple:
     """診療科・病棟別の週間ハイライト生成"""
     dept_highlights = []
@@ -2310,6 +2566,52 @@ def _generate_score_detail_html(dept_scores: List[Dict], ward_scores: List[Dict]
     
     html += '</div>'
     return html
+
+def calculate_all_high_scores(df, target_data, period="直近12週"):
+    """
+    全ての診療科・病棟のハイスコアを計算
+    
+    Returns:
+        tuple: (dept_scores, ward_scores)
+    """
+    try:
+        start_date, end_date, _ = get_period_dates(df, period)
+        if not start_date:
+            return [], []
+        
+        dept_scores = []
+        ward_scores = []
+        
+        # 診療科スコア計算
+        dept_col = '診療科名'
+        if dept_col in df.columns:
+            departments = sorted(df[dept_col].dropna().unique())
+            for dept_name in departments:
+                score = calculate_high_score(df, target_data, dept_name, 'dept', start_date, end_date, dept_col)
+                if score:
+                    dept_scores.append(score)
+        
+        # 病棟スコア計算
+        try:
+            all_wards = get_target_ward_list(target_data, EXCLUDED_WARDS)
+            for ward_code, ward_name in all_wards:
+                score = calculate_high_score(df, target_data, ward_code, 'ward', start_date, end_date, '病棟コード')
+                if score:
+                    score['display_name'] = ward_name  # 表示用の名前を追加
+                    ward_scores.append(score)
+        except Exception as e:
+            logger.error(f"病棟スコア計算エラー: {e}")
+        
+        # スコア順でソート
+        dept_scores.sort(key=lambda x: x['total_score'], reverse=True)
+        ward_scores.sort(key=lambda x: x['total_score'], reverse=True)
+        
+        logger.info(f"ハイスコア計算完了: 診療科{len(dept_scores)}件, 病棟{len(ward_scores)}件")
+        return dept_scores, ward_scores
+        
+    except Exception as e:
+        logger.error(f"全ハイスコア計算エラー: {e}")
+        return [], []
 
 def _generate_ranking_list_html(scores: List[Dict], entity_type: str) -> str:
     """ランキングリストHTML生成"""
