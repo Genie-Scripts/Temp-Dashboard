@@ -16,7 +16,7 @@ import traceback
 from config import EXCLUDED_WARDS
 
 # 統一フィルター関連のインポート
-from unified_filters import (
+from .unified_filters import (
     apply_unified_filters,
     get_unified_filter_summary,
     validate_unified_filters,
