@@ -8,16 +8,40 @@ import pandas as pd
 import logging
 import urllib.parse
 from typing import Dict, List, Tuple, Optional
+import sys
+import os
 
-# パッケージ内のモジュールはすべて相対パスでインポート
-from .high_score_calculator import HighScoreCalculator
-from .components.ui_components import UIComponentBuilder
-from .templates.html_templates import HTMLTemplates, InfoPanelContent, JavaScriptTemplates
-from .css_styles import CSSStyles
-from .config.scoring_config import ScoringConfig
+# パスの追加（report_generationフォルダから親ディレクトリのモジュールにアクセス）
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# ユーティリティもパッケージ内にあるので相対パス
-from .utils import (
+# 分離したモジュールのインポート
+try:
+    from .high_score_calculator import HighScoreCalculator
+except ImportError:
+    from high_score_calculator import HighScoreCalculator
+
+try:
+    from .components.ui_components import UIComponentBuilder
+except ImportError:
+    from components.ui_components import UIComponentBuilder
+
+try:
+    from .templates.html_templates import HTMLTemplates, InfoPanelContent, JavaScriptTemplates
+except ImportError:
+    from templates.html_templates import HTMLTemplates, InfoPanelContent, JavaScriptTemplates
+
+try:
+    from .css_styles import CSSStyles
+except ImportError:
+    from css_styles import CSSStyles
+
+try:
+    from .config.scoring_config import ScoringConfig
+except ImportError:
+    from config.scoring_config import ScoringConfig
+
+# 必要なユーティリティのインポート（親ディレクトリから）
+from utils import (
     get_period_dates,
     calculate_department_kpis,
     calculate_ward_kpis,
@@ -26,8 +50,6 @@ from .utils import (
     evaluate_feasibility,
     calculate_effect_simulation
 )
-
-# 外部のレガシーモジュールは絶対パスでインポート
 from mobile_report_generator import (
     _generate_metric_cards_html,
     _generate_charts_html,

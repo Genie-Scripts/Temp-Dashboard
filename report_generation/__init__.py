@@ -1,21 +1,19 @@
 # report_generation/__init__.py
-
 """
 統合レポート生成パッケージ（メイン）
 
 このパッケージは、html_export_functions.pyの機能を
 保守しやすい複数のモジュールに分割したものです。
-
-主要な機能:
-- レポート生成 (ReportGenerator)
-- ハイスコア計算 (HighScoreCalculator)
-- UI コンポーネント (UIComponentBuilder)
-- スコア設定管理 (ScoringConfig)
 """
 
 import logging
+import sys
+import os
 from typing import Optional, Dict, Any, Tuple, List
 import pandas as pd
+
+# 親ディレクトリをパスに追加（重要）
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 __version__ = "2.0.0"
 __author__ = "Hospital Analytics Team"
@@ -23,6 +21,29 @@ __description__ = "統合パフォーマンスレポート生成システム（�
 
 # ログ設定
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# 他のタブモジュールの条件付きインポート（エラーを防ぐ）
+# =============================================================================
+# これらは必須ではないので、エラーを無視
+tab_modules = [
+    'analysis_tabs', 'alos_analysis_tab', 'dashboard_overview_tab',
+    'data_processing_tab', 'department_performance_tab', 'dow_analysis_tab',
+    'forecast_analysis_tab', 'individual_analysis_tab', 'pdf_output_tab',
+    'ward_performance_tab'
+]
+
+for module in tab_modules:
+    try:
+        exec(f"from .{module} import *")
+    except ImportError:
+        pass  # タブモジュールは必須ではない
+
+# forecastモジュールも条件付き
+try:
+    from .forecast import *
+except ImportError:
+    pass
 
 # =============================================================================
 # 段階的インポート（フォールバック付き）
@@ -42,14 +63,16 @@ except ImportError as e:
 try:
     from .high_score_calculator import (
         HighScoreCalculator,
+        ScoreResult,
         calculate_high_score,
+        calculate_all_high_scores
     )
     HIGH_SCORE_AVAILABLE = True
     logger.info("✅ HighScoreCalculator をロードしました")
 except ImportError as e:
     logger.warning(f"❌ HighScoreCalculator のインポートに失敗: {e}")
-    HighScoreCalculator = None
-    calculate_high_score = None
+    HighScoreCalculator = ScoreResult = None
+    calculate_high_score = calculate_all_high_scores = None
     HIGH_SCORE_AVAILABLE = False
 
 # 設定管理
@@ -113,14 +136,7 @@ except ImportError as e:
 # =============================================================================
 
 def create_report_generator(scoring_config: Optional[Any] = None) -> Optional[Any]:
-    """ReportGenerator インスタンスを作成
-    
-    Args:
-        scoring_config: スコア計算設定（オプション）
-        
-    Returns:
-        ReportGenerator インスタンス、または None（利用不可の場合）
-    """
+    """ReportGenerator インスタンスを作成"""
     if not REPORT_GENERATOR_AVAILABLE:
         logger.error("ReportGenerator が利用できません")
         return None
@@ -134,14 +150,7 @@ def create_report_generator(scoring_config: Optional[Any] = None) -> Optional[An
         return None
 
 def create_high_score_calculator(config: Optional[Any] = None) -> Optional[Any]:
-    """HighScoreCalculator インスタンスを作成
-    
-    Args:
-        config: スコア計算設定（オプション）
-        
-    Returns:
-        HighScoreCalculator インスタンス、または None（利用不可の場合）
-    """
+    """HighScoreCalculator インスタンスを作成"""
     if not HIGH_SCORE_AVAILABLE:
         logger.error("HighScoreCalculator が利用できません")
         return None
@@ -155,11 +164,7 @@ def create_high_score_calculator(config: Optional[Any] = None) -> Optional[Any]:
         return None
 
 def get_package_status() -> Dict[str, Any]:
-    """パッケージの利用可能状況を取得
-    
-    Returns:
-        各モジュールの利用可能状況を含む辞書
-    """
+    """パッケージの利用可能状況を取得"""
     return {
         'version': __version__,
         'modules': {
@@ -179,11 +184,7 @@ def get_package_status() -> Dict[str, Any]:
     }
 
 def validate_installation() -> bool:
-    """インストール状況の検証
-    
-    Returns:
-        全モジュールが正常にインストールされている場合 True
-    """
+    """インストール状況の検証"""
     status = get_package_status()
     if status['fully_available']:
         logger.info("✅ 全モジュールが正常に利用可能です")
@@ -199,18 +200,7 @@ def validate_installation() -> bool:
 
 def generate_all_in_one_html_report(df: pd.DataFrame, target_data: pd.DataFrame, 
                                    period: str = "直近12週") -> str:
-    """後方互換性のためのラッパー関数
-    
-    既存のコードから呼び出し可能な統一インターフェース
-    
-    Args:
-        df: メインデータフレーム
-        target_data: 目標データ
-        period: 分析期間
-        
-    Returns:
-        統合HTMLレポート文字列
-    """
+    """後方互換性のためのラッパー関数"""
     # 新実装を優先的に使用
     generator = create_report_generator()
     if generator:
@@ -220,7 +210,7 @@ def generate_all_in_one_html_report(df: pd.DataFrame, target_data: pd.DataFrame,
         except Exception as e:
             logger.error(f"新実装でエラー: {e}")
     
-    # フォールバック: 従来実装への委譲
+    # フォールバック
     logger.warning("新実装が利用できません。従来実装へのフォールバックが必要です。")
     raise ImportError(
         "ReportGenerator が利用できません。\n"
@@ -231,16 +221,7 @@ def generate_all_in_one_html_report(df: pd.DataFrame, target_data: pd.DataFrame,
 
 def calculate_all_high_scores_unified(df: pd.DataFrame, target_data: pd.DataFrame, 
                                     period: str = "直近12週") -> Tuple[List[Dict], List[Dict]]:
-    """統一されたハイスコア計算インターフェース
-    
-    Args:
-        df: メインデータフレーム
-        target_data: 目標データ
-        period: 分析期間
-        
-    Returns:
-        tuple: (診療科スコアリスト, 病棟スコアリスト)
-    """
+    """統一されたハイスコア計算インターフェース"""
     if HIGH_SCORE_AVAILABLE:
         try:
             return calculate_all_high_scores(df, target_data, period)
@@ -249,37 +230,6 @@ def calculate_all_high_scores_unified(df: pd.DataFrame, target_data: pd.DataFram
     
     logger.warning("ハイスコア計算機能が利用できません")
     return [], []
-
-def create_weekly_highlights_unified(dept_scores: List[Dict], 
-                                   ward_scores: List[Dict]) -> str:
-    """統一された週間ハイライト作成インターフェース
-    
-    Args:
-        dept_scores: 診療科スコアリスト
-        ward_scores: 病棟スコアリスト
-        
-    Returns:
-        週間ハイライトHTML
-    """
-    if UI_COMPONENTS_AVAILABLE:
-        try:
-            ui_builder = create_ui_component_builder()
-            return ui_builder.build_highlight_banner(dept_scores, ward_scores)
-        except Exception as e:
-            logger.error(f"ハイライト生成エラー（新実装）: {e}")
-    
-    # フォールバック実装
-    return """
-    <div class="weekly-highlight-banner">
-        <div class="highlight-container">
-            <div class="highlight-icon">💡</div>
-            <div class="highlight-content">
-                <strong>今週のポイント</strong>
-                <span class="highlight-items">各部門で着実な改善が進んでいます！</span>
-            </div>
-        </div>
-    </div>
-    """
 
 # =============================================================================
 # デバッグ・診断機能
@@ -314,60 +264,12 @@ def diagnose_package() -> Dict[str, Any]:
     
     # モジュール固有の推奨事項
     if not REPORT_GENERATOR_AVAILABLE:
-        diagnosis['recommendations'].append('report_generator.py を配置してください')
+        diagnosis['recommendations'].append('report_generator.py を確認してください')
     
     if not HIGH_SCORE_AVAILABLE:
         diagnosis['recommendations'].append('high_score_calculator.py を配置してください')
     
-    if not CONFIG_AVAILABLE:
-        diagnosis['recommendations'].append('config/scoring_config.py を配置してください')
-    
-    if not UI_COMPONENTS_AVAILABLE:
-        diagnosis['recommendations'].append('components/ui_components.py を配置してください')
-    
-    if not TEMPLATES_AVAILABLE:
-        diagnosis['recommendations'].append('templates/ モジュールを配置してください')
-    
     return diagnosis
-
-def performance_test() -> Dict[str, Any]:
-    """パフォーマンステスト（軽量版）"""
-    import time
-    
-    results = {
-        'timestamp': time.time(),
-        'tests': {}
-    }
-    
-    # ReportGenerator の作成速度
-    start_time = time.time()
-    generator = create_report_generator()
-    results['tests']['report_generator_creation'] = {
-        'duration': time.time() - start_time,
-        'success': generator is not None
-    }
-    
-    # HighScoreCalculator の作成速度
-    start_time = time.time()
-    calculator = create_high_score_calculator()
-    results['tests']['high_score_calculator_creation'] = {
-        'duration': time.time() - start_time,
-        'success': calculator is not None
-    }
-    
-    # UI コンポーネントの作成速度
-    start_time = time.time()
-    if UI_COMPONENTS_AVAILABLE:
-        ui_builder = create_ui_component_builder()
-        success = ui_builder is not None
-    else:
-        success = False
-    results['tests']['ui_component_creation'] = {
-        'duration': time.time() - start_time,
-        'success': success
-    }
-    
-    return results
 
 # =============================================================================
 # 公開API（__all__）
@@ -378,43 +280,33 @@ __all__ = [
     '__version__',
     '__author__',
     '__description__',
-
+    
     # メインクラス
     'ReportGenerator',
     'HighScoreCalculator',
-    # 'ScoreResult',  # ▼▼▼ 削除 ▼▼▼
+    'ScoreResult',
     'ScoringConfig',
     'UIComponentBuilder',
     'HTMLTemplates',
     'CSSManager',
     'TemplateManager',
-
+    
     # ファクトリ関数
     'create_report_generator',
     'create_high_score_calculator',
     'create_ui_component_builder',
     'create_template_manager',
-
-    # メイン機能（統一インターフェース）
+    
+    # メイン機能
     'generate_all_in_one_html_report',
     'calculate_all_high_scores_unified',
-    'create_weekly_highlights_unified',
-
-    # ユーティリティ関数
+    
+    # ユーティリティ
     'get_package_status',
     'validate_installation',
     'diagnose_package',
-    'performance_test',
-
-    # 後方互換性
-    'calculate_high_score',
-    # 'calculate_all_high_scores', # ▼▼▼ 削除 ▼▼▼
-    'generate_weekly_highlights_by_type',
-    'generate_weekly_highlights_compact',
-
-    # 設定関数
-    'get_scoring_weights',
-    'get_achievement_thresholds',
+    
+    # 設定
     'DEFAULT_SCORING_CONFIG'
 ]
 
@@ -422,7 +314,6 @@ __all__ = [
 # パッケージ初期化
 # =============================================================================
 
-# 初期化ログ
 logger.info(f"=== {__description__} v{__version__} ===")
 status = get_package_status()
 available_count = sum(status['modules'].values())
@@ -440,41 +331,3 @@ elif available_count > 0:
     logger.info(f"⚡ ハイブリッドモード（{available_count}/{total_count}モジュール利用可能）")
 else:
     logger.warning("🔄 フォールバックモード。新モジュールのインストールを推奨します。")
-
-# メイン実行時の処理
-if __name__ == "__main__":
-    print(f"=== {__description__} ===")
-    print(f"バージョン: {__version__}")
-    print(f"作成者: {__author__}")
-    print()
-    
-    # 診断情報の表示
-    diagnosis = diagnose_package()
-    print("📊 パッケージ診断:")
-    
-    for name, available in diagnosis['module_status'].items():
-        status_icon = "✅" if available else "❌"
-        print(f"  {status_icon} {name}")
-    
-    if diagnosis['recommendations']:
-        print("\n💡 推奨事項:")
-        for rec in diagnosis['recommendations']:
-            print(f"  • {rec}")
-    
-    print(f"\n🔧 依存関係:")
-    for dep, version in diagnosis['dependencies'].items():
-        status_icon = "✅" if version != 'NOT_INSTALLED' else "❌"
-        print(f"  {status_icon} {dep}: {version}")
-    
-    # パフォーマンステスト
-    print(f"\n⚡ パフォーマンステスト:")
-    perf_results = performance_test()
-    for test_name, result in perf_results['tests'].items():
-        status_icon = "✅" if result['success'] else "❌"
-        duration_ms = result['duration'] * 1000
-        print(f"  {status_icon} {test_name}: {duration_ms:.1f}ms")
-    
-    print(f"\n🚀 使用例:")
-    print(f"  from report_generation import create_report_generator")
-    print(f"  generator = create_report_generator()")
-    print(f"  html = generator.generate_all_in_one_html_report(df, target_data)")

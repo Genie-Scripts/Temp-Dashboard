@@ -19,9 +19,15 @@ logger = logging.getLogger(__name__)
 # 新アーキテクチャのインポート試行
 # =============================================================================
 try:
-    from report_generation import ReportGenerator
-    NEW_ARCHITECTURE_AVAILABLE = True
-    logger.info("✅ 新アーキテクチャ（report_generation）が利用可能")
+    import report_generation
+    # ReportGeneratorが実際に利用可能か確認
+    if hasattr(report_generation, 'ReportGenerator') and report_generation.ReportGenerator is not None:
+        ReportGenerator = report_generation.ReportGenerator
+        NEW_ARCHITECTURE_AVAILABLE = True
+        logger.info("✅ 新アーキテクチャ（report_generation）が利用可能")
+    else:
+        NEW_ARCHITECTURE_AVAILABLE = False
+        logger.info("📦 ReportGeneratorが利用できません - ハイブリッドモードで動作")
 except ImportError:
     NEW_ARCHITECTURE_AVAILABLE = False
     logger.info("📦 新アーキテクチャは未インストール - ハイブリッドモードで動作")
@@ -64,26 +70,34 @@ def _get_css_styles() -> str:
 # スコア設定のインポート
 # =============================================================================
 try:
-    from config.scoring_config import DEFAULT_SCORING_CONFIG, ScoringConfig
-    SCORING_CONFIG = DEFAULT_SCORING_CONFIG
+    # report_generation内のconfigから試行
+    from report_generation.config import scoring_config
+    SCORING_CONFIG = scoring_config.DEFAULT_SCORING_CONFIG
     SCORING_CONFIG_AVAILABLE = True
-    logger.debug("✅ Scoring Config利用可能")
+    logger.debug("✅ Scoring Config利用可能 (from report_generation)")
 except ImportError:
-    SCORING_CONFIG_AVAILABLE = False
-    logger.debug("❌ Scoring Config未インストール")
-    
-    # フォールバック実装
-    class ScoringConfig:
-        def get_achievement_score_mapping(self):
-            return [(110, 50), (105, 45), (100, 40), (98, 35), (95, 25), (90, 15), (85, 5), (0, 0)]
+    try:
+        # 直接configから試行
+        from config.scoring_config import DEFAULT_SCORING_CONFIG, ScoringConfig
+        SCORING_CONFIG = DEFAULT_SCORING_CONFIG
+        SCORING_CONFIG_AVAILABLE = True
+        logger.debug("✅ Scoring Config利用可能 (from config)")
+    except ImportError:
+        SCORING_CONFIG_AVAILABLE = False
+        logger.debug("❌ Scoring Config未インストール")
         
-        def get_improvement_score_mapping(self):
-            return [(15, 25), (10, 20), (5, 15), (2, 10), (-2, 5), (-5, 3), (-10, 1), (-100, 0)]
+        # フォールバック実装
+        class ScoringConfig:
+            def get_achievement_score_mapping(self):
+                return [(110, 50), (105, 45), (100, 40), (98, 35), (95, 25), (90, 15), (85, 5), (0, 0)]
+            
+            def get_improvement_score_mapping(self):
+                return [(15, 25), (10, 20), (5, 15), (2, 10), (-2, 5), (-5, 3), (-10, 1), (-100, 0)]
+            
+            def get_stability_score_mapping(self):
+                return [(5, 15), (10, 12), (15, 8), (20, 4), (100, 0)]
         
-        def get_stability_score_mapping(self):
-            return [(5, 15), (10, 12), (15, 8), (20, 4), (100, 0)]
-    
-    SCORING_CONFIG = ScoringConfig()
+        SCORING_CONFIG = ScoringConfig()
 
 # =============================================================================
 # ハイスコア計算のインポート
@@ -91,6 +105,7 @@ except ImportError:
 try:
     from high_score_calculator import (
         calculate_high_score,
+        calculate_all_high_scores
     )
     HIGH_SCORE_CALCULATOR_AVAILABLE = True
     logger.debug("✅ High Score Calculator利用可能")
@@ -154,7 +169,7 @@ except ImportError:
 # 既存モジュールのインポート（必須）
 # =============================================================================
 try:
-    from report_generation.utils import (
+    from utils import (
         get_period_dates,
         calculate_department_kpis,
         calculate_ward_kpis,
@@ -296,20 +311,37 @@ def _generate_fallback_report(df: pd.DataFrame, target_data: pd.DataFrame,
         # 基本的なKPIセクション（レガシーモジュールが利用可能な場合）
         if LEGACY_MODULES_AVAILABLE:
             try:
-                # 期間データの取得
-                period_weeks = get_period_dates(df, weeks=12)
-                if period_weeks:
+                # 期間データの取得（修正版）
+                # get_period_datesの引数を確認して適切に呼び出す
+                try:
+                    # 新しい形式で試行
+                    period_weeks = get_period_dates(df, period_weeks=12)
+                except TypeError:
+                    try:
+                        # 古い形式で試行
+                        period_weeks = get_period_dates(df, 12)
+                    except:
+                        # 最も基本的な形式
+                        period_weeks = get_period_dates(df)
+                
+                if period_weeks and len(period_weeks) > 0:
                     latest_week = period_weeks[0]
                     
                     # 診療科KPI
-                    dept_kpis = calculate_department_kpis(df, target_data, period_type="weekly")
-                    if dept_kpis:
-                        html_parts.append(_generate_basic_kpi_section("診療科別KPI", dept_kpis[:5]))
+                    try:
+                        dept_kpis = calculate_department_kpis(df, target_data, period_type="weekly")
+                        if dept_kpis:
+                            html_parts.append(_generate_basic_kpi_section("診療科別KPI", dept_kpis[:5]))
+                    except Exception as e:
+                        logger.error(f"診療科KPI計算エラー: {e}")
                     
                     # 病棟KPI
-                    ward_kpis = calculate_ward_kpis(df, target_data, period_type="weekly")
-                    if ward_kpis:
-                        html_parts.append(_generate_basic_kpi_section("病棟別KPI", ward_kpis[:5]))
+                    try:
+                        ward_kpis = calculate_ward_kpis(df, target_data, period_type="weekly")
+                        if ward_kpis:
+                            html_parts.append(_generate_basic_kpi_section("病棟別KPI", ward_kpis[:5]))
+                    except Exception as e:
+                        logger.error(f"病棟KPI計算エラー: {e}")
                         
             except Exception as e:
                 logger.error(f"KPI計算エラー: {e}")
