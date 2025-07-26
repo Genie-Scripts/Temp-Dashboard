@@ -326,16 +326,49 @@ class CSSStyles:
     
     @staticmethod
     def get_responsive_styles():
-        """レスポンシブ対応"""
+        """レスポンシブ対応（スマートフォン縦画面で1列表示に修正）"""
         return """
         /* レスポンシブ対応 */
-        @media (max-width: 480px) {
-            .header h1 { font-size: 1.2em; }
-            .summary-card .value { font-size: 1.5em; }
-            .section { padding: 16px; }
-            .metric-split-container { gap: 12px; }
-            .metric-value { font-size: 1.5em; }
-            .metric-divider { height: 60px; }
+        @media (max-width: 768px) {
+            .container {
+                margin: 0;
+                border-radius: 0;
+            }
+            
+             .summary-cards,
+            .metric-split-container {
+                grid-template-columns: 1fr !important; /* 画面幅が狭い場合は1列に */
+            }
+            
+            .metric-divider {
+                display: none; /* 1列表示では区切り線を非表示に */
+            }
+            
+            .metric-card-split .metric-left {
+                margin-bottom: 16px; /* 縦に並んだ際のスペース調整 */
+            }
+
+            .header {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            .quick-buttons {
+                gap: 8px;
+            }
+            
+            .quick-button {
+                padding: 10px 16px;
+                font-size: 0.9em;
+            }
+            
+            .ranking-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
         }
         """
     

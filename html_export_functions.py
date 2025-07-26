@@ -30,8 +30,6 @@ from config import (
     RANKING_CONFIG
 )
 
-
-
 logger = logging.getLogger(__name__)
 
 def generate_all_in_one_html_report(df, target_data, period="直近12週"):
@@ -655,7 +653,37 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     -webkit-font-smoothing: antialiased;
                     -moz-osx-font-smoothing: grayscale;
                 }}
-                
+                .loader-overlay {{
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: white;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 9999;
+                    flex-direction: column;
+                    gap: 20px;
+                    transition: opacity 0.5s ease;
+                }}
+                .loader {{
+                    border: 8px solid #f3f3f3;
+                    border-top: 8px solid #5B5FDE;
+                    border-radius: 50%;
+                    width: 60px;
+                    height: 60px;
+                    animation: spin 1.5s linear infinite;
+                }}
+                .loader-text {{
+                    color: #5B5FDE;
+                    font-weight: bold;
+                }}
+                @keyframes spin {{
+                    0% {{ transform: rotate(0deg); }}
+                    100% {{ transform: rotate(360deg); }}
+                }}
                 /* コンテナ */
                 .container {{
                     max-width: 1200px;
@@ -1281,7 +1309,11 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                         margin: 0;
                         border-radius: 0;
                     }}
-                    
+                    /* ===== 👇 ここに以下の3行を追加します ===== */
+                    .summary-cards {{
+                        grid-template-columns: 1fr;
+                    }}
+                    /* ===== 👆 追加はここまでです ===== */
                     .header {{
                         padding: 30px 20px;
                     }}
@@ -1703,6 +1735,10 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
             </style>
         </head>
         <body>
+            <div id="loader" class="loader-overlay">
+                <div class="loader"></div>
+                <p class="loader-text">レポートを生成中です...</p>
+            </div>
             <div class="container">
                 <div class="header">
                     <h1>統合パフォーマンスレポート</h1>
@@ -1921,6 +1957,15 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                                 Plotly.Plots.resize(plot);
                             }});
                         }}
+                    }}
+                }});
+                window.addEventListener('load', function() {{
+                    const loader = document.getElementById('loader');
+                    if (loader) {{
+                        loader.style.opacity = '0';
+                        setTimeout(() => {{
+                            loader.style.display = 'none';
+                        }}, 500); // 0.5秒かけてフェードアウト
                     }}
                 }});
 			</script>
