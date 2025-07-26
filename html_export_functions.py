@@ -20,10 +20,17 @@ from mobile_report_generator import (
     _generate_metric_cards_html,
     _generate_charts_html,
     _generate_action_plan_html,
-    _adapt_kpi_for_html_generation
+    _adapt_kpi_for_html_generation,
+    _calculate_overall_evaluation
 )
 from ward_utils import calculate_ward_kpi_with_bed_metrics
 from config import EXCLUDED_WARDS
+from config import (
+    EXCLUDED_WARDS,
+    RANKING_CONFIG
+)
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -158,19 +165,29 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             <h3>🩺 診療科部門</h3>
                             <div class="ranking-list">
             """
-
             if dept_scores:
                 for i, score in enumerate(dept_scores[:3]):
                     medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
+                    
+                    # 5段階評価を計算
+                    ach_rate = score.get('latest_achievement_rate', 0)
+                    imp_rate = score.get('improvement_rate', 0)
+                    evaluation = _calculate_overall_evaluation(ach_rate, imp_rate, ach_rate >= 98)
+                    grade = evaluation.get('grade', '評価外')
+                    grade_color = RANKING_CONFIG['grade_colors'].get(grade, '#6B7280')
+            
                     high_score_html += f"""
-                                <div class="ranking-item rank-{i+1}">
-                                    <span class="medal">{medal}</span>
-                                    <div class="ranking-info">
-                                        <div class="name">{score['entity_name']}</div>
-                                        <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
+                                    <div class="ranking-item rank-{i+1}">
+                                        <span class="medal">{medal}</span>
+                                        <div class="ranking-info">
+                                            <div class="name">{score['entity_name']}</div>
+                                            <div class="detail">達成率 {ach_rate:.1f}%</div>
+                                        </div>
+                                        <div class="grade-badge" style="background-color: {grade_color};">
+                                            {grade}
+                                        </div>
+                                        <div class="score">{score['total_score']:.0f}点</div>
                                     </div>
-                                    <div class="score">{score['total_score']:.0f}点</div>
-                                </div>
                     """
             else:
                 high_score_html += "<p>データがありません</p>"
@@ -182,20 +199,30 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                             <h3>🏢 病棟部門</h3>
                             <div class="ranking-list">
             """
-
             if ward_scores:
                 for i, score in enumerate(ward_scores[:3]):
                     medal = ["🥇", "🥈", "🥉"][i] if i < 3 else f"{i+1}位"
                     ward_name = score.get('display_name', score['entity_name'])
+                    
+                    # 5段階評価を計算
+                    ach_rate = score.get('latest_achievement_rate', 0)
+                    imp_rate = score.get('improvement_rate', 0)
+                    evaluation = _calculate_overall_evaluation(ach_rate, imp_rate, ach_rate >= 98)
+                    grade = evaluation.get('grade', '評価外')
+                    grade_color = RANKING_CONFIG['grade_colors'].get(grade, '#6B7280')
+            
                     high_score_html += f"""
-                                <div class="ranking-item rank-{i+1}">
-                                    <span class="medal">{medal}</span>
-                                    <div class="ranking-info">
-                                        <div class="name">{ward_name}</div>
-                                        <div class="detail">達成率 {score['latest_achievement_rate']:.1f}%</div>
+                                    <div class="ranking-item rank-{i+1}">
+                                        <span class="medal">{medal}</span>
+                                        <div class="ranking-info">
+                                            <div class="name">{ward_name}</div>
+                                            <div class="detail">達成率 {ach_rate:.1f}%</div>
+                                        </div>
+                                        <div class="grade-badge" style="background-color: {grade_color};">
+                                            {grade}
+                                        </div>
+                                        <div class="score">{score['total_score']:.0f}点</div>
                                     </div>
-                                    <div class="score">{score['total_score']:.0f}点</div>
-                                </div>
                     """
             else:
                 high_score_html += "<p>データがありません</p>"
@@ -1207,7 +1234,7 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                 .ranking-item {{
                     display: flex;
                     align-items: center;
-                    gap: 15px;
+                    gap: 12px;
                     padding: 15px;
                     background: white;
                     border-radius: 10px;
@@ -1236,7 +1263,18 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     border-left-color: #CD7F32;
                     background: linear-gradient(135deg, rgba(205, 127, 50, 0.1) 0%, white 100%);
                 }}
-                
+
+                .grade-badge {{
+                    color: white;
+                    font-weight: bold;
+                    font-size: 1.1em;
+                    border-radius: 8px;
+                    padding: 5px 10px;
+                    min-width: 40px;
+                    text-align: center;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                }}
+
                 /* レスポンシブ対応 */
                 @media (max-width: 768px) {{
                     .container {{
