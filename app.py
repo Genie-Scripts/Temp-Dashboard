@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import datetime
 import traceback
+# ===== ページ設定と config.py のインポート =====
 from config import *
 
 st.set_page_config(
@@ -23,111 +24,58 @@ from data_persistence import (
 )
 
 # --- モジュールのインポートとエラーハンドリング ---
-# 変数の初期化（重要：最初に定義）
-FORECAST_AVAILABLE = False
-DEPT_PERFORMANCE_AVAILABLE = False
-WARD_PERFORMANCE_AVAILABLE = False
-
-# analysis_tabs のインポート
+# カスタムモジュールのインポート
 try:
     from analysis_tabs import create_data_tables_tab
-except ImportError as e:
-    logger.error(f"analysis_tabs.create_data_tables_tab インポートエラー: {e}")
-    create_data_tables_tab = lambda: st.error("データテーブル機能は利用できません。")
-
-try:
-    from analysis_tabs import create_individual_analysis_section
-except ImportError as e:
-    logger.error(f"analysis_tabs.create_individual_analysis_section インポートエラー: {e}")
-    create_individual_analysis_section = lambda df_filtered, filter_config_from_caller: st.error("個別分析セクション機能は利用できません。")
-
-# データ処理タブ
-try:
     from data_processing_tab import create_data_processing_tab
-except ImportError as e:
-    logger.error(f"data_processing_tab インポートエラー: {e}")
-    create_data_processing_tab = lambda: st.error("データ処理機能は利用できません。")
-
-# PDF出力タブ
-try:
     import pdf_output_tab
-except ImportError as e:
-    logger.error(f"pdf_output_tab インポートエラー: {e}")
-    pdf_output_tab = type('pdf_output_tab_mock', (object,), {'create_pdf_output_tab': lambda: st.error("PDF出力機能は利用できません。")})()
-
-# 予測分析タブ
-try:
     from forecast_analysis_tab import display_forecast_analysis_tab
-    FORECAST_AVAILABLE = True
-except ImportError as e:
-    logger.error(f"forecast_analysis_tab インポートエラー: {e}")
-    display_forecast_analysis_tab = lambda: st.error("予測分析機能は利用できません。")
-    FORECAST_AVAILABLE = False
-
-# KPI計算機能
-try:
     from kpi_calculator import calculate_kpis
-except ImportError as e:
-    logger.error(f"kpi_calculator インポートエラー: {e}")
-    calculate_kpis = None
-
-# ダッシュボード概要タブ
-try:
     from dashboard_overview_tab import display_kpi_cards_only
-except ImportError as e:
-    logger.error(f"dashboard_overview_tab インポートエラー: {e}")
-    display_kpi_cards_only = lambda *args, **kwargs: st.error("経営ダッシュボードKPI表示機能は利用できません。")
-
-# 統合フィルター機能
-try:
     from unified_filters import (create_unified_filter_sidebar, apply_unified_filters,
                                  get_unified_filter_summary, initialize_unified_filters,
                                  get_unified_filter_config, validate_unified_filters)
+    from alos_analysis_tab import display_alos_analysis_tab
+    from dow_analysis_tab import display_dow_analysis_tab
+    from individual_analysis_tab import display_individual_analysis_tab
+    from analysis_tabs import create_individual_analysis_section
+
+    FORECAST_AVAILABLE = True
 except ImportError as e:
-    logger.error(f"unified_filters インポートエラー: {e}")
+    problematic_imports = e
+    st.error(f"必要なモジュールのインポートに失敗しました: {e}")
+    st.error(traceback.format_exc())
+    FORECAST_AVAILABLE = False
+    create_data_tables_tab = lambda: st.error("データテーブル機能は利用できません。")
+    create_data_processing_tab = lambda: st.error("データ処理機能は利用できません。")
+    pdf_output_tab = type('pdf_output_tab_mock', (object,), {'create_pdf_output_tab': lambda: st.error("PDF出力機能は利用できません。")})()
+    display_forecast_analysis_tab = lambda: st.error("予測分析機能は利用できません。")
+    calculate_kpis = None
+    display_kpi_cards_only = lambda df, start_date, end_date, total_beds_setting, target_occupancy_setting: st.error("経営ダッシュボードKPI表示機能は利用できません。")
     create_unified_filter_sidebar = lambda df: None
     apply_unified_filters = lambda df: df
     get_unified_filter_summary = lambda: "フィルター情報取得不可"
     initialize_unified_filters = lambda df: None
     get_unified_filter_config = lambda: {}
     validate_unified_filters = lambda df: (False, "フィルター検証機能利用不可")
-
-# 平均在院日数分析タブ
-try:
-    from alos_analysis_tab import display_alos_analysis_tab
-except ImportError as e:
-    logger.error(f"alos_analysis_tab インポートエラー: {e}")
     display_alos_analysis_tab = lambda df_filtered_by_period, start_date_ts, end_date_ts, common_config=None: st.error("平均在院日数分析機能は利用できません。")
-
-# 曜日別入退院分析タブ
-try:
-    from dow_analysis_tab import display_dow_analysis_tab
-except ImportError as e:
-    logger.error(f"dow_analysis_tab インポートエラー: {e}")
     display_dow_analysis_tab = lambda df, start_date, end_date, common_config=None: st.error("曜日別入退院分析機能は利用できません。")
-
-# 個別分析タブ
-try:
-    from individual_analysis_tab import display_individual_analysis_tab
-except ImportError as e:
-    logger.error(f"individual_analysis_tab インポートエラー: {e}")
     display_individual_analysis_tab = lambda df_filtered_main: st.error("個別分析機能は利用できません。")
+    create_individual_analysis_section = lambda df_filtered, filter_config_from_caller: st.error("個別分析セクション機能は利用できません。")
 
-# 診療科別パフォーマンスタブ
 try:
     from department_performance_tab import create_department_performance_tab
     DEPT_PERFORMANCE_AVAILABLE = True
 except ImportError as e:
-    logger.error(f"department_performance_tab インポートエラー: {e}")
+    st.error(f"診療科別パフォーマンスタブのインポートに失敗しました: {e}")
     DEPT_PERFORMANCE_AVAILABLE = False
     create_department_performance_tab = lambda: st.error("診療科別パフォーマンス機能は利用できません。")
 
-# 病棟別パフォーマンスタブ
 try:
     from ward_performance_tab import create_ward_performance_tab
     WARD_PERFORMANCE_AVAILABLE = True
 except ImportError as e:
-    logger.error(f"ward_performance_tab インポートエラー: {e}")
+    st.error(f"病棟別パフォーマンスタブのインポートに失敗しました: {e}")
     WARD_PERFORMANCE_AVAILABLE = False
     create_ward_performance_tab = lambda: st.error("病棟別パフォーマンス機能は利用できません。")
 
@@ -738,16 +686,6 @@ def create_sidebar():
     try:
         from github_publisher import create_github_publisher_interface
         create_github_publisher_interface() # この呼び出し一本に絞る
-        
-        # === ハイスコア機能の状況をログ出力（デバッグ用） ===
-        try:
-            from html_export_functions import calculate_all_high_scores
-            logger.info("✅ ハイスコア機能: インポート成功")
-        except ImportError:
-            logger.info("⚠️ ハイスコア機能: まだ実装されていません")
-        except Exception as e:
-            logger.error(f"⚠️ ハイスコア機能: エラー - {e}")
-            
     except ImportError as e:
         st.sidebar.markdown("---")
         st.sidebar.header("🌐 統合ダッシュボード公開")
@@ -758,8 +696,6 @@ def create_sidebar():
         st.sidebar.markdown("---")
         st.sidebar.header("🌐 統合ダッシュボード公開")
         st.sidebar.error(f"自動公開機能で予期せぬエラー: {str(e)}")
-        # ハイスコア機能の実装状況も表示
-        st.sidebar.caption("🏆 ハイスコア機能は準備中です")
         logger.error(f"GitHub Publisher Unexpected Error: {e}", exc_info=True)
     
     return True
@@ -803,30 +739,11 @@ def create_management_dashboard_tab():
     # KPIカード表示（メイン）
     # ===========================================
     if display_kpi_cards_only:
-        try:
-            # show_debugパラメータをサポートしているかチェック
-            import inspect
-            sig = inspect.signature(display_kpi_cards_only)
-            if 'show_debug' in sig.parameters:
-                display_kpi_cards_only(
-                    df_for_dashboard, start_date_ts, end_date_ts, 
-                    total_beds, target_occupancy_rate_percent,
-                    show_debug=debug_mode
-                )
-            else:
-                display_kpi_cards_only(
-                    df_for_dashboard, start_date_ts, end_date_ts, 
-                    total_beds, target_occupancy_rate_percent
-                )
-        except Exception as e:
-            st.error(f"KPIカード表示でエラーが発生しました: {str(e)}")
-            if debug_mode:
-                st.text(f"エラー詳細: {str(e)}")
-                try:
-                    sig = inspect.signature(display_kpi_cards_only)
-                    st.text(f"利用可能なパラメータ: {list(sig.parameters.keys())}")
-                except:
-                    st.text("パラメータ情報を取得できません")
+        display_kpi_cards_only(
+            df_for_dashboard, start_date_ts, end_date_ts, 
+            total_beds, target_occupancy_rate_percent,
+            show_debug=debug_mode  # デバッグモードの制御
+        )
     else:
         st.error("KPIカード表示機能が利用できません。dashboard_overview_tab.pyを確認してください。")
     
@@ -1005,14 +922,9 @@ def main():
             output_sub_tab1, output_sub_tab2 = st.tabs(["📋 データテーブル", "📄 PDF出力"])
             with output_sub_tab1:
                 try: 
-                    if callable(create_data_tables_tab):
-                        create_data_tables_tab()
-                    else:
-                        st.error("データテーブル機能は利用できません。")
+                    create_data_tables_tab()
                 except Exception as e: 
-                    st.error(f"データテーブル表示でエラー: {str(e)}")
-                    if debug_mode:  # デバッグモードの場合のみ詳細表示
-                        st.text(traceback.format_exc())
+                    st.error(f"データテーブル表示でエラー: {str(e)}\n{traceback.format_exc()}")
             with output_sub_tab2:
                 try: 
                     pdf_output_tab.create_pdf_output_tab()

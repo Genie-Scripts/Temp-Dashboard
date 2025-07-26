@@ -1,3 +1,5 @@
+# ward_performance_tab.py - 病棟別パフォーマンスダッシュボード（努力度表示版・トレンド分析・目標差順対応）
+
 import streamlit as st
 import pandas as pd
 import logging
@@ -5,24 +7,35 @@ from datetime import datetime
 import calendar
 from config import EXCLUDED_WARDS
 
+# 必要なモジュールのインポート
 logger = logging.getLogger(__name__)
 
 try:
-    from utils import (
-    safe_date_filter, get_ward_display_name, create_ward_name_mapping,
-    get_period_dates, calculate_ward_kpis, decide_action_and_reasoning,
-    evaluate_feasibility, calculate_effect_simulation, calculate_los_appropriate_range,
-    get_hospital_targets
-    )
+    from utils import safe_date_filter, get_ward_display_name, create_ward_name_mapping
     from unified_filters import get_unified_filter_config
+    from html_export_functions import (
+        generate_metrics_html, generate_action_html, 
+        generate_combined_html_with_tabs, validate_export_data, 
+        get_export_filename
+    )
     from unified_html_export import generate_unified_html_export
-    
-    # アクション提案ダッシュボードの表示関数
-    from enhanced_streamlit_display import display_enhanced_action_dashboard
-
 except ImportError as e:
     st.error(f"必要なモジュールのインポートに失敗しました: {e}")
     st.stop()
+
+def get_hospital_targets(target_data):
+    """病院全体の平日目標値を取得"""
+    targets = {'daily_census': 580, 'daily_admissions': 80}
+    if target_data is None or target_data.empty: 
+        return targets
+    try:
+        hospital_data = target_data[(target_data['部門コード'] == '全体') & (target_data['期間区分'] == '平日')]
+        for _, row in hospital_data.iterrows():
+            if str(row.get('指標タイプ', '')).strip() == '日平均在院患者数' and row.get('目標値'):
+                targets['daily_census'] = row['目標値']
+    except Exception as e:
+        logger.error(f"病院全体目標値取得エラー: {e}")
+    return targets
 
 def calculate_los_appropriate_range(item_df, start_date, end_date):
     """統計的アプローチで在院日数適正範囲を計算 (診療科/病棟 兼用)"""
@@ -96,6 +109,216 @@ def calculate_effect_simulation(kpi_data):
         logger.error(f"効果シミュレーション計算エラー: {e}")
         return None
 
+def decide_action_and_reasoning(kpi_data, feasibility, simulation):
+    """アクション判断とその根拠 (診療科/病棟 兼用)"""
+    census_achievement = kpi_data.get('daily_census_achievement', 100)
+    if census_achievement >= 95: 
+        return {"action": "現状維持", "reasoning": "目標をほぼ達成しており、良好な状況を継続", "priority": "low", "color": "#7fb069"}
+    if census_achievement < 85: 
+        return {"action": "両方検討", "reasoning": "大幅な不足のため、新入院増加と在院日数適正化の両面からアプローチが必要", "priority": "urgent", "color": "#e08283"}
+    admission_score, los_score = sum(feasibility["admission"].values()), sum(feasibility["los"].values())
+    if admission_score >= 1 and los_score >= 1 and simulation and abs(simulation["admission_plan"]["increase"]) <= abs(simulation["los_plan"]["increase"]):
+        return {"action": "新入院重視", "reasoning": "病床余裕があり、新入院増加がより実現可能", "priority": "medium", "color": "#f5d76e"}
+    if admission_score >= 1: 
+        return {"action": "新入院重視", "reasoning": "病床に余裕があり、新入院増加が効果的", "priority": "medium", "color": "#f5d76e"}
+    if los_score >= 1: 
+        return {"action": "在院日数調整", "reasoning": "在院日数に調整余地があり効果的", "priority": "medium", "color": "#f5d76e"}
+    return {"action": "経過観察", "reasoning": "現状では大きな変更は困難、トレンド注視が必要", "priority": "low", "color": "#b3b9b3"}
+
+def get_period_dates(df, period_type):
+    """期間タイプに基づいて開始日と終了日を計算"""
+    if df is None or df.empty or '日付' not in df.columns:
+        return None, None, "データなし"
+    
+    max_date = df['日付'].max()
+    min_date = df['日付'].min()
+    
+    if period_type == "直近4週間":
+        start_date = max_date - pd.Timedelta(days=27)
+        desc = f"直近4週間 ({start_date.strftime('%m/%d')}～{max_date.strftime('%m/%d')})"
+    elif period_type == "直近8週":
+        start_date = max_date - pd.Timedelta(days=55)
+        desc = f"直近8週間 ({start_date.strftime('%m/%d')}～{max_date.strftime('%m/%d')})"
+    elif period_type == "直近12週":
+        start_date = max_date - pd.Timedelta(days=83)
+        desc = f"直近12週間 ({start_date.strftime('%m/%d')}～{max_date.strftime('%m/%d')})"
+    elif period_type == "今年度":
+        year = max_date.year if max_date.month >= 4 else max_date.year - 1
+        start_date = pd.Timestamp(year=year, month=4, day=1)
+        end_of_fiscal = pd.Timestamp(year=year+1, month=3, day=31)
+        end_date = min(end_of_fiscal, max_date)
+        desc = f"今年度 ({start_date.strftime('%Y/%m/%d')}～{end_date.strftime('%m/%d')})"
+        return max(start_date, min_date), end_date, desc
+    elif period_type == "先月":
+        if max_date.month == 1:
+            year = max_date.year - 1
+            month = 12
+        else:
+            year = max_date.year
+            month = max_date.month - 1
+        start_date = pd.Timestamp(year=year, month=month, day=1)
+        last_day = calendar.monthrange(year, month)[1]
+        end_date = pd.Timestamp(year=year, month=month, day=last_day)
+        if end_date > max_date:
+            end_date = max_date
+        if start_date < min_date:
+            start_date = min_date
+        desc = f"{year}年{month}月 ({start_date.strftime('%m/%d')}～{end_date.strftime('%m/%d')})"
+        return start_date, end_date, desc
+    elif period_type == "昨年度":
+        current_year = max_date.year if max_date.month >= 4 else max_date.year - 1
+        prev_year = current_year - 1
+        start_date = pd.Timestamp(year=prev_year, month=4, day=1)
+        end_date = pd.Timestamp(year=current_year, month=3, day=31)
+        if end_date > max_date:
+            end_date = max_date
+        if start_date < min_date:
+            start_date = min_date
+        desc = f"{prev_year}年度 ({start_date.strftime('%Y/%m/%d')}～{end_date.strftime('%Y/%m/%d')})"
+        return start_date, end_date, desc
+    else:
+        start_date = max_date - pd.Timedelta(days=27)
+        desc = f"直近4週間 ({start_date.strftime('%m/%d')}～{max_date.strftime('%m/%d')})"
+    
+    start_date = max(start_date, min_date)
+    return start_date, max_date, desc
+
+def get_target_values_for_ward(target_data, ward_code, ward_name=None):
+    """病棟コードまたは病棟名で目標値を取得"""
+    targets = {
+        'daily_census_target': None,
+        'weekly_admissions_target': None,
+        'avg_los_target': None,
+        'bed_count': None,  # 病棟の病床数
+        'display_name': ward_code  # デフォルトは病棟コード
+    }
+    
+    if target_data is None or target_data.empty:
+        return targets
+    
+    try:
+        # まず病棟コードで検索（部門種別が「病棟」のレコードのみ）
+        if '部門種別' in target_data.columns:
+            ward_targets = target_data[
+                (target_data['部門コード'] == ward_code) & 
+                (target_data['部門種別'] == '病棟')
+            ]
+        else:
+            ward_targets = target_data[target_data['部門コード'] == ward_code]
+        
+        # 病棟コードで見つからない場合、部門名でも検索
+        if ward_targets.empty and '部門名' in target_data.columns:
+            if '部門種別' in target_data.columns:
+                ward_targets = target_data[
+                    ((target_data['部門名'] == ward_code) | 
+                     (target_data['部門名'] == ward_name) |
+                     (target_data['部門名'].str.contains(ward_code, na=False)) |
+                     (target_data['部門名'].str.contains(ward_name, na=False) if ward_name else False)) &
+                    (target_data['部門種別'] == '病棟')
+                ]
+            else:
+                ward_targets = target_data[
+                    (target_data['部門名'] == ward_code) | 
+                    (target_data['部門名'] == ward_name) |
+                    (target_data['部門名'].str.contains(ward_code, na=False)) |
+                    (target_data['部門名'].str.contains(ward_name, na=False) if ward_name else False)
+                ]
+        
+        if not ward_targets.empty:
+            # 目標値ファイルの部門名を表示名として使用
+            if '部門名' in ward_targets.columns:
+                display_name = ward_targets.iloc[0]['部門名']
+                targets['display_name'] = display_name
+            
+            # 病床数の取得（もしあれば）
+            if '病床数' in ward_targets.columns:
+                bed_count = ward_targets.iloc[0]['病床数']
+                if pd.notna(bed_count):
+                    targets['bed_count'] = int(bed_count)
+            
+            for _, row in ward_targets.iterrows():
+                indicator_type = str(row.get('指標タイプ', '')).strip()
+                target_value = row.get('目標値', None)
+                
+                if indicator_type == '日平均在院患者数':
+                    targets['daily_census_target'] = target_value
+                elif indicator_type == '週間新入院患者数':
+                    targets['weekly_admissions_target'] = target_value
+                elif indicator_type == '平均在院日数':
+                    targets['avg_los_target'] = target_value
+        else:
+            logger.warning(f"病棟の目標値が見つかりません - 病棟コード: {ward_code}")
+            
+    except Exception as e:
+        logger.error(f"病棟目標値取得エラー ({ward_code}): {e}")
+    
+    return targets
+
+def calculate_ward_kpis(df, target_data, ward_code, ward_name, start_date, end_date, ward_col):
+    """病棟別KPI計算"""
+    try:
+        # 病棟でフィルタリング
+        ward_df = df[df[ward_col] == ward_code]
+        period_df = safe_date_filter(ward_df, start_date, end_date)
+        
+        if period_df.empty:
+            return None
+        
+        total_days = (end_date - start_date).days + 1
+        total_patient_days = period_df['在院患者数'].sum() if '在院患者数' in period_df.columns else 0
+        total_admissions = period_df['新入院患者数'].sum() if '新入院患者数' in period_df.columns else 0
+        total_discharges = period_df['退院患者数'].sum() if '退院患者数' in period_df.columns else 0
+        
+        daily_avg_census = total_patient_days / total_days if total_days > 0 else 0
+        
+        # 直近週の計算
+        recent_week_end = end_date
+        recent_week_start = end_date - pd.Timedelta(days=6)
+        recent_week_df = safe_date_filter(ward_df, recent_week_start, recent_week_end)
+        recent_week_patient_days = recent_week_df['在院患者数'].sum() if '在院患者数' in recent_week_df.columns and not recent_week_df.empty else 0
+        recent_week_admissions = recent_week_df['新入院患者数'].sum() if '新入院患者数' in recent_week_df.columns and not recent_week_df.empty else 0
+        recent_week_discharges = recent_week_df['退院患者数'].sum() if '退院患者数' in recent_week_df.columns and not recent_week_df.empty else 0
+        recent_week_daily_census = recent_week_patient_days / 7 if recent_week_patient_days > 0 else 0
+        
+        avg_length_of_stay = total_patient_days / total_discharges if total_discharges > 0 else 0
+        recent_week_avg_los = recent_week_patient_days / recent_week_discharges if recent_week_discharges > 0 else 0
+        
+        weekly_avg_admissions = (total_admissions / total_days) * 7 if total_days > 0 else 0
+        
+        # 目標値の取得
+        targets = get_target_values_for_ward(target_data, ward_code, ward_name)
+        
+        # 達成率の計算
+        daily_census_achievement = (daily_avg_census / targets['daily_census_target'] * 100) if targets['daily_census_target'] else 0
+        weekly_admissions_achievement = (weekly_avg_admissions / targets['weekly_admissions_target'] * 100) if targets['weekly_admissions_target'] else 0
+        los_achievement = (targets['avg_los_target'] / avg_length_of_stay * 100) if targets['avg_los_target'] and avg_length_of_stay else 0
+        
+        # 病床稼働率の計算（病床数がある場合）
+        bed_occupancy_rate = None
+        if targets['bed_count'] and targets['bed_count'] > 0:
+            bed_occupancy_rate = (daily_avg_census / targets['bed_count']) * 100
+        
+        return {
+            'ward_code': ward_code,
+            'ward_name': targets['display_name'],  # 表示名を使用
+            'daily_avg_census': daily_avg_census,
+            'recent_week_daily_census': recent_week_daily_census,
+            'daily_census_target': targets['daily_census_target'],
+            'daily_census_achievement': daily_census_achievement,
+            'weekly_avg_admissions': weekly_avg_admissions,
+            'recent_week_admissions': recent_week_admissions,
+            'weekly_admissions_target': targets['weekly_admissions_target'],
+            'weekly_admissions_achievement': weekly_admissions_achievement,
+            'avg_length_of_stay': avg_length_of_stay,
+            'recent_week_avg_los': recent_week_avg_los,
+            'avg_los_target': targets['avg_los_target'],
+            'avg_los_achievement': los_achievement,
+            'bed_count': targets['bed_count'],
+            'bed_occupancy_rate': bed_occupancy_rate
+        }
+    except Exception as e:
+        logger.error(f"病棟KPI計算エラー ({ward_code}): {e}", exc_info=True)
+        return None
 
 def get_color(val):
     """達成率に応じた色を取得"""
@@ -112,16 +335,8 @@ def render_metric_card(label, period_avg, recent, target, achievement, unit, car
     ach_label = "達成率:"
     target_color = "#b3b9b3" if not target or target == '--' else "#7b8a7a"
     
-    bed_info_html = ""
-    if bed_info and bed_info.get('bed_count'):
-        occupancy_str = f"{bed_info['occupancy_rate']:.1f}%" if bed_info.get('occupancy_rate') is not None else "--"
-        bed_info_html = f"""
-        <div style="margin-top:4px; padding-top:4px; border-top:1px solid #e0e0e0;">
-            <div style="display:flex; justify-content:space-between; font-size:0.9em;"><span style="color:#999;">病床数:</span><span>{bed_info['bed_count']}床</span></div>
-            <div style="display:flex; justify-content:space-between; font-size:0.9em;"><span style="color:#999;">稼働率:</span><span style="font-weight:600;">{occupancy_str}</span></div>
-        </div>"""
-    
-    return f"""
+    # 基本のHTML
+    html = f"""
     <div style="background: {card_color}0E; border-radius: 11px; border-left: 6px solid {card_color}; margin-bottom: 12px; padding: 12px 16px 7px 16px;">
         <div style="font-size:1.13em; font-weight:700; margin-bottom:7px; color:#293a27;">{label}</div>
         <div style="display:flex; flex-direction:column; gap:2px;">
@@ -132,9 +347,21 @@ def render_metric_card(label, period_avg, recent, target, achievement, unit, car
         <div style="margin-top:7px; display:flex; justify-content:space-between; align-items:center;">
           <div style="font-weight:700; font-size:1.03em; color:{card_color};">{ach_label}</div>
           <div style="font-weight:700; font-size:1.20em; color:{card_color};">{ach_str}</div>
-        </div>
-        {bed_info_html}
-    </div>"""
+        </div>"""
+    
+    # 病床情報を追加（存在する場合）- 修正版
+    if bed_info and bed_info.get('bed_count'):
+        occupancy_str = f"{bed_info['occupancy_rate']:.1f}%" if bed_info.get('occupancy_rate') is not None else "--"
+        html += f"""
+        <hr style="margin:8px 0; border:0; border-top:1px solid #e0e0e0;">
+        <div style="font-size:0.9em;">
+            <div style="color:#999; margin-bottom:2px;">病床数: <strong style="color:#333;">{bed_info['bed_count']}床</strong></div>
+            <div style="color:#999;">稼働率: <strong style="color:#333;">{occupancy_str}</strong></div>
+        </div>"""
+    
+    html += "\n    </div>"
+    
+    return html
 
 def render_los_trend_card(label, period_avg, recent, unit, item_df, start_date, end_date):
     """在院日数トレンド分析カードのHTML生成（病棟版）"""
@@ -928,8 +1155,173 @@ def display_simple_ward_action_dashboard(df_original, target_data, selected_peri
         st.error(f"病棟簡易アクション表示中にエラーが発生しました: {str(e)}")
         return None, None, None, None
 
+def display_html_export_section(selected_tab, results_data, selected_period):
+    """病棟用HTMLエクスポートセクションの表示（努力度表示版）"""
+    try:
+        st.markdown("---")
+        st.subheader("📥 HTMLファイルとしてダウンロード（努力度表示版）")
+
+        if not results_data or results_data[0] is None:
+            st.warning("エクスポート対象のデータがありません。")
+            return
+
+        df_original = st.session_state['df']
+        target_data = st.session_state.get('target_data', pd.DataFrame())
+        start_date, end_date, period_desc = get_period_dates(df_original, selected_period)
+
+        col1, col2, col3 = st.columns([1, 1, 1])
+        
+        with col1:
+            button_label = f"📥 {selected_tab} HTML"
+            export_type = "action" if selected_tab == "アクション提案" else "metrics"
+            
+            if st.button(button_label, key=f"download_ward_current_{export_type}", use_container_width=True):
+                with st.spinner(f"{selected_tab}のHTMLを生成中..."):
+                    html_content = None
+                    if export_type == "action":
+                        action_results, _, _, _ = results_data
+                        is_valid, msg = validate_export_data(action_results, "action")
+                        if is_valid:
+                            hospital_targets = get_hospital_targets(target_data)
+                            # 病棟版の努力度表示HTMLを生成
+                            html_content = generate_unified_html_export(
+                                action_results, period_desc, hospital_targets, "ward"
+                            )
+                        else: 
+                            st.error(f"データ検証エラー: {msg}")
+                    else: # metrics
+                        kpi_data, _, _, _ = results_data
+                        is_valid, msg = validate_export_data(kpi_data, "metrics")
+                        if is_valid:
+                            html_content = generate_metrics_html(kpi_data, period_desc, selected_tab, "ward")
+                        else: 
+                            st.error(f"データ検証エラー: {msg}")
+                    
+                    if html_content:
+                        filename = get_export_filename("ward", export_type, period_desc)
+                        st.session_state[f'dl_ward_{export_type}_html'] = html_content
+                        st.session_state[f'dl_ward_{export_type}_name'] = filename
+
+            if f'dl_ward_{export_type}_html' in st.session_state:
+                 st.download_button(
+                    label="✔️ ダウンロード実行",
+                    data=st.session_state[f'dl_ward_{export_type}_html'].encode("utf-8"),
+                    file_name=st.session_state[f'dl_ward_{export_type}_name'],
+                    mime="text/html",
+                    key=f"download_ward_{export_type}_exec",
+                    use_container_width=True
+                )
+
+        with col2:
+            if st.button("📥 全タブ統合 HTML", key="download_ward_combined", use_container_width=True):
+                with st.spinner("統合HTMLを生成中..."):
+                    metrics_data_dict = {}
+                    action_data_for_export = {}
+                    
+                    date_filtered_df = safe_date_filter(df_original, start_date, end_date)
+                    possible_cols = ['病棟コード', '病棟名', '病棟']
+                    ward_col = next((c for c in possible_cols if c in date_filtered_df.columns), None)
+                    
+                    if ward_col and not date_filtered_df.empty:
+                        unique_wards = [w for w in date_filtered_df[ward_col].unique() if w not in EXCLUDED_WARDS]
+                        
+                        metric_names = ["日平均在院患者数", "週合計新入院患者数", "平均在院日数（トレンド分析）"]
+                        for metric in metric_names:
+                            if metric == "平均在院日数（トレンド分析）":
+                                # トレンド分析は統合HTMLでは通常の平均在院日数として扱う
+                                continue
+                            kpis = [kpi for ward_code in unique_wards if (kpi := calculate_ward_kpis(date_filtered_df, target_data, ward_code, get_ward_display_name(ward_code), start_date, end_date, ward_col))]
+                            metrics_data_dict[metric] = kpis
+                        
+                        action_results = []
+                        for ward_code in unique_wards:
+                            kpi = calculate_ward_kpis(date_filtered_df, target_data, ward_code, get_ward_display_name(ward_code), start_date, end_date, ward_col)
+                            if kpi:
+                                ward_df_filtered = date_filtered_df[date_filtered_df[ward_col] == ward_code]
+                                feasibility = evaluate_feasibility(kpi, ward_df_filtered, start_date, end_date)
+                                simulation = calculate_effect_simulation(kpi)
+                                action_result = decide_action_and_reasoning(kpi, feasibility, simulation)
+                                action_results.append({'kpi': kpi, 'action_result': action_result, 'feasibility': feasibility, 'simulation': simulation})
+                        
+                        hospital_targets = get_hospital_targets(target_data)
+                        action_data_for_export = {'action_results': action_results, 'hospital_targets': hospital_targets}
+
+                    if metrics_data_dict and action_data_for_export:
+                        html_content = generate_combined_html_with_tabs(metrics_data_dict, action_data_for_export, period_desc, "ward")
+                        if html_content:
+                            filename = get_export_filename("ward", "combined", period_desc)
+                            st.session_state['dl_ward_combined_html'] = html_content
+                            st.session_state['dl_ward_combined_name'] = filename
+                        else: 
+                            st.error("統合HTMLの生成に失敗しました。")
+                    else: 
+                        st.error("統合HTMLの生成に必要なデータが不足しています。")
+
+            if 'dl_ward_combined_html' in st.session_state:
+                st.download_button(
+                    label="✔️ 統合版ダウンロード",
+                    data=st.session_state['dl_ward_combined_html'].encode("utf-8"),
+                    file_name=st.session_state['dl_ward_combined_name'],
+                    mime="text/html",
+                    key="download_ward_combined_exec",
+                    use_container_width=True
+                )
+
+        with col3:
+            if st.button("🌐 Web最適化版", key="download_ward_web_optimized", use_container_width=True):
+                with st.spinner("Web最適化版HTMLを生成中..."):
+                    action_results = results_data[0] if results_data else []
+                    if action_results:
+                        hospital_targets = get_hospital_targets(target_data)
+                        # 病棟版Web最適化HTML
+                        html_content = generate_unified_html_export(
+                            action_results, period_desc, hospital_targets, "ward"
+                        )
+                        
+                        if html_content:
+                            filename = f"web_ward_effort_{period_desc.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.html"
+                            st.session_state['dl_ward_web_html'] = html_content
+                            st.session_state['dl_ward_web_name'] = filename
+
+            if 'dl_ward_web_html' in st.session_state:
+                st.download_button(
+                    label="✔️ Web版ダウンロード",
+                    data=st.session_state['dl_ward_web_html'].encode("utf-8"),
+                    file_name=st.session_state['dl_ward_web_name'],
+                    mime="text/html",
+                    key="download_ward_web_exec",
+                    use_container_width=True
+                )
+        
+        with st.expander("📖 病棟向け努力度表示HTMLについて"):
+            st.markdown("""
+            **病棟版努力度表示の特徴:**
+            
+            - ✨**目標突破中**: 目標達成 + さらに改善中
+            - 🎯**達成継続**: 目標達成を継続中  
+            - 💪**追い上げ中**: 目標まであと少し + 改善中
+            - 📈**要努力**: 目標まであと少し + さらなる努力を
+            - 🚨**要改善**: 積極的な取り組みが必要
+            
+            **病棟特有の情報:**
+            
+            - 病床数と稼働率の表示
+            - 病棟別具体的アクション
+            - 多職種連携の視点
+            
+            **週報での活用:**
+            
+            - 各病棟の頑張り具合が一目で分かる
+            - 病棟スタッフのモチベーション向上
+            - 病棟間での健全な競争促進
+            """)
+    
+    except Exception as e:
+        logger.error(f"病棟用HTMLエクスポートセクション表示エラー: {e}", exc_info=True)
+        st.error(f"HTMLエクスポート機能でエラーが発生しました: {str(e)}")
+
 def create_ward_performance_tab():
-    """病棟別パフォーマンスダッシュボードのメイン関数（最終修正版）"""
+    """病棟別パフォーマンスダッシュボードのメイン関数（トレンド分析・目標差順対応版）"""
     st.header("🏨 病棟別パフォーマンスダッシュボード")
 
     if not st.session_state.get('data_processed', False):
@@ -943,25 +1335,28 @@ def create_ward_performance_tab():
         create_ward_name_mapping(df_original, target_data)
 
     st.markdown("##### 表示指標の選択")
+    # ★★★ 平均在院日数をトレンド分析に変更 ★★★
     tab_options = ["日平均在院患者数", "週合計新入院患者数", "平均在院日数（トレンド分析）", "アクション提案"]
     
+    # セッション状態の初期化
     if 'selected_ward_tab_name' not in st.session_state:
         st.session_state.selected_ward_tab_name = tab_options[0]
 
+    # ボタンを横並びに配置し、選択中のタブをハイライト
     cols = st.columns(4)
     for i, option in enumerate(tab_options):
         button_type = "primary" if st.session_state.selected_ward_tab_name == option else "secondary"
         if cols[i].button(option, key=f"ward_tab_{i}", use_container_width=True, type=button_type):
             st.session_state.selected_ward_tab_name = option
-            st.rerun()
+            st.rerun() # ボタンクリックで即時再描画
             
-    st.info(f"現在の表示: **{st.session_state.selected_ward_tab_name}**")
+    st.info(f"現在の表示: **{st.session_state.selected_ward_tab_name}** | 努力度表示機能有効")
     st.markdown("---")
 
     period_options = ["直近4週間", "直近8週", "直近12週", "今年度", "先月", "昨年度"]
     selected_period = st.selectbox("📅 集計期間", period_options, index=0, key="ward_performance_period")
 
-    # --- 選択されたタブに応じた表示ロジック（修正版） ---
+    # --- 選択されたタブに応じた表示ロジック ---
     results_data = None
     try:
         selected_tab = st.session_state.selected_ward_tab_name
@@ -971,7 +1366,9 @@ def create_ward_performance_tab():
         else:
             results_data = display_metrics_dashboard(selected_tab, df_original, target_data, selected_period)
         
-        if results_data is None or results_data[0] is None:
+        if results_data and results_data[0] is not None:
+            display_html_export_section(selected_tab, results_data, selected_period)
+        elif selected_tab:
             st.warning("選択された条件のデータが存在しないか、KPI計算に失敗しました。")
             
     except Exception as e:

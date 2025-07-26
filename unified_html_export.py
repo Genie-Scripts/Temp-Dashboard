@@ -1,5 +1,4 @@
-# unified_html_export.py - 努力度表示版（病院貢献度→目標達成努力度に変更）
-
+# -*- coding: utf-8 -*-
 import json
 
 def get_effort_status_from_kpi(kpi):
@@ -75,129 +74,41 @@ def calculate_improvement_speed(kpi):
     else:
         return {"speed_icon": "⬇️", "speed_text": "要注意", "color": "#F44336", "rate": f"{improvement_rate:.1f}%/週"}
 
-def _generate_variance_warning(actual_census, theoretical_census):
-    """理論値と実績値の乖離警告を生成"""
-    if theoretical_census <= 0:
-        return ""
-    
-    variance = actual_census - theoretical_census
-    variance_percentage = abs(variance / theoretical_census * 100)
-    
-    if variance_percentage <= 20:
-        # 乖離が小さい場合は警告なし
-        return ""
-    elif variance_percentage <= 50:
-        # 中程度の乖離
-        warning_color = "#fff3cd"
-        border_color = "#ffeaa7"
-        icon = "⚠️"
-        title = "データ整合性の注意"
-        message = f"理論値と実績の乖離が{variance_percentage:.1f}%あります。効果予測は参考値としてご活用ください。"
-    else:
-        # 大きな乖離
-        warning_color = "#f8d7da"
-        border_color = "#f5c6cb"
-        icon = "📊"
-        title = "理論値と実績の大きな乖離を検出"
-        message = f"理論値と実績の乖離が{variance_percentage:.1f}%と大きくなっています。"
-    
-    # 乖離の理由説明
-    reasons = [
-        "長期入院患者の滞留",
-        "他科からの転科患者",
-        "期間開始時点での既存患者",
-        "季節的な入院患者数の変動",
-        "退院調整中の患者"
-    ]
-    
-    reasons_text = "、".join(reasons)
-    
-    return f"""
-        <div style="background: {warning_color}; border: 1px solid {border_color}; border-radius: 5px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-weight: bold; margin-bottom: 8px;">
-                {icon} {title}
-            </div>
-            <div style="font-size: 0.9em; margin-bottom: 8px;">
-                {message}
-            </div>
-            <div style="font-size: 0.85em; color: #666; line-height: 1.4;">
-                <strong>考えられる要因：</strong><br>
-                {reasons_text}など<br><br>
-                <strong>→ 効果予測は実用的計算として参考にご活用ください</strong>
-            </div>
-        </div>
-    """
-
 def generate_simple_effect_simulation(kpi):
-    """リトルの法則に基づく効果シミュレーション"""
+    """シンプルな効果シミュレーション（理論説明なし）"""
     try:
         # 現在の値を取得
         weekly_admissions = kpi.get('weekly_avg_admissions', 0)
-        daily_admissions = weekly_admissions / 7  # λ（日平均新入院率）
-        current_los = kpi.get('avg_length_of_stay', 0)  # W（平均在院日数）
-        current_census = kpi.get('daily_avg_census', 0)  # L（現在の在院患者数）
-        
-        # リトルの法則で現在の状況を確認
-        theoretical_census = daily_admissions * current_los
+        daily_admissions = weekly_admissions / 7
+        current_los = kpi.get('avg_length_of_stay', 0)
+        current_census = kpi.get('daily_avg_census', 0)
         
         # シナリオ1：新入院を週に1人増やした場合
-        # λ_new = λ + 1/7, W_new = W
         new_daily_admissions_1 = daily_admissions + 1/7
         new_census_1 = new_daily_admissions_1 * current_los
+        theoretical_census = daily_admissions * current_los
         admission_effect = new_census_1 - theoretical_census
         
         # シナリオ2：平均在院日数を1日延ばした場合  
-        # λ_new = λ, W_new = W + 1
         new_los_2 = current_los + 1
         new_census_2 = daily_admissions * new_los_2
         los_effect = new_census_2 - theoretical_census
         
         return f"""
             <div class="simple-simulation">
-                <div class="simulation-header" style="background: #f0f8ff; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>📊 リトルの法則による効果予測</strong><br>
-                    <span style="font-size: 0.9em; color: #666;">在院患者数 = 新入院率 × 平均在院日数</span>
-                </div>
-                
-                <div class="current-status" style="background: #f9f9f9; padding: 8px; border-radius: 5px; margin-bottom: 12px;">
-                    <strong>現在の状況：</strong><br>
-                    新入院率: {daily_admissions:.2f}人/日 × 平均在院日数: {current_los:.1f}日 = 理論値: {theoretical_census:.1f}人<br>
-                    <span style="font-size: 0.85em; color: #666;">実績: {current_census:.1f}人 (差異: {current_census - theoretical_census:+.1f}人)</span>
-                </div>
-                
-                {_generate_variance_warning(current_census, theoretical_census)}
-                
                 <div class="simulation-item">
                     <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
-                    新入院率: {new_daily_admissions_1:.3f}人/日 × 平均在院日数: {current_los:.1f}日<br>
                     → 日平均在院患者数 <strong>+{admission_effect:.1f}人</strong>
                 </div>
                 
                 <div class="simulation-item" style="margin-top: 10px;">
                     <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
-                    新入院率: {daily_admissions:.2f}人/日 × 平均在院日数: {new_los_2:.1f}日<br>
                     → 日平均在院患者数 <strong>+{los_effect:.1f}人</strong>
-                </div>
-                
-                <div class="simulation-note" style="margin-top: 10px;">
-                    ※リトルの法則（L=λ×W）による理論計算
-                </div>
-                
-                <div class="simulation-detail">
-                    <details style="margin-top: 8px; color: #666; font-size: 0.85em;">
-                        <summary>リトルの法則とは</summary>
-                        <div style="margin-top: 5px; padding-left: 10px;">
-                            • 待ち行列理論の基本法則<br>
-                            • L（在院患者数）= λ（新入院率）× W（平均在院日数）<br>
-                            • 定常状態における平均関係を表す<br>
-                            • 病院運営の理論的基盤として広く使用
-                        </div>
-                    </details>
                 </div>
             </div>
         """
     except Exception as e:
-        return '<div class="simulation-error">リトルの法則シミュレーション: 計算エラー</div>'
+        return '<div class="simulation-error">効果シミュレーション: 計算エラー</div>'
 
 def generate_unified_html_export(action_results, period_desc, hospital_targets, dashboard_type="department"):
     """
@@ -273,7 +184,7 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
                 feas_admission_text = " ".join([f"{'✅' if v else '❌'}{k}" for k, v in admission_feas.items()]) if admission_feas else "評価なし"
                 feas_los_text = " ".join([f"{'✅' if v else '❌'}{k}" for k, v in los_feas.items()]) if los_feas else "評価なし"
 
-                # 簡素化された効果シミュレーション
+                # シンプルな効果シミュレーション
                 simple_simulation = generate_simple_effect_simulation(kpi)
 
                 # 期待効果（安全な計算）
@@ -321,7 +232,7 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
                     </div>
                     
                     <div class="simulation-section">
-                        <h4>効果シミュレーション（簡易版）</h4>
+                        <h4>効果シミュレーション</h4>
                         {simple_simulation}
                     </div>
                     
@@ -408,7 +319,6 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
         .metric-line, .feasibility-line {{ margin-bottom: 5px; font-size: 0.95em; }}
         .simple-simulation {{ background: #f8f9fa; padding: 12px; border-radius: 8px; }}
         .simulation-item {{ margin-bottom: 8px; font-size: 0.95em; }}
-        .simulation-note {{ font-size: 0.85em; color: #666; font-style: italic; }}
         .simulation-error {{ color: #e08283; font-style: italic; }}
         .reasoning {{ font-style: italic; color: #2e3532; }}
         .effect-text {{ font-weight: 600; font-size: 1.05em; }}
