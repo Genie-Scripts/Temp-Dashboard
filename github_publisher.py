@@ -175,41 +175,41 @@ class GitHubPublisher:
     def upload_external_html(self, html_content, filename, dashboard_title, commit_message=None):
         """外部HTMLファイルにFABホームボタンとレスポンシブCSSを自動追加してアップロード"""
         try:
-            # レスポンシブCSS注入
+            # レスポンシブCSSを注入
             responsive_css = self._get_responsive_css()
-            
-            # FABホームボタン注入
+
+            # FABホームボタンを注入
             fab_button = self._get_fab_button_html()
-            
+
             # HTML修正
             if '</head>' in html_content:
                 html_content = html_content.replace('</head>', f'{responsive_css}</head>')
-            
+
             if '</body>' in html_content:
                 html_content = html_content.replace('</body>', f'{fab_button}</body>')
-            
+
             # ファイル名の正規化
             safe_filename = self._normalize_filename(filename)
             file_path = f"docs/{safe_filename}"
-            
+
             if not commit_message:
                 commit_message = f"Update external dashboard: {dashboard_title}"
-            
+
             return self.upload_html_file(html_content, file_path, commit_message)
-            
+
         except Exception as e:
             logger.error(f"外部HTMLアップロードエラー: {e}", exc_info=True)
             return False, f"外部HTMLアップロードエラー: {str(e)}"
     
     def create_index_page(self, dashboards_info, content_config=None, external_dashboards=None):
-        """モバイルファーストなインデックスページを生成"""
+        """モバイルファーストなインデックスページを生成（外部ダッシュボード対応）"""
         if content_config is None:
             content_config = ContentCustomizer().default_content
-        
+
         # ダッシュボード情報の統合
         all_dashboards = self._merge_dashboard_info(dashboards_info, external_dashboards)
-        
-        # モバイルファーストレイアウトで生成
+
+        # モバイルファーストレイアウトでHTMLを生成
         return self._create_mobile_first_layout(all_dashboards, content_config)
     
     def get_public_url(self):
@@ -305,18 +305,18 @@ class GitHubPublisher:
         return safe_filename
     
     def _merge_dashboard_info(self, dashboards_info, external_dashboards):
-        """ダッシュボード情報の統合"""
+        """内部生成と外部のダッシュボード情報を統合"""
         all_dashboards = dashboards_info.copy() if dashboards_info else []
-        
+
         if external_dashboards:
             for ext_dash in external_dashboards:
                 # パスの正規化
                 if 'file' in ext_dash and ext_dash['file'].startswith('docs/'):
                     ext_dash['file'] = ext_dash['file'].replace('docs/', '')
             all_dashboards.extend(external_dashboards)
-            
+
         return all_dashboards
-    
+
     def _create_mobile_first_layout(self, dashboards_info, content_config):
         """モバイルファーストなレイアウト（統一版）"""
         dashboard_list = ""
@@ -579,52 +579,53 @@ def create_external_dashboard_uploader():
     """外部ダッシュボードアップロード機能（簡素化版）"""
     st.sidebar.markdown("---")
     st.sidebar.header("🔗 外部ダッシュボード追加")
-    
+
     with st.sidebar.expander("📤 HTMLアップロード", expanded=False):
         uploaded_file = st.file_uploader(
             "HTMLファイルを選択",
             type=['html'],
             key="external_html_file"
         )
-        
+
         if uploaded_file:
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 dashboard_title = st.text_input(
                     "タイトル",
                     value="全身麻酔手術分析",
                     key="external_dashboard_title"
                 )
-            
+
             with col2:
                 filename = st.text_input(
                     "ファイル名",
                     value='surgery_analysis.html',
                     key="external_filename"
                 )
-            
+
             dashboard_description = st.text_area(
                 "説明文",
                 value="全身麻酔手術件数の分析結果",
                 key="external_dashboard_description",
                 height=60
             )
-            
+
             if st.button("🚀 追加", key="upload_external_dashboard", use_container_width=True):
                 if st.session_state.get('github_publisher'):
                     try:
                         html_content = uploaded_file.read().decode('utf-8')
                         publisher = st.session_state.github_publisher
-                        
+
+                        # 新しく追加するメソッドを呼び出す
                         success, message = publisher.upload_external_html(
                             html_content,
                             filename,
                             dashboard_title
                         )
-                        
+
                         if success:
-                            # 外部ダッシュボード情報を更新
+                            # 外部ダッシュボード情報をセッションに保存
                             _update_external_dashboards(
                                 dashboard_title,
                                 dashboard_description,
@@ -1365,12 +1366,12 @@ def generate_sample_dashboard_html() -> str:
 </html>"""
 
 def _update_external_dashboards(title, description, filename):
-    """外部ダッシュボード情報を更新"""
+    """外部ダッシュボード情報をセッションステートで更新"""
     external_dashboards = st.session_state.get('external_dashboards', [])
-    
-    # ファイル名を正規化
+
+    # ファイル名を安全な形式に正規化
     safe_filename = filename.lower().replace(' ', '_').replace('　', '_')
-    
+
     new_dash = {
         "title": title,
         "description": description,
@@ -1378,7 +1379,7 @@ def _update_external_dashboards(title, description, filename):
         "type": "external",
         "update_time": datetime.now().strftime('%Y/%m/%d %H:%M')
     }
-    
+
     # 既存の場合は更新、なければ追加
     updated = False
     for i, dash in enumerate(external_dashboards):
@@ -1386,10 +1387,10 @@ def _update_external_dashboards(title, description, filename):
             external_dashboards[i] = new_dash
             updated = True
             break
-    
+
     if not updated:
         external_dashboards.append(new_dash)
-    
+
     st.session_state.external_dashboards = external_dashboards
 
 def generate_performance_dashboard_html(df, target_data, period, dashboard_type):
