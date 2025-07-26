@@ -1,4 +1,4 @@
-# data_persistence.py - データ永続化機能（強化版）
+# data_persistence.py - データ永続化機能（プロジェクト統合版）
 
 import pickle
 import os
@@ -6,10 +6,9 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 import json
-import shutil
+import shutil  # 標準ライブラリ
 import logging
-
-logger = logging.getLogger(__name__)
+from pathlib import Path  # 標準ライブラリ（pathlib2不要）
 
 # ===== 設定 =====
 DATA_DIR = "saved_data"
@@ -17,18 +16,25 @@ MAIN_DATA_FILE = os.path.join(DATA_DIR, "main_data.pkl")
 METADATA_FILE = os.path.join(DATA_DIR, "metadata.json")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 BACKUP_DIR = os.path.join(DATA_DIR, "backup")
-MAX_BACKUPS = 5
+
+# ロギング設定
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def ensure_data_directory():
     """データディレクトリの存在確認・作成"""
     try:
         if not os.path.exists(DATA_DIR):
             os.makedirs(DATA_DIR)
+            logger.info(f"データディレクトリを作成: {DATA_DIR}")
         if not os.path.exists(BACKUP_DIR):
             os.makedirs(BACKUP_DIR)
+            logger.info(f"バックアップディレクトリを作成: {BACKUP_DIR}")
         return True
     except Exception as e:
-        st.error(f"ディレクトリ作成エラー: {e}")
+        if 'st' in globals():
+            st.error(f"ディレクトリ作成エラー: {e}")
+        logger.error(f"ディレクトリ作成エラー: {e}")
         return False
 
 def create_backup(force_create=False):
@@ -41,10 +47,10 @@ def create_backup(force_create=False):
         if not os.path.exists(MAIN_DATA_FILE):
             if force_create:
                 # 現在のセッションデータからバックアップを作成
-                if st.session_state.get('data_processed', False):
-                    df = st.session_state.get('df')
-                    target_data = st.session_state.get('target_data')
-                    if df is not None:
+                if hasattr(st, 'session_state') and st.session_state.get('processed_df') is not None:
+                    df = st.session_state.get('processed_df')
+                    target_data = st.session_state.get('target_dict')
+                    if df is not None and not df.empty:
                         # 一時的にファイルに保存してからバックアップ
                         temp_success = save_data_to_file(df, target_data)
                         if not temp_success:
@@ -77,12 +83,15 @@ def create_backup(force_create=False):
                 metadata_path = os.path.join(BACKUP_DIR, metadata_backup)
                 if os.path.exists(metadata_path):
                     os.remove(metadata_path)
-            except:
-                pass
+            except Exception as cleanup_error:
+                logger.warning(f"古いバックアップ削除エラー: {cleanup_error}")
         
+        logger.info(f"バックアップ作成完了: {backup_file}")
         return True
     except Exception as e:
-        st.warning(f"バックアップ作成エラー: {e}")
+        if 'st' in globals():
+            st.warning(f"バックアップ作成エラー: {e}")
+        logger.error(f"バックアップ作成エラー: {e}")
         return False
 
 def save_data_to_file(df, target_data=None, metadata=None):
@@ -100,12 +109,12 @@ def save_data_to_file(df, target_data=None, metadata=None):
             'target_data': target_data,
             'saved_at': datetime.now(),
             'data_shape': df.shape if df is not None else None,
-            'version': '1.2',  # バージョンアップ
-            'data_source': st.session_state.get('data_source', 'unknown'),
+            'version': '6.0',  # アプリバージョンに合わせて更新
+            'data_source': st.session_state.get('data_source', 'unknown') if hasattr(st, 'session_state') else 'unknown',
             'session_info': {
-                'filter_config': st.session_state.get('current_unified_filter_config', {}),
-                'performance_metrics': st.session_state.get('performance_metrics', {}),
-                'validation_results': st.session_state.get('validation_results', {})
+                'filter_config': st.session_state.get('current_unified_filter_config', {}) if hasattr(st, 'session_state') else {},
+                'performance_metrics': st.session_state.get('performance_metrics', {}) if hasattr(st, 'session_state') else {},
+                'validation_results': st.session_state.get('validation_results', {}) if hasattr(st, 'session_state') else {}
             }
         }
         
@@ -121,8 +130,8 @@ def save_data_to_file(df, target_data=None, metadata=None):
             'data_rows': len(df) if df is not None else 0,
             'data_columns': list(df.columns) if df is not None else [],
             'file_size_mb': round(os.path.getsize(MAIN_DATA_FILE) / (1024 * 1024), 2),
-            'data_source': st.session_state.get('data_source', 'unknown'),
-            'app_version': '1.2',
+            'data_source': st.session_state.get('data_source', 'unknown') if hasattr(st, 'session_state') else 'unknown',
+            'app_version': '6.0',
             'save_count': metadata.get('save_count', 0) + 1,
             'date_range': {},
             'statistics': {}
@@ -130,21 +139,45 @@ def save_data_to_file(df, target_data=None, metadata=None):
         
         # データ統計情報を追加
         if df is not None and not df.empty:
-            if '日付' in df.columns:
+            # 日付列の検出（複数の可能性のある列名に対応）
+            date_columns = ['日付', '手術実施日_dt', '手術実施日', 'date']
+            date_col = None
+            for col in date_columns:
+                if col in df.columns:
+                    date_col = col
+                    break
+            
+            if date_col:
                 try:
                     enhanced_metadata['date_range'] = {
-                        'min_date': df['日付'].min().isoformat(),
-                        'max_date': df['日付'].max().isoformat(),
-                        'total_days': (df['日付'].max() - df['日付'].min()).days + 1,
-                        'unique_dates': df['日付'].nunique()
+                        'min_date': df[date_col].min().isoformat(),
+                        'max_date': df[date_col].max().isoformat(),
+                        'total_days': (df[date_col].max() - df[date_col].min()).days + 1,
+                        'unique_dates': df[date_col].nunique()
                     }
-                except:
-                    pass
+                except Exception as date_error:
+                    logger.warning(f"日付範囲計算エラー: {date_error}")
             
-            # 基本統計
+            # 基本統計（複数の可能性のある列名に対応）
+            dept_columns = ['診療科名', '実施診療科', '診療科', 'department']
+            ward_columns = ['病棟コード', '病棟', 'ward']
+            
+            dept_col = None
+            ward_col = None
+            
+            for col in dept_columns:
+                if col in df.columns:
+                    dept_col = col
+                    break
+                    
+            for col in ward_columns:
+                if col in df.columns:
+                    ward_col = col
+                    break
+            
             enhanced_metadata['statistics'] = {
-                'departments': df['診療科名'].nunique() if '診療科名' in df.columns else 0,
-                'wards': df['病棟コード'].nunique() if '病棟コード' in df.columns else 0,
+                'departments': df[dept_col].nunique() if dept_col else 0,
+                'wards': df[ward_col].nunique() if ward_col else 0,
                 'total_records': len(df),
                 'columns_count': len(df.columns)
             }
@@ -155,16 +188,20 @@ def save_data_to_file(df, target_data=None, metadata=None):
         with open(METADATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(enhanced_metadata, f, ensure_ascii=False, indent=2, default=str)
         
+        logger.info(f"データ保存完了: {len(df) if df is not None else 0}件")
         return True
         
     except Exception as e:
-        st.error(f"データ保存エラー: {e}")
+        if 'st' in globals():
+            st.error(f"データ保存エラー: {e}")
+        logger.error(f"データ保存エラー: {e}")
         return False
 
 def load_data_from_file():
     """ファイルからデータを読み込み（強化版）"""
     try:
         if not os.path.exists(MAIN_DATA_FILE):
+            logger.info("保存ファイルが見つかりません")
             return None, None, None
         
         # メインデータの読み込み
@@ -180,52 +217,60 @@ def load_data_from_file():
         # データの妥当性チェック
         df = saved_data.get('df')
         if df is not None and isinstance(df, pd.DataFrame):
-            # 日付列の型確認・修正
-            if '日付' in df.columns:
-                df['日付'] = pd.to_datetime(df['日付'])
+            # 日付列の型確認・修正（複数の可能性に対応）
+            date_columns = ['日付', '手術実施日_dt', '手術実施日', 'date']
+            for col in date_columns:
+                if col in df.columns:
+                    try:
+                        df[col] = pd.to_datetime(df[col])
+                    except Exception as date_convert_error:
+                        logger.warning(f"日付列変換警告 {col}: {date_convert_error}")
         
         # セッション情報の復元（可能な場合）
-        session_info = saved_data.get('session_info', {})
-        if session_info:
-            # フィルター設定の復元
-            if session_info.get('filter_config'):
-                st.session_state['restored_filter_config'] = session_info['filter_config']
-            
-            # パフォーマンス情報の復元
-            if session_info.get('performance_metrics'):
-                st.session_state['performance_metrics'] = session_info['performance_metrics']
+        if hasattr(st, 'session_state'):
+            session_info = saved_data.get('session_info', {})
+            if session_info:
+                # フィルター設定の復元
+                if session_info.get('filter_config'):
+                    st.session_state['restored_filter_config'] = session_info['filter_config']
+                
+                # パフォーマンス情報の復元
+                if session_info.get('performance_metrics'):
+                    st.session_state['performance_metrics'] = session_info['performance_metrics']
         
+        logger.info(f"データ読み込み完了: {len(df) if df is not None else 0}件")
         return df, saved_data.get('target_data'), metadata
         
     except Exception as e:
-        st.error(f"データ読み込みエラー: {e}")
+        if 'st' in globals():
+            st.error(f"データ読み込みエラー: {e}")
+        logger.error(f"データ読み込みエラー: {e}")
         return None, None, None
 
-def save_settings_to_file(settings, filename="app_settings.json"):
-    """設定をJSONファイルに保存（既存設定とマージ）"""
+def save_settings_to_file(settings):
+    """設定をファイルに保存"""
     try:
-        # 既存の設定を読み込み
-        existing_settings = {}
-        if os.path.exists(filename):
-            try:
-                with open(filename, 'r', encoding='utf-8') as f:
-                    existing_settings = json.load(f)
-            except:
-                pass  # 読み込み失敗時は空の辞書を使用
+        if not ensure_data_directory():
+            return False
         
-        # 新しい設定で更新
-        existing_settings.update(settings)
+        settings_to_save = {
+            'saved_at': datetime.now().isoformat(),
+            'settings': settings,
+            'version': '6.0'
+        }
         
-        # 保存
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(existing_settings, f, ensure_ascii=False, indent=2)
+        with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(settings_to_save, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"設定を保存しました: {filename}")
+        logger.info("設定保存完了")
         return True
+        
     except Exception as e:
+        if 'st' in globals():
+            st.error(f"設定保存エラー: {e}")
         logger.error(f"設定保存エラー: {e}")
         return False
-        
+
 def load_settings_from_file():
     """ファイルから設定を読み込み"""
     try:
@@ -238,7 +283,9 @@ def load_settings_from_file():
         return saved_settings.get('settings')
         
     except Exception as e:
-        st.error(f"設定読み込みエラー: {e}")
+        if 'st' in globals():
+            st.error(f"設定読み込みエラー: {e}")
+        logger.error(f"設定読み込みエラー: {e}")
         return None
 
 def get_data_info():
@@ -253,6 +300,7 @@ def get_data_info():
         return metadata
         
     except Exception as e:
+        logger.error(f"データ情報取得エラー: {e}")
         return None
 
 def delete_saved_data():
@@ -271,16 +319,22 @@ def delete_saved_data():
             shutil.rmtree(BACKUP_DIR)
             deleted_files.append("backup/")
         
+        logger.info(f"データ削除完了: {deleted_files}")
         return True, deleted_files
         
     except Exception as e:
+        logger.error(f"データ削除エラー: {e}")
         return False, str(e)
 
 def auto_load_data():
     """アプリ起動時の自動データ読み込み（シンプル確実版）"""
     
+    # セッション状態がない場合はスキップ
+    if not hasattr(st, 'session_state'):
+        return False
+    
     # 既にデータが処理済みの場合はスキップ
-    if st.session_state.get('data_processed', False):
+    if st.session_state.get('processed_df') is not None and not st.session_state.get('processed_df').empty:
         return False
     
     # データファイルが存在しない場合はスキップ
@@ -293,26 +347,32 @@ def auto_load_data():
         
         if df is not None and isinstance(df, pd.DataFrame) and not df.empty:
             # セッション状態に設定
-            st.session_state['df'] = df
-            st.session_state['target_data'] = target_data
-            st.session_state['data_processed'] = True
+            st.session_state['processed_df'] = df
+            st.session_state['target_dict'] = target_data or {}
             st.session_state['data_source'] = 'auto_loaded'
             st.session_state['data_metadata'] = metadata
             
-            # 最新データ日付の設定
-            if '日付' in df.columns and not df['日付'].empty:
-                latest_date = df['日付'].max()
-                st.session_state.latest_data_date_str = latest_date.strftime('%Y年%m月%d日')
-            else:
-                st.session_state.latest_data_date_str = "日付不明"
+            # 最新データ日付の設定（複数の可能性のある列名に対応）
+            date_columns = ['日付', '手術実施日_dt', '手術実施日', 'date']
+            for col in date_columns:
+                if col in df.columns and not df[col].empty:
+                    try:
+                        latest_date = df[col].max()
+                        st.session_state['latest_date'] = latest_date
+                        break
+                    except Exception:
+                        continue
             
+            logger.info(f"自動読み込み完了: {len(df)}件")
             return True
         else:
             return False
             
     except Exception as e:
         # エラーが発生した場合は自動読み込みを無効化
-        st.error(f"自動データ読み込みエラー: {str(e)}")
+        logger.error(f"自動データ読み込みエラー: {e}")
+        if 'st' in globals():
+            st.error(f"自動データ読み込みエラー: {str(e)}")
         return False
 
 def get_file_sizes():
@@ -365,7 +425,8 @@ def get_file_sizes():
         
         return sizes
         
-    except Exception:
+    except Exception as e:
+        logger.error(f"ファイルサイズ取得エラー: {e}")
         return {}
 
 def get_backup_info():
@@ -403,12 +464,14 @@ def get_backup_info():
                     'has_metadata': has_metadata,
                     'age_days': (datetime.now() - timestamp).days
                 })
-            except:
+            except Exception as parse_error:
+                logger.warning(f"バックアップファイル解析エラー {backup_file}: {parse_error}")
                 continue
         
         return backup_info[:10]  # 最新10個まで
         
-    except Exception:
+    except Exception as e:
+        logger.error(f"バックアップ情報取得エラー: {e}")
         return []
 
 def restore_from_backup(backup_filename):
@@ -431,17 +494,20 @@ def restore_from_backup(backup_filename):
         if os.path.exists(metadata_backup_path):
             shutil.copy2(metadata_backup_path, METADATA_FILE)
         
-        # セッション状態をクリア
-        keys_to_clear = ['df', 'target_data', 'data_processed', 'data_source', 'data_metadata',
-                        'latest_data_date_str', 'current_unified_filter_config', 'performance_metrics',
-                        'validation_results', 'all_results']
-        for key in keys_to_clear:
-            if key in st.session_state:
-                del st.session_state[key]
+        # セッション状態をクリア（Streamlit環境の場合のみ）
+        if hasattr(st, 'session_state'):
+            keys_to_clear = ['processed_df', 'target_dict', 'latest_date', 'data_source', 'data_metadata',
+                            'current_unified_filter_config', 'performance_metrics',
+                            'validation_results', 'all_results']
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
         
+        logger.info(f"バックアップ復元完了: {backup_filename}")
         return True, "復元完了"
         
     except Exception as e:
+        logger.error(f"バックアップ復元エラー: {e}")
         return False, f"復元エラー: {e}"
 
 def export_data_package(export_path=None):
@@ -470,9 +536,11 @@ def export_data_package(export_path=None):
                 latest_backup = backup_info[0]
                 zipf.write(latest_backup['path'], f"backup_{latest_backup['filename']}")
         
+        logger.info(f"データエクスポート完了: {export_path}")
         return True, export_path
         
     except Exception as e:
+        logger.error(f"データエクスポートエラー: {e}")
         return False, str(e)
 
 def import_data_package(import_file):
@@ -489,20 +557,25 @@ def import_data_package(import_file):
         with zipfile.ZipFile(import_file, 'r') as zipf:
             zipf.extractall(DATA_DIR)
         
-        # セッション状態をクリア
-        keys_to_clear = ['df', 'target_data', 'data_processed', 'data_source', 'data_metadata',
-                        'latest_data_date_str', 'current_unified_filter_config', 'performance_metrics',
-                        'validation_results', 'all_results']
-        for key in keys_to_clear:
-            if key in st.session_state:
-                del st.session_state[key]
+        # セッション状態をクリア（Streamlit環境の場合のみ）
+        if hasattr(st, 'session_state'):
+            keys_to_clear = ['processed_df', 'target_dict', 'latest_date', 'data_source', 'data_metadata',
+                            'current_unified_filter_config', 'performance_metrics',
+                            'validation_results', 'all_results']
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
         
+        logger.info("データインポート完了")
         return True, "インポート完了"
         
     except Exception as e:
+        logger.error(f"データインポートエラー: {e}")
         return False, f"インポートエラー: {e}"
 
 def toggle_auto_load(enabled=True):
     """自動読み込み機能の有効/無効切り替え"""
-    st.session_state['disable_auto_load'] = not enabled
-    return not st.session_state.get('disable_auto_load', False)
+    if hasattr(st, 'session_state'):
+        st.session_state['disable_auto_load'] = not enabled
+        return not st.session_state.get('disable_auto_load', False)
+    return enabled

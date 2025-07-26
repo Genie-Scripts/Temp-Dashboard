@@ -1,0 +1,24 @@
+手術分析
+cd ~/streamlit_project
+source streamlit_env/bin/activate
+cd /Users/Genie/streamlit_project/TempOR
+streamlit run app_enhanced_with_prediction.py
+
+入院患者数分析
+cd ~/streamlit_project
+source streamlit_env_py311/bin/activate
+cd /Users/Genie/streamlit_project/Temp
+streamlit run app.py
+
+
+
+
+pip install -r requirements.txt
+
+
+
+pip install seaborn matplotlib pandas openpyxl jpholiday
+
+
+pip install -r requirements.txt
+

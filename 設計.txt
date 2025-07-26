@@ -1,0 +1,34 @@
+/手術分析アプリ/
+├── app.py                  # アプリのメインUIと状態管理（スリム化）
+├── requirements.txt        # 必要なライブラリ一覧
+|
+├── config/                 # 設定関連
+│   ├── __init__.py
+│   ├── style_config.py     # グラフや表のスタイル定義
+│   └── target_loader.py    # 目標値データの読み込み
+|
+├── data_processing/        # データ処理
+│   ├── __init__.py
+│   └── loader.py           # データの読み込みと「一括前処理」
+|
+├── analysis/               # データ分析ロジック
+│   ├── __init__.py
+│   ├── weekly.py           # 週次分析（通常＋完全週）
+│   ├── periodic.py         # 月次・四半期分析
+│   ├── ranking.py          # 診療科ランキング
+│   ├── surgeon.py          # 術者分析
+│   └── forecasting.py      # 将来予測・モデル検証
+|
+├── plotting/               # グラフ描画
+│   ├── __init__.py
+│   ├── generic_plots.py    # 共通のグラフ（KPIカード、ランキングなど）
+│   └── trend_plots.py      # 時系列トレンドグラフ
+|
+├── reporting/              # レポート出力
+│   ├── __init__.py
+│   ├── pdf_exporter.py     # PDFレポート生成
+│   └── csv_exporter.py     # CSVエクスポート
+|
+└── utils/                  # 共通ヘルパー関数
+    └── __init__.py
+    └── date_helpers.py     # 日付・平日関連の関数
