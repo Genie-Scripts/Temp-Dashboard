@@ -576,10 +576,33 @@ class ContentCustomizer:
         return st.session_state.get('custom_content_config', self.default_content)
 
 def create_external_dashboard_uploader():
-    """外部ダッシュボードアップロード機能（簡素化版）"""
+    """外部ダッシュボードアップロード機能（追加済みリスト表示機能付き）"""
     st.sidebar.markdown("---")
     st.sidebar.header("🔗 外部ダッシュボード追加")
 
+    # --- ここから追加 ---
+    # 追加済みダッシュボードのリスト表示
+    external_dashboards = st.session_state.get('external_dashboards', [])
+    if external_dashboards:
+        with st.sidebar.expander("📋 追加済みダッシュボード", expanded=True):
+            for i, dash in enumerate(external_dashboards):
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.write(f"**{dash.get('title', 'No Title')}**")
+                    st.caption(f"📄 {dash.get('file', 'No File')} | ⏰ {dash.get('update_time', 'No Time')}")
+                with col2:
+                    # リストから削除するボタン
+                    if st.button("🗑️", key=f"delete_external_{i}", help="このダッシュボードをリストから削除します。ファイル自体は削除されません。"):
+                        st.session_state.external_dashboards.pop(i)
+                        st.rerun()
+
+            if st.button("🔄 リストを全てクリア", key="clear_external_list", use_container_width=True):
+                st.session_state.external_dashboards = []
+                st.rerun()
+
+    # --- ここまで追加 ---
+
+    # 既存のアップロードUI
     with st.sidebar.expander("📤 HTMLアップロード", expanded=False):
         uploaded_file = st.file_uploader(
             "HTMLファイルを選択",
@@ -588,49 +611,21 @@ def create_external_dashboard_uploader():
         )
 
         if uploaded_file:
+            # (以下、既存のコードは変更なし)
             col1, col2 = st.columns(2)
-
             with col1:
-                dashboard_title = st.text_input(
-                    "タイトル",
-                    value="全身麻酔手術分析",
-                    key="external_dashboard_title"
-                )
-
+                dashboard_title = st.text_input("タイトル", value="全身麻酔手術分析", key="external_dashboard_title")
             with col2:
-                filename = st.text_input(
-                    "ファイル名",
-                    value='surgery_analysis.html',
-                    key="external_filename"
-                )
-
-            dashboard_description = st.text_area(
-                "説明文",
-                value="全身麻酔手術件数の分析結果",
-                key="external_dashboard_description",
-                height=60
-            )
-
+                filename = st.text_input("ファイル名", value='surgery_analysis.html', key="external_filename")
+            dashboard_description = st.text_area("説明文", value="全身麻酔手術件数の分析結果", key="external_dashboard_description", height=60)
             if st.button("🚀 追加", key="upload_external_dashboard", use_container_width=True):
                 if st.session_state.get('github_publisher'):
                     try:
                         html_content = uploaded_file.read().decode('utf-8')
                         publisher = st.session_state.github_publisher
-
-                        # 新しく追加するメソッドを呼び出す
-                        success, message = publisher.upload_external_html(
-                            html_content,
-                            filename,
-                            dashboard_title
-                        )
-
+                        success, message = publisher.upload_external_html(html_content, filename, dashboard_title)
                         if success:
-                            # 外部ダッシュボード情報をセッションに保存
-                            _update_external_dashboards(
-                                dashboard_title,
-                                dashboard_description,
-                                filename
-                            )
+                            _update_external_dashboards(dashboard_title, dashboard_description, filename)
                             st.success(f"✅ 追加成功")
                             st.rerun()
                         else:
