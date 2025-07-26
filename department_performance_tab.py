@@ -1,7 +1,10 @@
 # department_performance_tab.py - 診療科別パフォーマンスダッシュボード（努力度表示版・トレンド分析対応）
-
+# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
 import logging
 from datetime import datetime
 import calendar
@@ -11,13 +14,7 @@ logger = logging.getLogger(__name__)
 
 # 既存のインポートに加えて詳細表示機能を追加
 try:
-    from utils import safe_date_filter, get_display_name_for_dept, create_dept_mapping_table
     from unified_filters import get_unified_filter_config
-    from html_export_functions import (
-        generate_metrics_html, generate_action_html, 
-        generate_combined_html_with_tabs, validate_export_data, 
-        get_export_filename
-    )
     from unified_html_export import generate_unified_html_export
     from enhanced_streamlit_display import display_enhanced_action_dashboard
     from enhanced_action_analysis import generate_comprehensive_action_data
@@ -25,268 +22,21 @@ except ImportError as e:
     st.error(f"必要なモジュールのインポートに失敗しました: {e}")
     st.stop()
 
-def get_hospital_targets(target_data):
-    """病院全体の平日目標値を取得"""
-    targets = {'daily_census': 580, 'daily_admissions': 80}
-    if target_data is None or target_data.empty: 
-        return targets
+def get_mobile_report_generator():
+    """mobile_report_generatorを遅延インポート"""
     try:
-        hospital_data = target_data[(target_data['部門コード'] == '全体') & (target_data['期間区分'] == '平日')]
-        for _, row in hospital_data.iterrows():
-            if str(row.get('指標タイプ', '')).strip() == '日平均在院患者数' and row.get('目標値'):
-                targets['daily_census'] = row['目標値']
-    except Exception as e:
-        logger.error(f"病院全体目標値取得エラー: {e}")
-    return targets
-
-def calculate_los_appropriate_range(dept_df, start_date, end_date):
-    """統計的アプローチで在院日数適正範囲を計算"""
-    if dept_df.empty or '平均在院日数' not in dept_df.columns: 
-        return None
-    try:
-        period_df = safe_date_filter(dept_df, start_date, end_date)
-        los_data = []
-        for _, row in period_df.iterrows():
-            if pd.notna(row.get('退院患者数', 0)) and row.get('退院患者数', 0) > 0:
-                patient_days, discharges = row.get('在院患者数', 0), row.get('退院患者数', 0)
-                if discharges > 0:
-                    daily_los = patient_days / discharges if patient_days > 0 else 0
-                    if daily_los > 0: 
-                        los_data.extend([daily_los] * int(discharges))
-        if len(los_data) < 5: 
-            return None
-        mean_los, std_los = pd.Series(los_data).mean(), pd.Series(los_data).std()
-        range_value = max(std_los, 0.3)
-        return {"upper": mean_los + range_value, "lower": max(0.1, mean_los - range_value)}
-    except Exception as e:
-        logger.error(f"在院日数適正範囲計算エラー: {e}")
+        from mobile_report_generator import generate_department_mobile_report
+        return generate_department_mobile_report
+    except ImportError as e:
+        st.error(f"mobile_report_generator インポートエラー: {e}")
         return None
 
-def evaluate_feasibility(kpi_data, dept_df, start_date, end_date):
-    """実現可能性を評価"""
-    try:
-        admission_feasible = {
-            "病床余裕": kpi_data.get('daily_census_achievement', 0) < 90,
-            "トレンド安定": kpi_data.get('recent_week_admissions', 0) >= kpi_data.get('weekly_avg_admissions', 0) * 0.95
-        }
-        
-        los_range = calculate_los_appropriate_range(dept_df, start_date, end_date)
-        recent_los = kpi_data.get('recent_week_avg_los', 0)
-        avg_los = kpi_data.get('avg_length_of_stay', 0)
-        
-        los_feasible = {
-            "調整余地": abs(recent_los - avg_los) > avg_los * 0.03 if avg_los > 0 else False,
-            "適正範囲内": bool(
-                los_range and 
-                los_range["lower"] <= recent_los <= los_range["upper"]
-            ) if recent_los > 0 else False
-        }
-        
-        return {
-            "admission": admission_feasible,
-            "los": los_feasible,
-            "los_range": los_range
-        }
-        
-    except Exception as e:
-        logger.error(f"実現可能性評価エラー: {e}")
-        return {"admission": {}, "los": {}, "los_range": None}
-
-def calculate_effect_simulation(kpi_data):
-    """効果シミュレーション計算（簡素化版に対応）"""
-    try:
-        current_census, target_census = kpi_data.get('daily_avg_census', 0), kpi_data.get('daily_census_target', 0)
-        current_admissions, current_los = kpi_data.get('weekly_avg_admissions', 0) / 7, kpi_data.get('avg_length_of_stay', 0)
-        if not all([target_census, current_admissions, current_los]) or (target_census - current_census) <= 0: 
-            return None
-        gap = target_census - current_census
-        needed_admissions_increase = gap / current_los if current_los > 0 else 0
-        needed_los_increase = (target_census / current_admissions) - current_los if current_admissions > 0 else 0
-        return {
-            "gap": gap,
-            "admission_plan": {"increase": needed_admissions_increase, "effect": needed_admissions_increase * current_los},
-            "los_plan": {"increase": needed_los_increase, "effect": current_admissions * needed_los_increase}
-        }
-    except Exception as e:
-        logger.error(f"効果シミュレーション計算エラー: {e}")
-        return None
-
-def decide_action_and_reasoning(kpi_data, feasibility, simulation):
-    """アクション判断とその根拠"""
-    census_achievement = kpi_data.get('daily_census_achievement', 100)
-    if census_achievement >= 95: 
-        return {"action": "現状維持", "reasoning": "目標をほぼ達成しており、良好な状況を継続", "priority": "low", "color": "#7fb069"}
-    if census_achievement < 85: 
-        return {"action": "両方検討", "reasoning": "大幅な不足のため、新入院増加と在院日数適正化の両面からアプローチが必要", "priority": "urgent", "color": "#e08283"}
-    admission_score, los_score = sum(feasibility["admission"].values()), sum(feasibility["los"].values())
-    if admission_score >= 1 and los_score >= 1 and simulation and abs(simulation["admission_plan"]["increase"]) <= abs(simulation["los_plan"]["increase"]):
-        return {"action": "新入院重視", "reasoning": "病床余裕があり、新入院増加がより実現可能", "priority": "medium", "color": "#f5d76e"}
-    if admission_score >= 1: 
-        return {"action": "新入院重視", "reasoning": "病床に余裕があり、新入院増加が効果的", "priority": "medium", "color": "#f5d76e"}
-    if los_score >= 1: 
-        return {"action": "在院日数調整", "reasoning": "在院日数に調整余地があり効果的", "priority": "medium", "color": "#f5d76e"}
-    return {"action": "経過観察", "reasoning": "現状では大きな変更は困難、トレンド注視が必要", "priority": "low", "color": "#b3b9b3"}
-
-def get_period_dates(df, period_type):
-    """期間タイプに基づいて開始日と終了日を計算"""
-    if df is None or df.empty or '日付' not in df.columns:
-        return None, None, "データなし"
-    
-    max_date = df['日付'].max()
-    min_date = df['日付'].min()
-    
-    if period_type == "直近4週間":
-        start_date = max_date - pd.Timedelta(days=27)
-        desc = f"直近4週間 ({start_date.strftime('%m/%d')}～{max_date.strftime('%m/%d')})"
-    elif period_type == "直近8週":
-        start_date = max_date - pd.Timedelta(days=55)
-        desc = f"直近8週間 ({start_date.strftime('%m/%d')}～{max_date.strftime('%m/%d')})"
-    elif period_type == "直近12週":
-        start_date = max_date - pd.Timedelta(days=83)
-        desc = f"直近12週間 ({start_date.strftime('%m/%d')}～{max_date.strftime('%m/%d')})"
-    elif period_type == "今年度":
-        year = max_date.year if max_date.month >= 4 else max_date.year - 1
-        start_date = pd.Timestamp(year=year, month=4, day=1)
-        end_of_fiscal = pd.Timestamp(year=year+1, month=3, day=31)
-        end_date = min(end_of_fiscal, max_date)
-        desc = f"今年度 ({start_date.strftime('%Y/%m/%d')}～{end_date.strftime('%m/%d')})"
-        return max(start_date, min_date), end_date, desc
-    elif period_type == "先月":
-        if max_date.month == 1:
-            year = max_date.year - 1
-            month = 12
-        else:
-            year = max_date.year
-            month = max_date.month - 1
-        start_date = pd.Timestamp(year=year, month=month, day=1)
-        last_day = calendar.monthrange(year, month)[1]
-        end_date = pd.Timestamp(year=year, month=month, day=last_day)
-        if end_date > max_date:
-            end_date = max_date
-        if start_date < min_date:
-            start_date = min_date
-        desc = f"{year}年{month}月 ({start_date.strftime('%m/%d')}～{end_date.strftime('%m/%d')})"
-        return start_date, end_date, desc
-    elif period_type == "昨年度":
-        current_year = max_date.year if max_date.month >= 4 else max_date.year - 1
-        prev_year = current_year - 1
-        start_date = pd.Timestamp(year=prev_year, month=4, day=1)
-        end_date = pd.Timestamp(year=current_year, month=3, day=31)
-        if end_date > max_date:
-            end_date = max_date
-        if start_date < min_date:
-            start_date = min_date
-        desc = f"{prev_year}年度 ({start_date.strftime('%Y/%m/%d')}～{end_date.strftime('%Y/%m/%d')})"
-        return start_date, end_date, desc
-    else:
-        start_date = max_date - pd.Timedelta(days=27)
-        desc = f"直近4週間 ({start_date.strftime('%m/%d')}～{max_date.strftime('%m/%d')})"
-    
-    start_date = max(start_date, min_date)
-    return start_date, max_date, desc
-
-def get_target_values_for_dept(target_data, dept_code, dept_name=None):
-    """部門コードまたは部門名で目標値を取得"""
-    targets = {
-        'daily_census_target': None,
-        'weekly_admissions_target': None,
-        'avg_los_target': None,
-        'display_name': dept_code
-    }
-    
-    if target_data is None or target_data.empty:
-        return targets
-    
-    try:
-        dept_targets = target_data[target_data['部門コード'] == dept_code]
-        
-        if dept_targets.empty and '部門名' in target_data.columns:
-            dept_targets = target_data[
-                (target_data['部門名'] == dept_code) | 
-                (target_data['部門名'] == dept_name) |
-                (target_data['部門名'].str.contains(dept_code, na=False)) |
-                (target_data['部門名'].str.contains(dept_name, na=False) if dept_name else False)
-            ]
-        
-        if not dept_targets.empty:
-            if '部門名' in dept_targets.columns:
-                display_name = dept_targets.iloc[0]['部門名']
-                targets['display_name'] = display_name
-            
-            for _, row in dept_targets.iterrows():
-                indicator_type = str(row.get('指標タイプ', '')).strip()
-                target_value = row.get('目標値', None)
-                
-                if indicator_type == '日平均在院患者数':
-                    targets['daily_census_target'] = target_value
-                elif indicator_type == '週間新入院患者数':
-                    targets['weekly_admissions_target'] = target_value
-                elif indicator_type == '平均在院日数':
-                    targets['avg_los_target'] = target_value
-        else:
-            logger.warning(f"目標値が見つかりません - 部門コード: {dept_code}, 診療科名: {dept_name}")
-            
-    except Exception as e:
-        logger.error(f"目標値取得エラー ({dept_code}): {e}")
-    
-    return targets
-
-def calculate_department_kpis(df, target_data, dept_code, dept_name, start_date, end_date, dept_col):
-    """診療科別KPI計算"""
-    try:
-        dept_df = df[df[dept_col] == dept_code]
-        period_df = safe_date_filter(dept_df, start_date, end_date)
-        
-        if period_df.empty:
-            return None
-        
-        total_days = (end_date - start_date).days + 1
-        total_patient_days = period_df['在院患者数'].sum() if '在院患者数' in period_df.columns else 0
-        total_admissions = period_df['新入院患者数'].sum() if '新入院患者数' in period_df.columns else 0
-        total_discharges = period_df['退院患者数'].sum() if '退院患者数' in period_df.columns else 0
-        
-        daily_avg_census = total_patient_days / total_days if total_days > 0 else 0
-        
-        # 直近週の計算
-        recent_week_end = end_date
-        recent_week_start = end_date - pd.Timedelta(days=6)
-        recent_week_df = safe_date_filter(dept_df, recent_week_start, recent_week_end)
-        recent_week_patient_days = recent_week_df['在院患者数'].sum() if '在院患者数' in recent_week_df.columns and not recent_week_df.empty else 0
-        recent_week_admissions = recent_week_df['新入院患者数'].sum() if '新入院患者数' in recent_week_df.columns and not recent_week_df.empty else 0
-        recent_week_discharges = recent_week_df['退院患者数'].sum() if '退院患者数' in recent_week_df.columns and not recent_week_df.empty else 0
-        recent_week_daily_census = recent_week_patient_days / 7 if recent_week_patient_days > 0 else 0
-        
-        avg_length_of_stay = total_patient_days / total_discharges if total_discharges > 0 else 0
-        recent_week_avg_los = recent_week_patient_days / recent_week_discharges if recent_week_discharges > 0 else 0
-        weekly_avg_admissions = (total_admissions / total_days) * 7 if total_days > 0 else 0
-        
-        # 目標値の取得
-        targets = get_target_values_for_dept(target_data, dept_code, dept_name)
-        
-        # 達成率の計算
-        daily_census_achievement = (daily_avg_census / targets['daily_census_target'] * 100) if targets['daily_census_target'] else 0
-        weekly_admissions_achievement = (weekly_avg_admissions / targets['weekly_admissions_target'] * 100) if targets['weekly_admissions_target'] else 0
-        los_achievement = (targets['avg_los_target'] / avg_length_of_stay * 100) if targets['avg_los_target'] and avg_length_of_stay else 0
-        
-        return {
-            'dept_code': dept_code,
-            'dept_name': targets['display_name'],
-            'daily_avg_census': daily_avg_census,
-            'recent_week_daily_census': recent_week_daily_census,
-            'daily_census_target': targets['daily_census_target'],
-            'daily_census_achievement': daily_census_achievement,
-            'weekly_avg_admissions': weekly_avg_admissions,
-            'recent_week_admissions': recent_week_admissions,
-            'weekly_admissions_target': targets['weekly_admissions_target'],
-            'weekly_admissions_achievement': weekly_admissions_achievement,
-            'avg_length_of_stay': avg_length_of_stay,
-            'recent_week_avg_los': recent_week_avg_los,
-            'avg_los_target': targets['avg_los_target'],
-            'avg_los_achievement': los_achievement
-        }
-    except Exception as e:
-        logger.error(f"KPI計算エラー ({dept_code}): {e}", exc_info=True)
-        return None
+from utils import (
+    safe_date_filter, get_display_name_for_dept, create_dept_mapping_table,
+    get_period_dates, calculate_department_kpis, decide_action_and_reasoning,
+    evaluate_feasibility, calculate_effect_simulation, calculate_los_appropriate_range,
+    get_hospital_targets
+)
 
 def get_color(val):
     """達成率に応じた色を取得"""
@@ -506,7 +256,7 @@ def display_metrics_dashboard(selected_metric, df_original, target_data, selecte
         st.error(f"メトリクス表示中にエラーが発生しました: {str(e)}")
         return None, None, None, None
 
-def display_action_dashboard_with_detail_option(df_original, target_data, selected_period):
+def display_action_dashboard(df_original, target_data, selected_period):
     """
     アクション提案ダッシュボード（詳細表示オプション付き・努力度表示版・影響度順ソート対応）
     """
@@ -828,15 +578,6 @@ def add_web_publish_optimizations(html_content):
         logger.error(f"Web公開最適化追加エラー: {e}")
         return html_content
 
-def display_html_export_section_enhanced(selected_tab, results_data, selected_period):
-    """
-    HTMLエクスポートセクション（Web公開機能統合版）
-    既存関数の置き換え
-    """
-    return display_web_publish_section(selected_tab, results_data, selected_period)
-
-# 追加のヘルパー関数群
-
 def prepare_department_publish_data(results_data, period_desc, selected_period):
     """診療科別公開データの準備"""
     try:
@@ -963,116 +704,6 @@ def _convert_detailed_to_standard_format(detailed_results):
         logger.error(f"詳細データ変換エラー: {e}", exc_info=True)
         return []
 
-def display_web_publish_section(selected_tab, results_data, selected_period):
-    """
-    Web公開機能セクション（努力度表示対応）
-    """
-    try:
-        st.markdown("---")
-        st.subheader("🌐 Web公開・HTMLエクスポート（努力度表示版）")
-
-        if not results_data or results_data[0] is None:
-            st.warning("公開・エクスポート対象のデータがありません。")
-            return
-
-        df_original = st.session_state['df']
-        target_data = st.session_state.get('target_data', pd.DataFrame())
-
-        # 簡潔なエクスポートUI
-        col1, col2, col3 = st.columns([1, 1, 1])
-        
-        with col1:
-            button_label = f"📥 {selected_tab} HTML"
-            export_type = "action" if selected_tab == "アクション提案" else "metrics"
-            
-            if st.button(button_label, key=f"download_dept_current_{export_type}", use_container_width=True):
-                with st.spinner(f"{selected_tab}のHTMLを生成中..."):
-                    html_content = generate_current_tab_html(selected_tab, results_data, period_desc, target_data)
-                    
-                    if html_content:
-                        filename = get_export_filename("department", export_type, period_desc)
-                        st.session_state[f'dl_dept_{export_type}_html'] = html_content
-                        st.session_state[f'dl_dept_{export_type}_name'] = filename
-
-            if f'dl_dept_{export_type}_html' in st.session_state:
-                st.download_button(
-                    label="✔️ ダウンロード",
-                    data=st.session_state[f'dl_dept_{export_type}_html'].encode("utf-8"),
-                    file_name=st.session_state[f'dl_dept_{export_type}_name'],
-                    mime="text/html",
-                    key=f"download_dept_{export_type}_exec",
-                    use_container_width=True
-                )
-
-        with col2:
-            if st.button("📥 統合HTML", key="download_dept_combined", use_container_width=True):
-                with st.spinner("統合HTMLを生成中..."):
-                    html_content = generate_integrated_html(results_data, period_desc, target_data)
-                    
-                    if html_content:
-                        filename = get_export_filename("department", "integrated", period_desc)
-                        st.session_state['dl_dept_integrated_html'] = html_content
-                        st.session_state['dl_dept_integrated_name'] = filename
-
-            if 'dl_dept_integrated_html' in st.session_state:
-                st.download_button(
-                    label="✔️ ダウンロード",
-                    data=st.session_state['dl_dept_integrated_html'].encode("utf-8"),
-                    file_name=st.session_state['dl_dept_integrated_name'],
-                    mime="text/html",
-                    key="download_dept_integrated_exec",
-                    use_container_width=True
-                )
-
-        with col3:
-            if st.button("🌐 Web最適化", key="download_dept_web_optimized", use_container_width=True):
-                with st.spinner("Web公開版HTMLを生成中..."):
-                    period_desc = get_period_dates(df_original, selected_period)[2]
-                    html_content = generate_web_optimized_html(results_data, period_desc)
-                    
-                    if html_content:
-                        filename = f"web_department_effort_{period_desc.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.html"
-                        st.session_state['dl_dept_web_html'] = html_content
-                        st.session_state['dl_dept_web_name'] = filename
-
-            if 'dl_dept_web_html' in st.session_state:
-                st.download_button(
-                    label="✔️ ダウンロード",
-                    data=st.session_state['dl_dept_web_html'].encode("utf-8"),
-                    file_name=st.session_state['dl_dept_web_name'],
-                    mime="text/html",
-                    key="download_dept_web_exec",
-                    use_container_width=True
-                )
-
-        # 使用方法ガイド
-        with st.expander("📖 努力度表示HTMLについて", expanded=False):
-            st.markdown("""
-            **目標達成努力度表示の特徴:**
-            
-            - ✨**目標突破中**: 目標達成 + さらに改善中
-            - 🎯**達成継続**: 目標達成を継続中
-            - 💪**追い上げ中**: 目標まであと少し + 改善中
-            - 📈**要努力**: 目標まであと少し + さらなる努力を
-            - 🚨**要改善**: 積極的な取り組みが必要
-            
-            **簡素化された効果シミュレーション:**
-            
-            - 新入院を週に1人増やした場合の効果
-            - 在院日数を平均1日延ばした場合の効果
-            - 理解しやすい簡易計算による概算
-            
-            **週報での活用:**
-            
-            - 各診療科の頑張り具合が一目で分かる
-            - スタッフのモチベーション向上に効果的
-            - 改善の方向性が明確
-            """)
-
-    except Exception as e:
-        logger.error(f"Web公開セクション表示エラー: {e}", exc_info=True)
-        st.error(f"Web公開機能でエラーが発生しました: {str(e)}")
-
 def generate_current_tab_html(selected_tab, results_data, period_desc, target_data):
     """現在のタブ用HTML生成（努力度表示版）"""
     try:
@@ -1163,60 +794,762 @@ def generate_integrated_html(results_data, period_desc, target_data):
         return None
 
 def create_department_performance_tab():
-    """診療科別パフォーマンスダッシュボードのメイン関数（トレンド分析・影響度順対応版）"""
-    st.header("🏥 診療科別パフォーマンスダッシュボード")
-
-    if not st.session_state.get('data_processed', False):
-        st.warning("📊 データを読み込むと、ここにダッシュボードが表示されます。")
+    """診療科別パフォーマンスタブの作成（一括公開機能追加版）"""
+    st.header("🏥 診療科別パフォーマンス")
+    
+    # データの確認
+    if not st.session_state.get('data_processed', False) or st.session_state.get('df') is None:
+        st.warning("データを読み込み後に利用可能になります。")
         return
     
-    df_original = st.session_state.get('df')
+    df_original = st.session_state['df']
     target_data = st.session_state.get('target_data', pd.DataFrame())
-    
-    if target_data is not None and not target_data.empty: 
-        create_dept_mapping_table(target_data)
-    
-    st.markdown("##### 表示指標の選択")
-    # ★★★ 平均在院日数をトレンド分析に変更 ★★★
-    tab_options = ["日平均在院患者数", "週合計新入院患者数", "平均在院日数（トレンド分析）", "アクション提案"]
-    
-    # セッション状態の初期化
-    if 'selected_dept_tab_name' not in st.session_state:
-        st.session_state.selected_dept_tab_name = tab_options[0]
 
-    # ボタンを横並びに配置してタブのように見せる
-    cols = st.columns(4)
-    for i, option in enumerate(tab_options):
-        # 選択中のタブをハイライト
-        button_type = "primary" if st.session_state.selected_dept_tab_name == option else "secondary"
-        if cols[i].button(option, key=f"dept_tab_{i}", use_container_width=True, type=button_type):
-            st.session_state.selected_dept_tab_name = option
-            st.rerun()
+    if not st.session_state.get('dept_mapping_initialized', False) and (target_data is not None and not target_data.empty):
+        create_dept_mapping_table(target_data)
+
+    # スマホ向け個別レポート生成（既存のまま）
+    st.markdown("---")
+    st.subheader("📱 スマホ向け個別レポート生成（90日分析統合版）")
     
-    st.info(f"現在の表示: **{st.session_state.selected_dept_tab_name}** | 努力度表示機能有効")
+    # 新機能の説明を追加
+    with st.expander("📖 モバイルレポートについて", expanded=False):
+        st.markdown("""
+        **🆕 90日分析統合版の特徴:**
+        - 📊 診療科別の主要4指標をカード形式で表示
+        - 📈 90日間のトレンドグラフ（3種類）
+        - 🔍 現状分析と具体的なアクションプラン
+        - 📱 スマートフォンでの閲覧に最適化
+        - 🎯 努力度評価による動機付け
+        
+        **活用シーン:**
+        - 週次の診療科会議での共有
+        - 診療科長への定期報告
+        - 改善活動の進捗確認
+        """)
+
+    try:
+        # 診療科列の確認
+        possible_cols = ['部門名', '診療科', '診療科名']
+        dept_col = next((c for c in possible_cols if c in df_original.columns), None)
+        
+        if dept_col is None:
+            st.error("データに診療科を示す列が見つかりません。レポートを生成できません。")
+        else:
+            # レポート生成設定
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # 診療科選択
+                dept_names = sorted(df_original[dept_col].unique())
+                selected_dept_name = st.selectbox(
+                    "📋 レポートを作成する診療科", 
+                    dept_names, 
+                    index=0, 
+                    key="mobile_report_dept_select",
+                    help="90日分析を含むモバイルレポートを生成する診療科を選択"
+                )
+            
+            with col2:
+                # 期間選択
+                period_options_mobile = ["直近4週間", "直近8週", "直近12週", "今年度", "先月"]
+                selected_period_mobile = st.selectbox(
+                    "📅 集計期間", 
+                    period_options_mobile, 
+                    index=0, 
+                    key="mobile_report_period_select",
+                    help="メトリクスカードの集計期間（グラフは常に90日表示）"
+                )
+
+            # プレビューオプション
+            col3, col4 = st.columns([1, 1])
+            
+            with col3:
+                preview_mode = st.checkbox(
+                    "🔍 プレビュー表示",
+                    value=False,
+                    key="mobile_report_preview",
+                    help="生成後にプレビューを表示"
+                )
+            
+            with col4:
+                # 生成ボタン
+                if st.button(
+                    f"⚡ レポート生成", 
+                    key="generate_mobile_report", 
+                    use_container_width=True,
+                    type="primary"
+                ):
+                    mobile_generator = get_mobile_report_generator()
+                    if mobile_generator is None:
+                        st.error("モバイルレポート生成機能が利用できません。")
+                        return
+                    
+                    with st.spinner(f"{selected_dept_name}の90日分析レポートを生成中..."):
+                        try:
+                            # 期間計算
+                            start_date, end_date, period_desc = get_period_dates(
+                                df_original, selected_period_mobile
+                            )
+                            
+                            if start_date is None or end_date is None:
+                                st.error("期間の計算に失敗しました。")
+                            else:
+                                # データフィルタリング
+                                df_filtered = safe_date_filter(df_original, start_date, end_date)
+                                
+                                if '病棟コード' in df_filtered.columns and EXCLUDED_WARDS:
+                                    df_filtered = df_filtered[~df_filtered['病棟コード'].isin(EXCLUDED_WARDS)]
+                                
+                                # 診療科でフィルタリング（90日分のデータも含める）
+                                # 90日前からのデータを取得
+                                end_date_90d = df_original['日付'].max()
+                                start_date_90d = end_date_90d - pd.Timedelta(days=89)
+                                df_dept_90days = df_original[
+                                    (df_original[dept_col] == selected_dept_name) &
+                                    (df_original['日付'] >= start_date_90d) &
+                                    (df_original['日付'] <= end_date_90d)
+                                ]
+                                
+                                if '病棟コード' in df_dept_90days.columns and EXCLUDED_WARDS:
+                                    df_dept_90days = df_dept_90days[~df_dept_90days['病棟コード'].isin(EXCLUDED_WARDS)]
+                                
+                                # KPI計算（選択期間のデータで）
+                                dept_kpi_data = calculate_department_kpis(
+                                    df_filtered,
+                                    target_data,
+                                    selected_dept_name,  # dept_code
+                                    selected_dept_name,  # dept_name  
+                                    start_date,
+                                    end_date,
+                                    dept_col
+                                )
+
+                                if dept_kpi_data and not df_dept_90days.empty:
+                                    html_content = mobile_generator(
+                                        dept_kpi=dept_kpi_data,
+                                        period_desc=period_desc,
+                                        df_dept_filtered=df_dept_90days,  # 90日分のデータ
+                                        dept_name=selected_dept_name
+                                    )
+                                    
+                                    # ファイル名とセッション保存
+                                    filename = f"mobile_report_{selected_dept_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.html"
+                                    st.session_state['dl_mobile_report_html'] = html_content
+                                    st.session_state['dl_mobile_report_name'] = filename
+                                    
+                                    st.success(f"✅ {selected_dept_name}の90日分析レポートが生成されました！")
+                                    
+                                    # プレビュー表示
+                                    if preview_mode:
+                                        st.markdown("### 📱 レポートプレビュー")
+                                        # iframe での表示
+                                        st.components.v1.html(
+                                            html_content, 
+                                            height=800, 
+                                            scrolling=True
+                                        )
+                                    
+                                else:
+                                    if not dept_kpi_data:
+                                        st.error(f"{selected_dept_name}のKPIデータの計算に失敗しました。")
+                                    else:
+                                        st.error(f"{selected_dept_name}の90日分のデータが不足しています。")
+                                        
+                        except Exception as e:
+                            st.error(f"レポート生成中にエラーが発生しました: {str(e)}")
+
+            # ダウンロードセクション（既存のまま）
+            if 'dl_mobile_report_html' in st.session_state:
+                st.markdown("---")
+                col_dl1, col_dl2 = st.columns([2, 1])
+                
+                with col_dl1:
+                    st.info(f"📄 生成済みファイル: {st.session_state['dl_mobile_report_name']}")
+                
+                with col_dl2:
+                    st.download_button(
+                        label="📥 ダウンロード",
+                        data=st.session_state['dl_mobile_report_html'].encode("utf-8"),
+                        file_name=st.session_state['dl_mobile_report_name'],
+                        mime="text/html",
+                        key="download_mobile_report_exec",
+                        use_container_width=True,
+                        type="primary"
+                    )
+                
+                # 追加オプション
+                with st.expander("🔧 追加オプション", expanded=False):
+                    col_opt1, col_opt2 = st.columns(2)
+                    
+                    with col_opt1:
+                        if st.button("📧 メール用HTML", key="generate_email_version"):
+                            # インラインCSS版の生成（将来実装）
+                            st.info("メール配信用のインラインCSS版は準備中です")
+                    
+                    with col_opt2:
+                        if st.button("🖨️ 印刷用PDF", key="generate_pdf_version"):
+                            # PDF変換機能（将来実装）
+                            st.info("PDF変換機能は準備中です")
+
+    except Exception as e:
+        st.error(f"レポート生成機能でエラーが発生しました: {str(e)}")
+
+    # 🆕 一括公開機能をここに追加
+    st.markdown("---")
+    st.subheader("🚀 全診療科スマホレポート一括公開（修正版）")
+    
+    with st.expander("📱 一括公開機能について", expanded=False):
+        st.markdown("""
+        **🆕 修正版の特徴:**
+        - 🛡️ **GitHub API制限対策**: 3件ずつバッチ処理、5秒間隔
+        - 💾 **メモリ監視**: 使用量800MB超でクリーンアップ
+        - 🔄 **自動リトライ**: 失敗時最大2回まで再試行
+        - 📊 **詳細進捗表示**: リアルタイム状況とエラーレポート
+        - ⚡ **処理安定性**: 大幅に向上した継続処理能力
+        
+        **処理時間の目安:**
+        - 診療科数 × 1.5分程度（API制限により変動）
+        - 例：20診療科 ≈ 30分程度
+        """)
+    
+    # 一括公開の設定と実行
+    col_batch1, col_batch2, col_batch3 = st.columns([2, 1, 1])
+    
+    with col_batch1:
+        batch_period = st.selectbox(
+            "📅 一括生成期間",
+            ["直近4週間", "直近8週", "直近12週", "先月", "今年度"],
+            index=0,
+            key="batch_period_select",
+            help="全診療科レポートの集計期間"
+        )
+    
+    with col_batch2:
+        # GitHub設定確認
+        github_settings = st.session_state.get('github_settings', {})
+        github_token = github_settings.get('token', '')
+        if github_token:
+            st.success("🔑 GitHub設定済み")
+        else:
+            st.error("🔑 GitHub未設定")
+            st.caption("設定画面で設定してください")
+    
+    with col_batch3:
+        # 対象診療科数表示
+        if dept_col and dept_col in df_original.columns:
+            dept_count = len(df_original[dept_col].dropna().unique())
+            estimated_time = (dept_count // 3) * 5  # 分単位推定
+            st.metric("対象診療科", f"{dept_count}件")
+            st.caption(f"推定時間: {estimated_time}分")
+        else:
+            st.metric("対象診療科", "不明")
+    
+    # 実行ボタンと詳細設定
+    col_exec1, col_exec2 = st.columns([2, 1])
+    
+    with col_exec1:
+        # メイン実行ボタン
+        if st.button(
+            "🚀 全診療科レポート一括公開（修正版）", 
+            key="batch_publish_fixed",
+            disabled=not github_token,
+            type="primary",
+            use_container_width=True
+        ):
+            if not github_token:
+                st.error("🔑 GitHub設定が必要です。設定画面でトークンとリポジトリを設定してください。")
+                return
+            
+            # 修正版一括公開を実行
+            try:
+                # 必要なモジュールのインポート
+                from html_export_functions import publish_all_mobile_reports_fixed
+                
+                # GitHubパブリッシャーの動的インポートと初期化
+                try:
+                    from github_publisher import GitHubPublisher
+                    publisher = GitHubPublisher(
+                        token=github_settings.get('token'),
+                        repo_name=github_settings.get('repo_name'),
+                        branch=github_settings.get('branch', 'gh-pages')
+                    )
+                except ImportError:
+                    st.error("❌ GitHub公開機能が利用できません。github_publisher.pyが必要です。")
+                    return
+                except Exception as pub_init_error:
+                    st.error(f"❌ GitHubパブリッシャーの初期化に失敗しました: {pub_init_error}")
+                    return
+                
+                # 一括公開実行（修正版）
+                st.info("🔄 修正版一括公開を開始します...")
+                success = publish_all_mobile_reports_fixed(
+                    df=df_original,
+                    target_data=target_data,
+                    publisher=publisher,
+                    period=batch_period
+                )
+                
+                # 結果表示
+                if success:
+                    st.success("🎉 一括公開が正常に完了しました！")
+                    
+                    # 公開URLの表示
+                    if hasattr(publisher, 'repo_name') and publisher.repo_name:
+                        repo_name = publisher.repo_name
+                        username = github_settings.get('username', 'your-username')
+                        pages_url = f"https://{username}.github.io/{repo_name}/"
+                        st.success(f"🌐 公開サイト: [診療科別レポート一覧]({pages_url})")
+                else:
+                    st.warning("⚠️ 一括公開は完了しましたが、一部でエラーが発生しました。詳細は上記のログを確認してください。")
+                    
+            except ImportError as import_error:
+                st.error(f"❌ 必要なモジュールのインポートに失敗しました: {import_error}")
+                st.info("💡 html_export_functions.py に修正版関数が追加されているか確認してください。")
+            except Exception as publish_error:
+                st.error(f"❌ 一括公開でエラーが発生しました: {publish_error}")
+                st.code(traceback.format_exc())
+    
+    with col_exec2:
+        # テスト実行ボタン
+        if st.button(
+            "🧪 テスト実行（5診療科）",
+            key="test_batch_publish",
+            disabled=not github_token,
+            help="最初の5診療科のみでテスト実行"
+        ):
+            if github_token:
+                st.info("🧪 テスト実行機能は開発中です")
+                # TODO: テスト実行の実装
+            else:
+                st.error("🔑 GitHub設定が必要です")
+    
+    # 使用上の注意とヒント
+    with st.expander("⚠️ 使用上の注意とトラブルシューティング", expanded=False):
+        st.markdown("""
+        ### 📋 事前準備チェックリスト
+        - ✅ GitHub Personal Access Token が設定済み
+        - ✅ リポジトリ名が正しく設定されている  
+        - ✅ GitHub Pages が有効化されている
+        - ✅ インターネット接続が安定している
+        
+        ### ⚡ 処理中の注意点
+        - **タブを閉じないでください**: 処理が中断されます
+        - **他の操作は控えめに**: メモリ使用量が増加します
+        - **完了まで待機**: GitHub API制限により時間がかかります
+        
+        ### 🔧 トラブル対処法
+        
+        **❌ 7件で停止する場合:**
+        1. ページを再読み込みして再実行
+        2. ブラウザのメモリをクリア（タブを閉じる）
+        3. 時間をおいて再実行（API制限解除待ち）
+        
+        **❌ GitHub接続エラー:**
+        1. トークンの有効期限を確認
+        2. リポジトリのアクセス権限を確認
+        3. ネットワーク接続を確認
+        
+        **❌ メモリ不足エラー:**
+        1. 他のタブやアプリケーションを閉じる
+        2. 少量ずつ実行する
+        3. ブラウザを再起動
+        
+        ### 📞 サポート
+        問題が解決しない場合は、エラーメッセージとログを保存してサポートに連絡してください。
+        """)
+    
     st.markdown("---")
 
-    period_options = ["直近4週間", "直近8週", "直近12週", "今年度", "先月", "昨年度"]
-    selected_period = st.selectbox("📅 集計期間", period_options, index=0, key="dept_performance_period")
-
-    # 選択されたタブに応じた表示ロジック
-    results_data = None
+def create_mobile_integrated_report(df_original, target_data, selected_period):
+    """モバイル統合レポート作成機能"""
     try:
-        selected_tab = st.session_state.selected_dept_tab_name
+        st.markdown("### 📱 診療科別モバイル統合レポート")
+        st.markdown("スマートフォン対応の統合レポートを生成します")
         
-        if selected_tab == "アクション提案":
-            # アクション提案タブ（影響度順対応版）
-            results_data = display_action_dashboard_with_detail_option(df_original, target_data, selected_period)
-        else:
-            # 3つの指標タブ（トレンド分析対応版）
-            results_data = display_metrics_dashboard(selected_tab, df_original, target_data, selected_period)
+        # 診療科選択
+        start_date, end_date, period_desc = get_period_dates(df_original, selected_period)
+        if start_date is None or end_date is None:
+            st.error("期間の計算に失敗しました。")
+            return None
         
-        # 結果データが存在する場合のみ、エクスポートセクションを表示
-        if results_data and results_data[0] is not None:
-            display_web_publish_section(selected_tab, results_data, selected_period)
-        elif selected_tab:
-             st.warning("選択された条件のデータが存在しないか、KPI計算に失敗しました。")
+        date_filtered_df = safe_date_filter(df_original, start_date, end_date)
+        if '病棟コード' in date_filtered_df.columns and EXCLUDED_WARDS:
+            date_filtered_df = date_filtered_df[~date_filtered_df['病棟コード'].isin(EXCLUDED_WARDS)]
+        
+        if date_filtered_df.empty:
+            st.warning(f"選択された期間（{period_desc}）にデータがありません。")
+            return None
+        
+        # 診療科リストの取得
+        possible_cols = ['部門名', '診療科', '診療科名']
+        dept_col = next((c for c in possible_cols if c in date_filtered_df.columns), None)
+        if dept_col is None:
+            st.error("診療科列が見つかりません。")
+            return None
+        
+        unique_depts = sorted(date_filtered_df[dept_col].unique())
+        
+        # UI作成
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            selected_dept = st.selectbox(
+                "📋 診療科を選択",
+                options=unique_depts,
+                key="mobile_dept_selector",
+                help="モバイルレポートを生成する診療科を選択"
+            )
+        
+        with col2:
+            if st.button("📱 レポート生成", key="generate_mobile_report", use_container_width=True):
+                with st.spinner("モバイルレポートを生成中..."):
+                    # 選択された診療科のKPIデータを取得
+                    kpi_data = calculate_department_kpis(
+                        date_filtered_df, target_data, selected_dept, selected_dept,
+                        start_date, end_date, dept_col
+                    )
+                    
+                    if kpi_data:
+                        # モバイル対応HTMLを生成
+                        mobile_html = generate_mobile_department_html(
+                            selected_dept, kpi_data, period_desc
+                        )
+                        
+                        if mobile_html:
+                            # プレビュー表示
+                            st.success("✅ モバイルレポートが生成されました")
+                            
+                            # ダウンロードボタン
+                            filename = f"mobile_dept_{selected_dept}_{datetime.now().strftime('%Y%m%d_%H%M')}.html"
+                            st.download_button(
+                                label="📥 モバイルレポートをダウンロード",
+                                data=mobile_html.encode('utf-8'),
+                                file_name=filename,
+                                mime="text/html",
+                                key="download_mobile_report",
+                                use_container_width=True
+                            )
+                            
+                            # プレビュー表示（オプション）
+                            if st.checkbox("🔍 プレビュー表示", key="show_mobile_preview"):
+                                st.components.v1.html(mobile_html, height=400, scrolling=True)
+                        else:
+                            st.error("❌ HTMLの生成に失敗しました")
+                    else:
+                        st.error("❌ KPIデータの取得に失敗しました")
+        
+        # 使用方法ガイド
+        with st.expander("📖 使用方法ガイド", expanded=False):
+            st.markdown("""
+            **📱 モバイル統合レポートの特徴:**
             
+            - **📊 3指標統合**: 在院患者数、新入院数、平均在院日数を1画面に表示
+            - **📱 スマートフォン最適化**: 縦画面での閲覧に最適化されたデザイン
+            - **📈 トレンド分析**: 期間内の推移を視覚的に表示
+            - **🎯 現状分析**: 目標達成状況と改善点を自動分析
+            - **💡 アクションプラン**: 具体的な改善提案を自動生成
+            - **📴 オフライン対応**: ダウンロード後はインターネット接続不要
+            
+            **📋 活用場面:**
+            
+            - 🏥 病棟回診時の現状確認
+            - 📊 管理会議での報告資料
+            - 🎯 改善活動の進捗確認
+            - 📝 週次レポートの作成
+            - 📱 外出先での状況確認
+            """)
+        
+        return {"selected_dept": selected_dept, "kpi_data": kpi_data if 'kpi_data' in locals() else None}
+        
     except Exception as e:
-        logger.error(f"ダッシュボード表示エラー: {e}", exc_info=True)
-        st.error(f"ダッシュボードの表示中にエラーが発生しました: {str(e)}")
+        logger.error(f"モバイル統合レポート作成エラー: {e}", exc_info=True)
+        st.error(f"モバイル統合レポートの作成中にエラーが発生しました: {str(e)}")
+        return None
+
+def generate_mobile_department_html(dept_name, kpi_data, period_desc):
+    """モバイル対応診療科別HTML生成"""
+    try:
+        # 基本的なHTMLテンプレート（モックアップベース）
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{dept_name} - 週次レポート</title>
+            <style>
+                {get_mobile_css_styles()}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🏥 {dept_name} 週次レポート</h1>
+                <p>{period_desc}</p>
+            </div>
+            
+            <div class="container">
+                <!-- サマリーカード -->
+                <div class="summary-cards">
+                    <div class="summary-card {get_achievement_class(kpi_data.get('daily_census_achievement', 0))}">
+                        <h3>在院患者数</h3>
+                        <div class="value">{kpi_data.get('daily_avg_census', 0):.1f}</div>
+                        <div class="target">目標: {kpi_data.get('daily_census_target', 0) or '--'}人</div>
+                        <div class="trend trend-up">📈 {kpi_data.get('recent_week_daily_census', 0) - kpi_data.get('daily_avg_census', 0):+.1f}人</div>
+                    </div>
+                    <div class="summary-card card-good">
+                        <h3>新入院</h3>
+                        <div class="value">{kpi_data.get('weekly_avg_admissions', 0):.0f}</div>
+                        <div class="target">週間実績</div>
+                        <div class="trend trend-stable">➡️ 安定</div>
+                    </div>
+                    <div class="summary-card card-warning">
+                        <h3>平均在院日数</h3>
+                        <div class="value">{kpi_data.get('avg_length_of_stay', 0):.1f}</div>
+                        <div class="target">日</div>
+                        <div class="trend trend-down">📉 {kpi_data.get('recent_week_avg_los', 0) - kpi_data.get('avg_length_of_stay', 0):+.1f}日</div>
+                    </div>
+                </div>
+                
+                <!-- 現状分析 -->
+                <div class="section">
+                    <h2>🔍 現状分析</h2>
+                    <p><strong>🔴 課題:</strong> {generate_status_analysis(kpi_data)}</p>
+                    <p><strong>📈 トレンド:</strong> {generate_trend_analysis(kpi_data)}</p>
+                    <p><strong>💡 チャンス:</strong> {generate_opportunity_analysis(kpi_data)}</p>
+                </div>
+                
+                <!-- アクションプラン -->
+                <div class="section">
+                    <h2>🎯 今週のアクションプラン</h2>
+                    <ul class="action-list">
+                        {generate_action_plan_items(kpi_data)}
+                    </ul>
+                </div>
+                
+                <!-- 期待効果 -->
+                <div class="section">
+                    <h2>📈 期待効果</h2>
+                    <p>{generate_expected_effects(kpi_data)}</p>
+                </div>
+            </div>
+            
+            <!-- フローティングボタン -->
+            <div class="fab">🏠</div>
+        </body>
+        </html>
+        """
+        
+        return html_content
+        
+    except Exception as e:
+        logger.error(f"モバイルHTML生成エラー: {e}")
+        return None
+
+def get_mobile_css_styles():
+    """モバイル対応CSSスタイル"""
+    return """
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans JP', sans-serif;
+            background: #f5f7fa; 
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 16px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header h1 { font-size: 1.4em; margin-bottom: 4px; }
+        .header p { font-size: 0.9em; opacity: 0.9; }
+        
+        .container { 
+            max-width: 100%;
+            padding: 16px;
+            margin-bottom: 60px;
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .summary-card h3 {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .summary-card .value {
+            font-size: 1.8em;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .summary-card .target {
+            font-size: 0.8em;
+            color: #999;
+        }
+        
+        .card-good .value { color: #4CAF50; }
+        .card-warning .value { color: #FF9800; }
+        .card-danger .value { color: #F44336; }
+        
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .section h2 {
+            color: #667eea;
+            font-size: 1.1em;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .action-list {
+            list-style: none;
+            margin: 0;
+        }
+        .action-list li {
+            background: #f8f9fa;
+            margin-bottom: 8px;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            font-size: 0.9em;
+        }
+        .action-list .priority {
+            color: #667eea;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+        
+        .trend {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8em;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .trend-up { background: #fff3cd; color: #856404; }
+        .trend-down { background: #d1ecf1; color: #0c5460; }
+        .trend-stable { background: #d4edda; color: #155724; }
+        
+        .fab {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            background: #667eea;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5em;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        
+        @media (max-width: 480px) {
+            .summary-cards {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            .container {
+                padding: 12px;
+            }
+            .section {
+                padding: 16px;
+            }
+            .header h1 {
+                font-size: 1.2em;
+            }
+        }
+    """
+
+def get_achievement_class(achievement):
+    """達成率に基づくCSSクラス取得"""
+    if achievement >= 95:
+        return "card-good"
+    elif achievement >= 85:
+        return "card-warning"
+    else:
+        return "card-danger"
+
+def generate_status_analysis(kpi_data):
+    """現状分析テキスト生成"""
+    target = kpi_data.get('daily_census_target', 0)
+    current = kpi_data.get('daily_avg_census', 0)
+    if target and current:
+        gap = target - current
+        if gap > 0:
+            return f"目標まで{gap:.1f}人不足"
+        else:
+            return f"目標を{abs(gap):.1f}人超過"
+    return "目標値未設定"
+
+def generate_trend_analysis(kpi_data):
+    """トレンド分析テキスト生成"""
+    recent = kpi_data.get('recent_week_daily_census', 0)
+    avg = kpi_data.get('daily_avg_census', 0)
+    if recent > avg:
+        return f"直近週は改善傾向（+{recent - avg:.1f}人）"
+    elif recent < avg:
+        return f"直近週は減少傾向（{recent - avg:.1f}人）"
+    else:
+        return "直近週は横ばい"
+
+def generate_opportunity_analysis(kpi_data):
+    """チャンス分析テキスト生成"""
+    admissions = kpi_data.get('weekly_avg_admissions', 0)
+    if admissions > 0:
+        return "新入院数が安定、在院日数に調整余地"
+    return "データ分析に基づく改善機会を検討"
+
+def generate_action_plan_items(kpi_data):
+    """アクションプランアイテム生成"""
+    items = []
+    
+    # 在院患者数の状況に基づいて
+    achievement = kpi_data.get('daily_census_achievement', 0)
+    if achievement < 95:
+        items.append('<li><div class="priority">優先度: 高</div>救急外来との連携強化 - 新入院患者の確保</li>')
+        items.append('<li><div class="priority">優先度: 中</div>退院調整カンファレンスの実施頻度UP</li>')
+    else:
+        items.append('<li><div class="priority">優先度: 低</div>現状維持 - 良好な状況を継続</li>')
+    
+    items.append('<li><div class="priority">優先度: 中</div>地域医療機関への病診連携促進</li>')
+    
+    return '\n'.join(items)
+
+def generate_expected_effects(kpi_data):
+    """期待効果テキスト生成"""
+    target = kpi_data.get('daily_census_target', 0)
+    current = kpi_data.get('daily_avg_census', 0)
+    
+    if target and current:
+        gap = target - current
+        if gap > 0:
+            return f"💡 <strong>新入院週1人増加</strong> → 約{gap * 0.5:.1f}人増加効果<br>🎯 実行により<strong>目標達成率90%以上</strong>を期待"
+        else:
+            return "🎯 <strong>現状維持により安定した運営を継続</strong>"
+    
+    return "💡 <strong>データ分析に基づく継続的改善</strong>"

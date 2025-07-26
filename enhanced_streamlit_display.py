@@ -246,7 +246,7 @@ def _display_detailed_action_card(comprehensive_data):
             
             # タブ式詳細情報（エラーハンドリング付き）
             try:
-                tab1, tab2, tab3, tab4 = st.tabs(["📊 現状分析", "⚙️ 実現可能性", "📈 効果予測", "🎯 推奨アクション"])
+                tab1, tab2, tab3, tab4 = st.tabs(["📊 現状分析", "⚙️ 実現可能性", "📈 簡易効果予測", "🎯 推奨アクション"])
                 
                 with tab1:
                     _display_current_analysis_safe(basic_info, analysis)
@@ -401,13 +401,33 @@ def _display_feasibility_analysis(feasibility):
                 st.markdown(f"• {emoji} {factor}")
 
 def _display_simplified_simulation_analysis(simulation):
-    """簡素化された効果予測タブの表示"""
+    """簡素化された効果予測タブの表示（乖離警告付き）"""
     try:
-        st.markdown("#### 📈 効果シミュレーション")
+        st.markdown("#### 📈 簡易効果シミュレーション")
         
         if not simulation.get('is_simplified', False) or simulation.get('error', False):
             st.info("📝 シミュレーションデータが準備中です")
             return
+        
+        # 乖離警告の表示
+        variance_warning = simulation.get('variance_warning', {})
+        if variance_warning.get('show_warning', False):
+            warning_level = variance_warning.get('warning_level', '注意')
+            message = variance_warning.get('message', '')
+            reasons = variance_warning.get('reasons', [])
+            
+            if warning_level == "警戒":
+                st.warning(f"⚠️ **{message}**")
+            else:
+                st.info(f"ℹ️ **{message}**")
+            
+            with st.expander("📋 乖離の考えられる要因", expanded=False):
+                st.markdown("**以下の要因が影響している可能性があります：**")
+                for reason in reasons:
+                    st.markdown(f"• {reason}")
+                st.markdown("\n**→ 効果予測は実用的計算として参考にご活用ください**")
+        
+        st.info("💡 リトルの法則に基づく理論計算です")
         
         col1, col2 = st.columns(2)
         
@@ -415,7 +435,7 @@ def _display_simplified_simulation_analysis(simulation):
             st.markdown("**📈 新入院増加案**")
             adm_scenario = simulation['admission_scenario']
             st.markdown(f"• {adm_scenario['description']}")
-            st.markdown(f"• 予想効果: **+{adm_scenario['effect']:.1f}人**")
+            st.markdown(f"• 予想効果: **+{adm_scenario['effect']:.1f}{adm_scenario['unit'].split('の')[1] if 'の' in adm_scenario['unit'] else adm_scenario['unit']}**")
             
             # 効果の視覚的表示
             if adm_scenario['effect'] > 0:
@@ -427,7 +447,7 @@ def _display_simplified_simulation_analysis(simulation):
             st.markdown("**📊 在院日数延長案**")
             los_scenario = simulation['los_scenario'] 
             st.markdown(f"• {los_scenario['description']}")
-            st.markdown(f"• 予想効果: **+{los_scenario['effect']:.1f}人**")
+            st.markdown(f"• 予想効果: **+{los_scenario['effect']:.1f}{los_scenario['unit'].split('の')[1] if 'の' in los_scenario['unit'] else los_scenario['unit']}**")
             
             # 効果の視覚的表示
             if los_scenario['effect'] > 0:
@@ -435,23 +455,31 @@ def _display_simplified_simulation_analysis(simulation):
             else:
                 st.warning("⚠️ 効果が期待できません")
         
-        # 現状分析情報の表示（簡素化）
+        # 現状分析情報の表示（詳細）
         current_status = simulation.get('current_status', {})
         if current_status:
             with st.expander("📊 現状分析の詳細", expanded=False):
                 theoretical = current_status.get('theoretical_census', 0)
                 actual = current_status.get('actual_census', 0)
                 variance = current_status.get('variance', 0)
+                variance_pct = current_status.get('variance_percentage', 0)
+                reliability = current_status.get('reliability', '不明')
                 
                 st.markdown(f"""
-                **現状分析：**
-                - 計算値: {theoretical:.1f}人
+                **リトルの法則による分析：**
+                - 理論値: {theoretical:.1f}人
                 - 実績値: {actual:.1f}人  
-                - 差異: {variance:+.1f}人
+                - 差異: {variance:+.1f}人（{variance_pct:.1f}%）
+                - 信頼度: {reliability}
                 """)
+        
+        # 注釈
+        note = simulation.get('note', '')
+        if note:
+            st.caption(f"📝 {note}")
             
     except Exception as e:
-        logger.error(f"効果予測表示エラー: {e}")
+        logger.error(f"乖離警告付きシミュレーション表示エラー: {e}")
         st.error("効果予測の表示でエラーが発生しました")
 
 def _display_action_recommendation(action, expected_effect):

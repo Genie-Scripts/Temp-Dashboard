@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+import calendar
 import re # 病棟コードのパターンマッチング用
 import logging # ロギング用に追加
 
@@ -566,3 +567,726 @@ def filter_excluded_wards(df):
         return df_filtered
     
     return df
+    
+def get_period_dates(df, period):
+    """選択された期間文字列に基づいて開始日と終了日を計算する"""
+    if df.empty or '日付' not in df.columns:
+        return None, None, ""
+
+    latest_date = pd.to_datetime(df['日付'].max())
+    start_date, end_date = None, None
+    period_desc = ""
+
+    if period == "直近4週間":
+        start_date = latest_date - pd.Timedelta(days=27)
+        end_date = latest_date
+        period_desc = f"直近4週間 ({start_date.strftime('%m/%d')}～{end_date.strftime('%m/%d')})"
+    
+    elif period == "直近8週":
+        start_date = latest_date - pd.Timedelta(days=55)
+        end_date = latest_date
+        period_desc = f"直近8週間 ({start_date.strftime('%m/%d')}～{end_date.strftime('%m/%d')})"
+
+    elif period == "直近12週":
+        start_date = latest_date - pd.Timedelta(days=83)
+        end_date = latest_date
+        period_desc = f"直近12週間 ({start_date.strftime('%m/%d')}～{end_date.strftime('%m/%d')})"
+    
+    elif period == "今年度":
+        today = latest_date
+        if today.month >= 4:
+            # 4月以降の場合、今年の4月1日が年度開始日
+            start_date = pd.Timestamp(year=today.year, month=4, day=1)
+        else:
+            # 1月～3月の場合、去年の4月1日が年度開始日
+            start_date = pd.Timestamp(year=today.year - 1, month=4, day=1)
+        end_date = latest_date
+        period_desc = f"今年度 ({start_date.strftime('%Y/%m/%d')}～)"
+    
+    elif period == "先月":
+        first_day_of_current_month = latest_date.replace(day=1)
+        last_day_of_last_month = first_day_of_current_month - pd.Timedelta(days=1)
+        first_day_of_last_month = last_day_of_last_month.replace(day=1)
+        start_date = first_day_of_last_month
+        end_date = last_day_of_last_month
+        period_desc = f"{start_date.year}年{start_date.month}月"
+    
+    elif period == "昨年度":
+        today = latest_date
+        if today.month >= 4:
+            # 今が4月以降の場合、昨年度は去年の4月1日～今年の3月31日
+            start_date = pd.Timestamp(year=today.year - 1, month=4, day=1)
+            end_date = pd.Timestamp(year=today.year, month=3, day=31)
+        else:
+            # 今が1月～3月の場合、昨年度は一昨年の4月1日～去年の3月31日
+            start_date = pd.Timestamp(year=today.year - 2, month=4, day=1)
+            end_date = pd.Timestamp(year=today.year - 1, month=3, day=31)
+        period_desc = f"{start_date.year}年度"
+
+    if start_date and end_date:
+        start_date = pd.to_datetime(start_date)
+        end_date = pd.to_datetime(end_date)
+
+    return start_date, end_date, period_desc
+
+def calculate_department_kpis(df, target_data, dept_code, dept_name, start_date, end_date, dept_col):
+    """診療科別KPI計算（直近週評価強化版）"""
+    try:
+        # 基本的なデータフィルタリング（従来通り）
+        if dept_col is not None:
+            # 従来通り、まず診療科で絞り、その後日付で絞り込む
+            dept_df = df[df[dept_col] == dept_code]
+            period_df = safe_date_filter(dept_df, start_date, end_date)
+        else:
+            # 病院全体の場合、dept_dfは元のdf全体とする
+            dept_df = df
+            period_df = safe_date_filter(df, start_date, end_date)
+        
+        if period_df.empty:
+            return None
+        
+        # 期間全体の集計（従来通り）
+        total_days = (end_date - start_date).days + 1
+        total_patient_days = period_df['在院患者数'].sum() if '在院患者数' in period_df.columns else 0
+        total_admissions = period_df['新入院患者数'].sum() if '新入院患者数' in period_df.columns else 0
+        total_discharges = period_df['退院患者数'].sum() if '退院患者数' in period_df.columns else 0
+        
+        daily_avg_census = total_patient_days / total_days if total_days > 0 else 0
+        
+        # ===== 直近週の計算（強化版） =====
+        recent_week_end = end_date
+        recent_week_start = end_date - pd.Timedelta(days=6)  # 7日間
+        recent_week_df = safe_date_filter(dept_df, recent_week_start, recent_week_end)
+        
+        # 直近週の詳細集計
+        if not recent_week_df.empty:
+            recent_week_patient_days = recent_week_df['在院患者数'].sum() if '在院患者数' in recent_week_df.columns else 0
+            recent_week_admissions = recent_week_df['新入院患者数'].sum() if '新入院患者数' in recent_week_df.columns else 0
+            recent_week_discharges = recent_week_df['退院患者数'].sum() if '退院患者数' in recent_week_df.columns else 0
+            recent_week_daily_census = recent_week_patient_days / 7  # 7日間の平均
+            recent_week_avg_los = recent_week_patient_days / recent_week_discharges if recent_week_discharges > 0 else 0
+        else:
+            # 直近週データがない場合のフォールバック
+            recent_week_patient_days = 0
+            recent_week_admissions = 0
+            recent_week_discharges = 0
+            recent_week_daily_census = 0
+            recent_week_avg_los = 0
+        
+        # 期間全体の平均在院日数と週平均新入院
+        avg_length_of_stay = total_patient_days / total_discharges if total_discharges > 0 else 0
+        weekly_avg_admissions = (total_admissions / total_days) * 7 if total_days > 0 else 0
+        
+        # 目標値の取得
+        targets = get_target_values_for_dept(target_data, dept_code, dept_name)
+        
+        # 病院全体の場合の特別処理（従来通り）
+        if dept_code == '全体' and targets['daily_census_target'] != 580:
+            logger.warning(f"病院全体の目標値が{targets['daily_census_target']}でした。580に強制変更します。")
+            targets['daily_census_target'] = 580
+        
+        # ===== 達成率の計算（期間平均ベース・従来通り） =====
+        daily_census_achievement = (daily_avg_census / targets['daily_census_target'] * 100) if targets['daily_census_target'] else 0
+        weekly_admissions_achievement = (weekly_avg_admissions / targets['weekly_admissions_target'] * 100) if targets['weekly_admissions_target'] else 0
+        
+        # ===== 🔥 直近週ベースの達成率計算（新規追加） =====
+        recent_week_census_achievement = (recent_week_daily_census / targets['daily_census_target'] * 100) if targets['daily_census_target'] else 0
+        recent_week_admissions_achievement = (recent_week_admissions / targets['weekly_admissions_target'] * 100) if targets['weekly_admissions_target'] else 0
+        
+        # ===== 直近週 vs 期間平均の変化率（新規追加） =====
+        census_change_rate = ((recent_week_daily_census - daily_avg_census) / daily_avg_census * 100) if daily_avg_census > 0 else 0
+        admissions_change_rate = ((recent_week_admissions - weekly_avg_admissions) / weekly_avg_admissions * 100) if weekly_avg_admissions > 0 else 0
+        los_change_rate = ((recent_week_avg_los - avg_length_of_stay) / avg_length_of_stay * 100) if avg_length_of_stay > 0 else 0
+        
+        # 平均在院日数達成率（従来通り）
+        if targets['avg_los_target'] and avg_length_of_stay > 0:
+            los_achievement = (targets['avg_los_target'] / avg_length_of_stay * 100)
+        else:
+            if avg_length_of_stay > 0 and recent_week_avg_los > 0:
+                los_trend_ratio = avg_length_of_stay / recent_week_avg_los
+                los_achievement = los_trend_ratio * 100
+            else:
+                los_achievement = 100
+        
+        # ===== 結果辞書（直近週データ追加版） =====
+        return {
+            # 基本情報
+            'dept_code': dept_code,
+            'dept_name': targets['display_name'],
+            
+            # 期間平均値（従来通り）
+            'daily_avg_census': daily_avg_census,
+            'weekly_avg_admissions': weekly_avg_admissions,
+            'avg_length_of_stay': avg_length_of_stay,
+            
+            # 🔥 直近週実績（新規・重要）
+            'recent_week_daily_census': recent_week_daily_census,
+            'recent_week_admissions': recent_week_admissions,
+            'recent_week_avg_los': recent_week_avg_los,
+            
+            # 目標値
+            'daily_census_target': targets['daily_census_target'],
+            'weekly_admissions_target': targets['weekly_admissions_target'],
+            'avg_los_target': targets['avg_los_target'],
+            
+            # 期間平均ベース達成率（従来通り）
+            'daily_census_achievement': daily_census_achievement,
+            'weekly_admissions_achievement': weekly_admissions_achievement,
+            'avg_los_achievement': los_achievement,
+            
+            # 🔥 直近週ベース達成率（新規・重要）
+            'recent_week_census_achievement': recent_week_census_achievement,
+            'recent_week_admissions_achievement': recent_week_admissions_achievement,
+            
+            # 🔥 変化率（直近週 vs 期間平均、新規）
+            'census_change_rate': census_change_rate,
+            'admissions_change_rate': admissions_change_rate,
+            'los_change_rate': los_change_rate,
+            
+            # その他
+            'has_los_target': targets['avg_los_target'] is not None,
+            
+            # 🔥 分析メタデータ（新規）
+            'recent_week_data_available': not recent_week_df.empty,
+            'recent_week_period': f"{recent_week_start.strftime('%m/%d')}～{recent_week_end.strftime('%m/%d')}"
+        }
+        
+    except Exception as e:
+        logger.error(f"直近週強化KPI計算エラー ({dept_code}): {e}", exc_info=True)
+        return None
+
+def calculate_ward_kpis(df, target_data, ward_code, ward_name, start_date, end_date, ward_col):
+    """病棟別KPI計算（直近週評価強化版）"""
+    try:
+        # 病棟でフィルタリング
+        ward_df = df[df[ward_col] == ward_code]
+        period_df = safe_date_filter(ward_df, start_date, end_date)
+        
+        if period_df.empty:
+            return None
+        
+        # 期間全体の集計（従来通り）
+        total_days = (end_date - start_date).days + 1
+        total_patient_days = period_df['在院患者数'].sum() if '在院患者数' in period_df.columns else 0
+        total_admissions = period_df['新入院患者数'].sum() if '新入院患者数' in period_df.columns else 0
+        total_discharges = period_df['退院患者数'].sum() if '退院患者数' in period_df.columns else 0
+        
+        daily_avg_census = total_patient_days / total_days if total_days > 0 else 0
+        
+        # ===== 直近週の計算（強化版） =====
+        recent_week_end = end_date
+        recent_week_start = end_date - pd.Timedelta(days=6)
+        recent_week_df = safe_date_filter(ward_df, recent_week_start, recent_week_end)
+        
+        # 直近週の詳細集計
+        if not recent_week_df.empty:
+            recent_week_patient_days = recent_week_df['在院患者数'].sum() if '在院患者数' in recent_week_df.columns else 0
+            recent_week_admissions = recent_week_df['新入院患者数'].sum() if '新入院患者数' in recent_week_df.columns else 0
+            recent_week_discharges = recent_week_df['退院患者数'].sum() if '退院患者数' in recent_week_df.columns else 0
+            recent_week_daily_census = recent_week_patient_days / 7
+            recent_week_avg_los = recent_week_patient_days / recent_week_discharges if recent_week_discharges > 0 else 0
+        else:
+            recent_week_patient_days = 0
+            recent_week_admissions = 0
+            recent_week_discharges = 0
+            recent_week_daily_census = 0
+            recent_week_avg_los = 0
+        
+        avg_length_of_stay = total_patient_days / total_discharges if total_discharges > 0 else 0
+        weekly_avg_admissions = (total_admissions / total_days) * 7 if total_days > 0 else 0
+        
+        # 目標値の取得
+        targets = get_target_values_for_ward(target_data, ward_code, ward_name)
+        
+        # ===== 達成率の計算 =====
+        # 期間平均ベース（従来通り）
+        daily_census_achievement = (daily_avg_census / targets['daily_census_target'] * 100) if targets['daily_census_target'] else 0
+        weekly_admissions_achievement = (weekly_avg_admissions / targets['weekly_admissions_target'] * 100) if targets['weekly_admissions_target'] else 0
+        
+        # 🔥 直近週ベース（新規追加）
+        recent_week_census_achievement = (recent_week_daily_census / targets['daily_census_target'] * 100) if targets['daily_census_target'] else 0
+        recent_week_admissions_achievement = (recent_week_admissions / targets['weekly_admissions_target'] * 100) if targets['weekly_admissions_target'] else 0
+        
+        # 🔥 変化率計算（新規追加）
+        census_change_rate = ((recent_week_daily_census - daily_avg_census) / daily_avg_census * 100) if daily_avg_census > 0 else 0
+        admissions_change_rate = ((recent_week_admissions - weekly_avg_admissions) / weekly_avg_admissions * 100) if weekly_avg_admissions > 0 else 0
+        los_change_rate = ((recent_week_avg_los - avg_length_of_stay) / avg_length_of_stay * 100) if avg_length_of_stay > 0 else 0
+        
+        # 平均在院日数達成率（従来通り）
+        if targets['avg_los_target'] and avg_length_of_stay > 0:
+            los_achievement = (targets['avg_los_target'] / avg_length_of_stay * 100)
+        else:
+            if avg_length_of_stay > 0 and recent_week_avg_los > 0:
+                los_trend_ratio = avg_length_of_stay / recent_week_avg_los
+                los_achievement = los_trend_ratio * 100
+            else:
+                los_achievement = 100
+        
+        # 病床稼働率の計算（従来通り）
+        bed_occupancy_rate = None
+        recent_week_bed_occupancy_rate = None
+        if targets['bed_count'] and targets['bed_count'] > 0:
+            bed_occupancy_rate = (daily_avg_census / targets['bed_count']) * 100
+            recent_week_bed_occupancy_rate = (recent_week_daily_census / targets['bed_count']) * 100
+        
+        # ===== 結果辞書（直近週データ追加版） =====
+        return {
+            # 基本情報
+            'ward_code': ward_code,
+            'ward_name': targets['display_name'],
+            
+            # 期間平均値（従来通り）
+            'daily_avg_census': daily_avg_census,
+            'weekly_avg_admissions': weekly_avg_admissions,
+            'avg_length_of_stay': avg_length_of_stay,
+            
+            # 🔥 直近週実績（新規・重要）
+            'recent_week_daily_census': recent_week_daily_census,
+            'recent_week_admissions': recent_week_admissions,
+            'recent_week_avg_los': recent_week_avg_los,
+            
+            # 目標値
+            'daily_census_target': targets['daily_census_target'],
+            'weekly_admissions_target': targets['weekly_admissions_target'],
+            'avg_los_target': targets['avg_los_target'],
+            
+            # 期間平均ベース達成率（従来通り）
+            'daily_census_achievement': daily_census_achievement,
+            'weekly_admissions_achievement': weekly_admissions_achievement,
+            'avg_los_achievement': los_achievement,
+            
+            # 🔥 直近週ベース達成率（新規・重要）
+            'recent_week_census_achievement': recent_week_census_achievement,
+            'recent_week_admissions_achievement': recent_week_admissions_achievement,
+            
+            # 🔥 変化率（直近週 vs 期間平均、新規）
+            'census_change_rate': census_change_rate,
+            'admissions_change_rate': admissions_change_rate,
+            'los_change_rate': los_change_rate,
+            
+            # 病床関連
+            'bed_count': targets['bed_count'],
+            'bed_occupancy_rate': bed_occupancy_rate,
+            'recent_week_bed_occupancy_rate': recent_week_bed_occupancy_rate,
+            
+            # その他
+            'has_los_target': targets['avg_los_target'] is not None,
+            
+            # 🔥 分析メタデータ（新規）
+            'recent_week_data_available': not recent_week_df.empty,
+            'recent_week_period': f"{recent_week_start.strftime('%m/%d')}～{recent_week_end.strftime('%m/%d')}"
+        }
+        
+    except Exception as e:
+        logger.error(f"病棟直近週強化KPI計算エラー ({ward_code}): {e}", exc_info=True)
+        return None
+        
+def evaluate_feasibility(kpi_data, dept_df, start_date, end_date):
+    """実現可能性を評価（直近週考慮版）"""
+    try:
+        # 期間平均データ（従来通り）
+        period_avg_census = kpi_data.get('daily_avg_census', 0)
+        period_admissions = kpi_data.get('weekly_avg_admissions', 0)
+        
+        # 🔥 直近週データ（新規考慮）
+        recent_week_census = kpi_data.get('recent_week_daily_census', 0)
+        recent_week_admissions = kpi_data.get('recent_week_admissions', 0)
+        
+        # 新入院の実現可能性評価（直近週重視版）
+        admission_feasible = {
+            "病床余裕": kpi_data.get('daily_census_achievement', 0) < 90,  # 期間平均ベース
+            "直近週トレンド": recent_week_admissions >= period_admissions * 0.95 if period_admissions > 0 else True,  # 🔥 直近週考慮
+            "トレンド安定": kpi_data.get('recent_week_admissions', 0) >= kpi_data.get('weekly_avg_admissions', 0) * 0.95  # 従来通り
+        }
+        
+        # 在院日数の適正範囲（従来通り）
+        los_range = calculate_los_appropriate_range(dept_df, start_date, end_date)
+        recent_los = kpi_data.get('recent_week_avg_los', 0)
+        avg_los = kpi_data.get('avg_length_of_stay', 0)
+        
+        # 在院日数の実現可能性評価（直近週重視版）
+        los_feasible = {
+            "調整余地": abs(recent_los - avg_los) > avg_los * 0.03 if avg_los > 0 else False,  # 🔥 直近週 vs 期間平均
+            "適正範囲内": bool(
+                los_range and 
+                los_range["lower"] <= recent_los <= los_range["upper"]
+            ) if recent_los > 0 else False,
+            "直近週変化": abs(kpi_data.get('los_change_rate', 0)) < 15  # 🔥 直近週の変化が15%未満なら調整可能
+        }
+        
+        return {
+            "admission": admission_feasible,
+            "los": los_feasible,
+            "los_range": los_range,
+            "recent_week_considered": True  # 🔥 直近週を考慮したことを明示
+        }
+        
+    except Exception as e:
+        logger.error(f"実現可能性評価エラー（直近週考慮版）: {e}")
+        return {"admission": {}, "los": {}, "los_range": None, "recent_week_considered": False}
+
+def decide_action_and_reasoning(kpi_data, feasibility, simulation):
+    """
+    アクション判断とその根拠（直近週重視版：98%基準、在院患者数エンドポイント）
+    
+    修正内容：
+    - 直近週の実績を重視した判定ロジック
+    - 直近週 vs 目標、直近週 vs 期間平均の両面評価
+    - 在院患者数の目標達成をエンドポイントとする判定
+    - 98%基準での段階的対応
+    """
+    
+    # ===== 直近週重視のKPIデータ取得 =====
+    # 在院患者数関連
+    period_avg_census = kpi_data.get('daily_avg_census', 0)      # 期間平均
+    recent_week_census = kpi_data.get('recent_week_daily_census', 0)  # 直近週実績★
+    census_target = kpi_data.get('daily_census_target', 0)       # 目標値
+    period_census_achievement = kpi_data.get('daily_census_achievement', 0)  # 期間平均達成率
+    
+    # 新入院関連
+    period_avg_admissions = kpi_data.get('weekly_avg_admissions', 0)  # 期間平均
+    recent_week_admissions = kpi_data.get('recent_week_admissions', 0)  # 直近週実績★
+    admissions_target = kpi_data.get('weekly_admissions_target', 0)   # 新入院目標値
+    period_admissions_achievement = kpi_data.get('weekly_admissions_achievement', 0)  # 期間平均達成率
+    
+    # ===== 直近週ベースの達成率計算（重要！） =====
+    recent_week_census_achievement = (recent_week_census / census_target * 100) if census_target > 0 else 0
+    recent_week_admissions_achievement = (recent_week_admissions / admissions_target * 100) if admissions_target > 0 else 0
+    
+    # ===== 直近週 vs 期間平均の変化率 =====
+    census_change_rate = ((recent_week_census - period_avg_census) / period_avg_census * 100) if period_avg_census > 0 else 0
+    admissions_change_rate = ((recent_week_admissions - period_avg_admissions) / period_avg_admissions * 100) if period_avg_admissions > 0 else 0
+    
+    # ===== 平均在院日数のトレンド =====
+    los_period_avg = kpi_data.get('avg_length_of_stay', 0)
+    los_recent = kpi_data.get('recent_week_avg_los', 0)
+    los_change_rate = ((los_recent - los_period_avg) / los_period_avg * 100) if los_period_avg > 0 else 0
+    
+    # ===== 直近週重視のアクション判定ロジック =====
+    
+    # 🚨 例外処理：直近週が90%未満の緊急事態
+    if recent_week_census_achievement < 90:
+        gap = census_target - recent_week_census if census_target > 0 else 0
+        return {
+            "action": "緊急総合対策", 
+            "reasoning": f"直近週で大幅な目標未達成（達成率{recent_week_census_achievement:.1f}%、{gap:.1f}人不足）。新入院増加と在院日数適正化の両面からの緊急対応が必要", 
+            "priority": "urgent", 
+            "color": "#F44336",
+            "recent_week_focus": True,
+            "key_metrics": {
+                "recent_week_achievement": recent_week_census_achievement,
+                "trend_vs_period": census_change_rate,
+                "gap_from_target": gap
+            }
+        }
+    
+    # 🎯 エンドポイント：直近週での在院患者数目標達成（98%基準）
+    if recent_week_census_achievement >= 98:
+        # ✅ 直近週で目標達成時の判定
+        if census_change_rate >= 5:
+            return {
+                "action": "成功パターン拡大", 
+                "reasoning": f"直近週で目標達成（{recent_week_census_achievement:.1f}%）＋改善傾向（期間平均比+{census_change_rate:.1f}%）。この成功パターンを維持・拡大", 
+                "priority": "low", 
+                "color": "#4CAF50",
+                "recent_week_focus": True,
+                "key_metrics": {
+                    "recent_week_achievement": recent_week_census_achievement,
+                    "trend_vs_period": census_change_rate,
+                    "status": "excellent"
+                }
+            }
+        elif census_change_rate >= 0:
+            return {
+                "action": "現状維持", 
+                "reasoning": f"直近週で目標達成（{recent_week_census_achievement:.1f}%）。安定した良好な状況を継続", 
+                "priority": "low", 
+                "color": "#7fb069",
+                "recent_week_focus": True,
+                "key_metrics": {
+                    "recent_week_achievement": recent_week_census_achievement,
+                    "trend_vs_period": census_change_rate,
+                    "status": "stable_good"
+                }
+            }
+        else:
+            return {
+                "action": "維持強化", 
+                "reasoning": f"直近週で目標達成（{recent_week_census_achievement:.1f}%）だが下降気味（{census_change_rate:.1f}%）。達成レベル維持のための対策を", 
+                "priority": "medium", 
+                "color": "#FF9800",
+                "recent_week_focus": True,
+                "key_metrics": {
+                    "recent_week_achievement": recent_week_census_achievement,
+                    "trend_vs_period": census_change_rate,
+                    "status": "achieved_but_declining"
+                }
+            }
+    
+    # 🔶 中間レベル（90-98%）：直近週の新入院達成状況で判断
+    elif recent_week_census_achievement >= 90:
+        if recent_week_admissions_achievement < 98:
+            # 新入院も未達成 → 新入院を最優先
+            return {
+                "action": "新入院重視", 
+                "reasoning": f"直近週：在院患者{recent_week_census_achievement:.1f}%・新入院{recent_week_admissions_achievement:.1f}%。まず新入院増加を最優先で推進", 
+                "priority": "high", 
+                "color": "#2196F3",
+                "recent_week_focus": True,
+                "key_metrics": {
+                    "recent_week_census_achievement": recent_week_census_achievement,
+                    "recent_week_admissions_achievement": recent_week_admissions_achievement,
+                    "focus": "admission_priority"
+                }
+            }
+        else:
+            # 新入院は達成済み → 在院日数調整で目標達成を目指す
+            return {
+                "action": "在院日数調整", 
+                "reasoning": f"直近週：新入院は目標達成済み（{recent_week_admissions_achievement:.1f}%）、在院日数の適正化により在院患者数目標達成を", 
+                "priority": "high", 
+                "color": "#FF9800",
+                "recent_week_focus": True,
+                "key_metrics": {
+                    "recent_week_census_achievement": recent_week_census_achievement,
+                    "recent_week_admissions_achievement": recent_week_admissions_achievement,  
+                    "los_change_rate": los_change_rate,
+                    "focus": "los_adjustment"
+                }
+            }
+    
+    # 🔴 その他のケース（フォールバック処理）
+    else:
+        # 理論的には90%未満のケースで最初に捕捉されるはずだが、安全のため
+        return {
+            "action": "状況確認", 
+            "reasoning": f"直近週のデータ（達成率{recent_week_census_achievement:.1f}%）を詳しく確認し、適切な対策を検討", 
+            "priority": "medium", 
+            "color": "#9E9E9E",
+            "recent_week_focus": True,
+            "key_metrics": {
+                "recent_week_achievement": recent_week_census_achievement,
+                "status": "needs_review"
+            }
+        }
+
+
+def get_target_values_for_ward(target_data, ward_code, ward_name):
+    """病棟の目標値を取得"""
+    targets = {
+        'daily_census_target': None,
+        'weekly_admissions_target': None,
+        'avg_los_target': None,
+        'bed_count': None,
+        'display_name': ward_name
+    }
+    
+    if target_data is None:
+        return targets
+    
+    # 日平均在院患者数の目標値
+    daily_targets = target_data[
+        (target_data['部門コード'] == ward_code) & 
+        (target_data['指標タイプ'] == '日平均在院患者数')
+    ]
+    if not daily_targets.empty:
+        targets['daily_census_target'] = daily_targets.iloc[0]['目標値']
+        # 病床数も取得
+        if '病床数' in daily_targets.columns:
+            targets['bed_count'] = daily_targets.iloc[0]['病床数']
+    
+    # 週間新入院患者数の目標値
+    admission_targets = target_data[
+        (target_data['部門コード'] == ward_code) & 
+        (target_data['指標タイプ'] == '週間新入院患者数')
+    ]
+    if not admission_targets.empty:
+        targets['weekly_admissions_target'] = admission_targets.iloc[0]['目標値']
+    
+    # 平均在院日数の目標値（もしあれば）
+    los_targets = target_data[
+        (target_data['部門コード'] == ward_code) & 
+        (target_data['指標タイプ'] == '平均在院日数')
+    ]
+    if not los_targets.empty:
+        targets['avg_los_target'] = los_targets.iloc[0]['目標値']
+    
+    return targets
+
+def get_target_values_for_dept(target_data, dept_code, dept_name):
+    """診療科の目標値を取得"""
+    targets = {
+        'daily_census_target': None,
+        'weekly_admissions_target': None,
+        'avg_los_target': None,
+        'display_name': dept_name
+    }
+    
+    if target_data is None:
+        return targets
+    
+    # 日平均在院患者数の目標値
+    daily_targets = target_data[
+        (target_data['部門名'] == dept_name) & 
+        (target_data['指標タイプ'] == '日平均在院患者数')
+    ]
+    if not daily_targets.empty:
+        targets['daily_census_target'] = daily_targets.iloc[0]['目標値']
+    
+    # 週間新入院患者数の目標値
+    admission_targets = target_data[
+        (target_data['部門名'] == dept_name) & 
+        (target_data['指標タイプ'] == '週間新入院患者数')
+    ]
+    if not admission_targets.empty:
+        targets['weekly_admissions_target'] = admission_targets.iloc[0]['目標値']
+    
+    # 平均在院日数の目標値（もしあれば）
+    los_targets = target_data[
+        (target_data['部門名'] == dept_name) & 
+        (target_data['指標タイプ'] == '平均在院日数')
+    ]
+    if not los_targets.empty:
+        targets['avg_los_target'] = los_targets.iloc[0]['目標値']
+    
+    return targets
+
+
+def get_target_ward_list(target_data: pd.DataFrame, excluded_wards: list) -> list[tuple[str, str]]:
+    """
+    目標設定データから公開対象の病棟リストを取得する
+    """
+    import streamlit as st # 関数内でstをインポート
+
+    if target_data is None or target_data.empty:
+        return []
+    
+    try:
+        # 必要な列が存在するか確認
+        required_cols = ['部門種別', '指標タイプ', '部門コード', '部門名']
+        if not all(col in target_data.columns for col in required_cols):
+            st.error("目標設定ファイルに必要な列（部門種別, 指標タイプ, 部門コード, 部門名）が不足しています。")
+            return []
+
+        ward_data = target_data[
+            (target_data['部門種別'] == '病棟') &
+            (target_data['指標タイプ'] == '日平均在院患者数') &
+            (~target_data['部門コード'].isin(excluded_wards))
+        ].copy()
+        
+        ward_list = ward_data[['部門コード', '部門名']].drop_duplicates().sort_values(by='部門コード')
+        
+        return [(str(row['部門コード']), str(row['部門名'])) for _, row in ward_list.iterrows()]
+    except Exception as e:
+        st.error(f"目標ファイルからの病棟リスト取得に失敗: {e}")
+        return []
+
+def calculate_los_appropriate_range(dept_df, start_date, end_date):
+    """統計的アプローチで在院日数適正範囲を計算"""
+    if dept_df.empty or '平均在院日数' not in dept_df.columns: 
+        return None
+    try:
+        period_df = safe_date_filter(dept_df, start_date, end_date)
+        los_data = []
+        for _, row in period_df.iterrows():
+            if pd.notna(row.get('退院患者数', 0)) and row.get('退院患者数', 0) > 0:
+                patient_days, discharges = row.get('在院患者数', 0), row.get('退院患者数', 0)
+                if discharges > 0:
+                    daily_los = patient_days / discharges if patient_days > 0 else 0
+                    if daily_los > 0: 
+                        los_data.extend([daily_los] * int(discharges))
+        if len(los_data) < 5: 
+            return None
+        mean_los, std_los = pd.Series(los_data).mean(), pd.Series(los_data).std()
+        range_value = max(std_los, 0.3)
+        return {"upper": mean_los + range_value, "lower": max(0.1, mean_los - range_value)}
+    except Exception as e:
+        logger.error(f"在院日数適正範囲計算エラー: {e}")
+        return None
+
+def calculate_effect_simulation(kpi_data):
+    """効果シミュレーション計算（直近週ベース版）"""
+    try:
+        # 🔥 直近週実績をベースにシミュレーション
+        recent_week_census = kpi_data.get('recent_week_daily_census', 0)
+        target_census = kpi_data.get('daily_census_target', 0)
+        recent_week_admissions = kpi_data.get('recent_week_admissions', 0) / 7  # 日平均に変換
+        recent_week_los = kpi_data.get('recent_week_avg_los', 0)
+        
+        # フォールバック：直近週データがない場合は期間平均を使用
+        if recent_week_census == 0:
+            recent_week_census = kpi_data.get('daily_avg_census', 0)
+            recent_week_admissions = kpi_data.get('weekly_avg_admissions', 0) / 7
+            recent_week_los = kpi_data.get('avg_length_of_stay', 0)
+        
+        if not all([target_census, recent_week_admissions, recent_week_los]) or (target_census - recent_week_census) <= 0: 
+            return None
+        
+        gap = target_census - recent_week_census  # 🔥 直近週実績との差
+        
+        # リトルの法則による効果計算（直近週ベース）
+        needed_admissions_increase = gap / recent_week_los if recent_week_los > 0 else 0
+        needed_los_increase = (target_census / recent_week_admissions) - recent_week_los if recent_week_admissions > 0 else 0
+        
+        return {
+            "gap": gap,
+            "admission_plan": {
+                "increase": needed_admissions_increase, 
+                "effect": needed_admissions_increase * recent_week_los,
+                "base_data": "recent_week"  # 🔥 ベースデータを明示
+            },
+            "los_plan": {
+                "increase": needed_los_increase, 
+                "effect": recent_week_admissions * needed_los_increase,
+                "base_data": "recent_week"  # 🔥 ベースデータを明示
+            },
+            "simulation_base": "recent_week_performance"  # 🔥 シミュレーションベースを明示
+        }
+        
+    except Exception as e:
+        logger.error(f"効果シミュレーション計算エラー（直近週ベース版）: {e}")
+        return None
+
+def get_hospital_targets(target_data):
+    """病院全体の目標値を取得（全日優先）"""
+    import logging
+    import pandas as pd
+    logger = logging.getLogger(__name__)
+    
+    targets = {'daily_census': 580, 'daily_admissions': 80}
+    
+    if target_data is None or target_data.empty: 
+        logger.warning("目標データが空またはNoneです。デフォルト値を使用します。")
+        return targets
+    
+    try:
+        # 🎯 優先順位付きで目標値を検索（全日を最優先に変更）
+        search_patterns = [
+            {'期間区分': '全日', '指標タイプ': '日平均在院患者数'},
+            {'期間区分': '平日', '指標タイプ': '日平均在院患者数'}, # フォールバックとして平日
+        ]
+        
+        for pattern in search_patterns:
+            filtered = target_data[
+                (target_data['部門コード'].astype(str).str.strip() == '全体') &
+                (target_data['部門種別'].astype(str).str.strip() == '病棟') &
+                (target_data['期間区分'].astype(str).str.strip() == pattern['期間区分']) &
+                (target_data['指標タイプ'].astype(str).str.strip() == pattern['指標タイプ'])
+            ]
+            
+            if not filtered.empty:
+                target_value = filtered.iloc[0]['目標値']
+                if pd.notna(target_value) and target_value > 0:
+                    targets['daily_census'] = float(target_value)
+                    logger.info(f"病院全体の目標値として'{pattern['期間区分']}'区分の値 ({target_value}) を設定しました。")
+                    # 最初の有効な値が見つかったらループを抜ける
+                    break
+        
+        if targets['daily_census'] == 580:
+             logger.info("目標値が見つからなかったか、無効な値でした。デフォルトの580を使用します。")
+
+    except Exception as e:
+        logger.error(f"目標値取得エラー。デフォルト値を使用: {e}")
+        targets['daily_census'] = 580
+    
+    return targets

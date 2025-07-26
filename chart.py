@@ -573,7 +573,7 @@ def create_interactive_alos_chart(chart_data, title="ALOS推移", days_to_show=9
         daily_df = pd.DataFrame(daily_metrics).sort_values('日付')
         if daily_df.empty: return None
 
-        # ★★★ 追加: 期間平均の計算 ★★★
+        # 期間平均の計算
         avg_alos = daily_df['平均在院日数'].mean()
         avg_census = daily_df['平均在院患者数'].mean()
 
@@ -592,7 +592,7 @@ def create_interactive_alos_chart(chart_data, title="ALOS推移", days_to_show=9
             secondary_y=False
         )
         
-        # ★★★ 追加: 平均在院日数の期間平均線（破線） ★★★
+        # 平均在院日数の期間平均線（破線）
         fig.add_trace(
             go.Scatter(
                 x=[daily_df['日付'].min(), daily_df['日付'].max()],
@@ -617,26 +617,26 @@ def create_interactive_alos_chart(chart_data, title="ALOS推移", days_to_show=9
             secondary_y=True
         )
         
-        # ★★★ 追加: 平均在院患者数の期間平均線（破線） ★★★
+        # 平均在院患者数の期間平均線（破線）
         fig.add_trace(
             go.Scatter(
                 x=[daily_df['日付'].min(), daily_df['日付'].max()],
                 y=[avg_census, avg_census],
                 mode='lines',
-                name=f'期間平均: {avg_census:.1f}人',
+                name=f'期間平均(退院日のみ): {avg_census:.1f}人', # ← 凡例のテキストを修正
                 line=dict(color='#e74c3c', width=2, dash='dash'),
                 hoverinfo='skip'
             ),
             secondary_y=True
         )
         
-        # ★★★ 追加: Y軸の範囲を計算して10%の余裕を追加
+        # Y軸の範囲を計算して10%の余裕を追加
         # 主軸（平均在院日数）
         alos_max = daily_df['平均在院日数'].max()
         alos_min = daily_df['平均在院日数'].min()
         alos_range = [
             alos_min * 0.9 if alos_min > 0 else 0,
-            alos_max * 1.10  # 10%の余裕
+            alos_max * 1.10
         ]
         
         # 副軸（平均在院患者数）
@@ -644,13 +644,12 @@ def create_interactive_alos_chart(chart_data, title="ALOS推移", days_to_show=9
         census_min = daily_df['平均在院患者数'].min()
         census_range = [
             census_min * 0.9 if census_min > 0 else 0,
-            census_max * 1.10  # 10%の余裕
+            census_max * 1.10
         ]
         
-        # タイトル処理を修正
         display_title = title if title else ""
         
-        # レイアウト設定（日付表記改善版）
+        # レイアウト設定
         fig.update_layout(
             title={'text': display_title, 'x': 0.5} if display_title else {},
             xaxis_title='日付',
@@ -660,7 +659,6 @@ def create_interactive_alos_chart(chart_data, title="ALOS推移", days_to_show=9
                 y=1.02, 
                 xanchor="right", 
                 x=1
-                # ★修正: font=dict(size=9) を削除（デフォルトサイズに統一）
             ),
             hovermode='x unified',
             height=400,
@@ -673,7 +671,6 @@ def create_interactive_alos_chart(chart_data, title="ALOS推移", days_to_show=9
             )
         )
         
-        # ★★★ Y軸の範囲設定
         fig.update_yaxes(title_text="平均在院日数", secondary_y=False, range=alos_range)
         fig.update_yaxes(title_text="平均在院患者数", secondary_y=True, range=census_range)
         
