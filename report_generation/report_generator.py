@@ -1,18 +1,23 @@
+# report_generator.py
+"""
+統合レポート生成のメインオーケストレーター
+元のhtml_export_functions.pyの機能を分離されたモジュールを使って再構築
+"""
+
 import pandas as pd
 import logging
 import urllib.parse
 from typing import Dict, List, Tuple, Optional
 
-# ▼▼▼ 修正箇所 ▼▼▼
-# パッケージ内のモジュールは相対インポートにする
+# パッケージ内のモジュールはすべて相対パスでインポート
 from .high_score_calculator import HighScoreCalculator
 from .components.ui_components import UIComponentBuilder
 from .templates.html_templates import HTMLTemplates, InfoPanelContent, JavaScriptTemplates
-from .css_styles import CSSStyles  # css_styles.pyもパッケージ内にあると仮定
+from .css_styles import CSSStyles
 from .config.scoring_config import ScoringConfig
 
-# 必要なユーティリティのインポート
-from report_generation.utils import (
+# ユーティリティもパッケージ内にあるので相対パス
+from .utils import (
     get_period_dates,
     calculate_department_kpis,
     calculate_ward_kpis,
@@ -21,6 +26,8 @@ from report_generation.utils import (
     evaluate_feasibility,
     calculate_effect_simulation
 )
+
+# 外部のレガシーモジュールは絶対パスでインポート
 from mobile_report_generator import (
     _generate_metric_cards_html,
     _generate_charts_html,
