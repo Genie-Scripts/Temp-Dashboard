@@ -28,19 +28,59 @@ try:
     from ui.error_handler import ErrorHandler
     from data_persistence import auto_load_data, save_data_to_file
     
-    # ハイスコア機能（新規）
-    from config.high_score_config import (
-        test_high_score_functionality,
-        PERIOD_OPTIONS,
-        MIN_DATA_REQUIREMENTS
-    )
+    # ハイスコア機能設定のみインポート（関数は後で定義）
+    from config.high_score_config import PERIOD_OPTIONS, MIN_DATA_REQUIREMENTS
     
-    # GitHub公開機能（新規）
-    from reporting.surgery_github_publisher import create_surgery_github_publisher_interface
+    # GitHub公開機能（インポートエラーを許容）
+    try:
+        from reporting.surgery_github_publisher import create_surgery_github_publisher_interface
+        GITHUB_PUBLISHER_AVAILABLE = True
+    except ImportError:
+        GITHUB_PUBLISHER_AVAILABLE = False
+        logger.warning("GitHub公開機能が利用できません")
     
 except ImportError as e:
     st.error(f"必要なモジュールのインポートに失敗しました: {e}")
-    st.stop()
+    st.info("一部機能が制限される可能性がありますが、基本機能は利用可能です。")
+    
+    # フォールバック設定
+    PERIOD_OPTIONS = ["直近4週", "直近8週", "直近12週"]
+    MIN_DATA_REQUIREMENTS = {'min_total_cases': 3}
+    GITHUB_PUBLISHER_AVAILABLE = False
+
+
+def test_high_score_functionality() -> bool:
+    """ハイスコア機能の動作確認（app.py内定義）"""
+    try:
+        # データ確認
+        df = SessionManager.get_processed_df()
+        target_dict = SessionManager.get_target_dict()
+        
+        if df.empty:
+            return False
+        
+        # 必要な列の確認
+        required_columns = ['手術実施日_dt', '実施診療科']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            logger.warning(f"ハイスコア機能: 必要な列が不足 {missing_columns}")
+            return False
+        
+        # 目標データの確認
+        if not target_dict:
+            return False
+        
+        # 最小データ量確認
+        min_cases = MIN_DATA_REQUIREMENTS.get('min_total_cases', 3)
+        if len(df) < min_cases:
+            return False
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"ハイスコア機能テストエラー: {e}")
+        return False
 
 
 def main():
@@ -87,7 +127,12 @@ def create_sidebar():
         create_high_score_sidebar_section()
         
         # GitHub公開機能（新規追加）
-        create_surgery_github_publisher_interface()
+        if GITHUB_PUBLISHER_AVAILABLE:
+            create_surgery_github_publisher_interface()
+        else:
+            st.sidebar.markdown("---")
+            st.sidebar.header("🌐 GitHub公開機能")
+            st.sidebar.info("GitHub公開機能は準備中です")
         
         # アプリ情報
         create_app_info_section()
@@ -249,7 +294,7 @@ def create_high_score_sidebar_section():
 
 
 def generate_quick_html_export():
-    """クイックHTML出力"""
+    """クイックHTML出力（安全版）"""
     try:
         df = SessionManager.get_processed_df()
         target_dict = SessionManager.get_target_dict()
@@ -262,7 +307,7 @@ def generate_quick_html_export():
         period = st.session_state.get('high_score_default_period', '直近12週')
         
         with st.sidebar.spinner("HTML生成中..."):
-            # HTML生成機能を呼び出し
+            # HTML生成機能を呼び出し（安全版）
             try:
                 from reporting.surgery_high_score_html import generate_complete_surgery_dashboard_html
                 
@@ -281,10 +326,38 @@ def generate_quick_html_export():
                 else:
                     st.sidebar.error("❌ HTML生成に失敗しました")
                     
-            except ImportError:
-                st.sidebar.warning("HTML生成機能が利用できません")
+            except ImportError as e:
+                st.sidebar.warning(f"HTML生成機能が利用できません: {e}")
+                # 簡易HTML生成のフォールバック
+                simple_html = f"""
+                <!DOCTYPE html>
+                <html lang="ja">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>手術ダッシュボード - {period}</title>
+                </head>
+                <body>
+                    <h1>🏥 手術ダッシュボード</h1>
+                    <p>期間: {period}</p>
+                    <p>データ件数: {len(df):,}件</p>
+                    <p>目標設定: {len(target_dict)}診療科</p>
+                    <p>生成日時: {datetime.now().strftime('%Y/%m/%d %H:%M')}</p>
+                </body>
+                </html>
+                """
+                
+                st.sidebar.download_button(
+                    label="📥 簡易HTML",
+                    data=simple_html,
+                    file_name=f"簡易ダッシュボード_{datetime.now().strftime('%Y%m%d_%H%M')}.html",
+                    mime="text/html",
+                    key="download_simple_html"
+                )
+                st.sidebar.info("✅ 簡易版HTML生成完了")
+                
             except Exception as e:
                 st.sidebar.error(f"HTML生成エラー: {e}")
+                logger.error(f"HTML生成エラー: {e}")
                 
     except Exception as e:
         logger.error(f"クイックHTML出力エラー: {e}")
