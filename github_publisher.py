@@ -67,8 +67,7 @@ class GitHubPublisher:
 
     def get_public_url(self):
         """公開URLを取得"""
-        # 修正: docs/index.html を直接指すように変更
-        return f"https://{self.repo_owner}.github.io/{self.repo_name}/index.html"
+        return f"https://{self.repo_owner}.github.io/{self.repo_name}/docs/index.html"
 
 def check_publish_readiness() -> Tuple[bool, str]:
     """GitHub公開の準備状況確認"""
@@ -80,35 +79,29 @@ def check_publish_readiness() -> Tuple[bool, str]:
     return True, "公開可能です。"
 
 def create_github_publisher_interface():
-    """GitHub自動公開インターフェース（リファクタリング対応版）"""
+    """GitHub自動公開インターフェース（ハイスコア対応版）"""
     st.sidebar.markdown("---")
     st.sidebar.header("🌐 Webレポート公開機能")
 
-    # ▼▼▼ 修正箇所 ▼▼▼
-    # 新アーキテクチャが利用可能かどうかのシンプルなチェック
-    try:
-        from report_generation import REPORT_GENERATOR_AVAILABLE
-        if REPORT_GENERATOR_AVAILABLE:
-            st.sidebar.success("🏆 新レポート機能: 利用可能")
-        else:
-            st.sidebar.info("📊 新レポート機能: 準備中")
-    except ImportError:
-        st.sidebar.error("❌ レポート生成モジュールが見つかりません。")
-        REPORT_GENERATOR_AVAILABLE = False
-    # ▲▲▲ 修正ここまで ▲▲▲
+    # ハイスコア機能の状況確認
+    high_score_available = test_high_score_functionality()
+    if high_score_available:
+        st.sidebar.success("🏆 ハイスコア機能: 利用可能")
+    else:
+        st.sidebar.info("📊 ハイスコア機能: 準備中（従来版で公開）")
 
     st.sidebar.markdown("**🔗 GitHub設定**")
     github_token = st.sidebar.text_input("Personal Access Token", type="password", key="github_token_input")
     repo_name_input = st.sidebar.text_input("リポジトリ名", value="Genie-Scripts/Temp-Dashboard", help="username/repository形式")
-    branch_name = st.sidebar.selectbox("ブランチ", ["main", "gh-pages", "master"], index=1) # gh-pagesをデフォルトに
+    branch_name = st.sidebar.selectbox("ブランチ", ["main", "gh-pages", "master"], index=0)
 
     if st.sidebar.button("🧪 設定を適用", key="apply_github_settings", use_container_width=True):
-        if github_token and repo_name_input and '/' in repo_name_input:
+        if github_token and repo_name_input:
             owner, repo = repo_name_input.split('/')
             st.session_state.github_publisher = GitHubPublisher(repo_owner=owner, repo_name=repo, token=github_token, branch=branch_name)
             st.sidebar.success("✅ 設定が適用されました。")
         else:
-            st.sidebar.error("❌ Tokenとリポジトリ名（username/repository形式）を入力してください。")
+            st.sidebar.error("❌ Tokenとリポジトリ名を入力してください。")
 
     if st.session_state.get('github_publisher'):
         can_publish, status_message = check_publish_readiness()
@@ -116,11 +109,16 @@ def create_github_publisher_interface():
         if can_publish:
             st.sidebar.markdown("**📊 公開設定**")
             
+            # 期間選択（ハイスコア機能を考慮した説明追加）
             period_options = ["直近4週間", "直近8週", "直近12週", "今年度"]
-            selected_period = st.sidebar.selectbox("📅 分析期間", period_options, index=2, key="github_analysis_period") # 12週をデフォルトに
+            selected_period = st.sidebar.selectbox("📅 分析期間", period_options, index=0, key="github_analysis_period")
             
-            if REPORT_GENERATOR_AVAILABLE:
+            # ハイスコア機能の説明
+            if high_score_available:
                 st.sidebar.markdown("🏆 **ハイスコア機能付き**で公開されます")
+                st.sidebar.caption("• 診療科・病棟の週間TOP3表示")
+                st.sidebar.caption("• 100点満点のスコアリング")
+                st.sidebar.caption("• 詳細な改善ポイント分析")
             
             if st.sidebar.button("🚀 統合レポートを公開", key="execute_publish_button", use_container_width=True, type="primary"):
                 execute_github_publish(selected_period)
@@ -128,7 +126,7 @@ def create_github_publisher_interface():
             st.sidebar.warning(f"⚠️ {status_message}")
 
 def execute_github_publish(period: str):
-    """単一ファイルの統合レポートを生成・公開する"""
+    """単一ファイルの統合レポートを生成・公開する（ハイスコア機能付き）"""
     publisher = st.session_state.get('github_publisher')
     if not publisher:
         st.error("GitHub設定が適用されていません。")
@@ -137,28 +135,49 @@ def execute_github_publish(period: str):
     df = st.session_state.get('df')
     target_data = st.session_state.get('target_data', pd.DataFrame())
 
-    with st.spinner(f"🚀 統合レポートを生成・公開中... (期間: {period})"):
+    with st.spinner(f"🚀 統合レポート（ハイスコア機能付き）を生成・公開中... (期間: {period})"):
+        # === 修正箇所: 新しい関数を直接呼び出す ===
         try:
-            # 新しいレポート生成機能を直接呼び出す
-            from report_generation import generate_all_in_one_html_report
+            # 常にハイスコア機能を含む新しい関数を呼び出す
+            from html_export_functions import generate_all_in_one_html_report
+            
             html_content = generate_all_in_one_html_report(df, target_data, period)
-            feature_description = "統合レポート"
+            feature_description = "ハイスコア機能付き統合レポート"
             
         except Exception as e:
             st.error(f"⚠️ レポート生成中にエラーが発生しました: {e}")
             logger.error(f"レポート生成エラー: {e}", exc_info=True)
-            html_content = None
+            html_content = None # エラー時はNoneにする
         
+        # HTML生成成功時の処理
         if html_content:
-            # 修正: ファイルパスを docs/index.html から index.html に変更
             commit_message = f"Update {feature_description} ({period})"
-            success, msg = publisher.upload_html_file(html_content, "index.html", commit_message)
+            success, msg = publisher.upload_html_file(html_content, "docs/index.html", commit_message)
             
             if success:
                 st.success(f"✅ {feature_description}の公開が完了しました！")
                 public_url = publisher.get_public_url()
+                
+                st.info("🏆 レポートの「🏆 ハイスコア部門」ボタンからランキングを確認できます。")
                 st.markdown(f"🌐 [**公開サイトを開く**]({public_url})", unsafe_allow_html=True)
             else:
                 st.error(f"❌ 公開に失敗: {msg}")
         else:
             st.error("❌ HTMLコンテンツの生成に失敗しました。")
+
+# === 追加: ハイスコア機能のテスト関数 ===
+def test_high_score_functionality():
+    """ハイスコア機能の動作確認（デバッグ用）"""
+    try:
+        from html_export_functions import calculate_all_high_scores
+        df = st.session_state.get('df')
+        target_data = st.session_state.get('target_data', pd.DataFrame())
+        
+        if df is not None and not df.empty:
+            dept_scores, ward_scores = calculate_all_high_scores(df, target_data, "直近12週")
+            return len(dept_scores) + len(ward_scores) > 0
+        return False
+    except ImportError:
+        return False
+    except Exception:
+        return False

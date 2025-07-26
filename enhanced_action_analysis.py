@@ -1,7 +1,7 @@
 import logging
 import pandas as pd
 from datetime import datetime
-from report_generation.utils import get_hospital_targets
+from utils import get_hospital_targets
 logger = logging.getLogger(__name__)
 
 def generate_comprehensive_action_data(kpi, feasibility, simulation, hospital_targets):

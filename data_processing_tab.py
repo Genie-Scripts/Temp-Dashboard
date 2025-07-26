@@ -19,8 +19,8 @@ from integrated_preprocessing import (
     integrated_preprocess_data, calculate_file_hash, efficient_duplicate_check
 )
 from loader import load_files
-from .forecast import generate_filtered_summaries
-from report_generation.utils import initialize_all_mappings, create_dept_mapping_table
+from forecast import generate_filtered_summaries
+from utils import initialize_all_mappings, create_dept_mapping_table
 
 EXCEL_USE_COLUMNS = [
     "病棟コード", "診療科名", "日付", "在院患者数",

@@ -3,10 +3,10 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import logging
 from typing import Dict, Any, Optional
-from report_generation.css_styles import CSSStyles
+from css_styles import CSSStyles
 
 # --- 必要な分析・計算モジュールをインポート ---
-from report_generation.utils import evaluate_feasibility, calculate_effect_simulation
+from utils import evaluate_feasibility, calculate_effect_simulation
 from enhanced_action_analysis import generate_comprehensive_action_data
 
 logger = logging.getLogger(__name__)
@@ -464,7 +464,7 @@ def _lazy_import_functions():
 
 # utilsからのインポート（これは循環インポートしない）
 try:
-    from report_generation.utils import safe_date_filter
+    from utils import safe_date_filter
 except ImportError:
     logger.error("utils のインポートエラー")
     def safe_date_filter(df, start_date, end_date):

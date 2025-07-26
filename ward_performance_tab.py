@@ -8,13 +8,13 @@ from config import EXCLUDED_WARDS
 logger = logging.getLogger(__name__)
 
 try:
-    from report_generation.utils import (
+    from utils import (
     safe_date_filter, get_ward_display_name, create_ward_name_mapping,
     get_period_dates, calculate_ward_kpis, decide_action_and_reasoning,
     evaluate_feasibility, calculate_effect_simulation, calculate_los_appropriate_range,
     get_hospital_targets
     )
-    from .unified_filters import get_unified_filter_config
+    from unified_filters import get_unified_filter_config
     from unified_html_export import generate_unified_html_export
     
     # アクション提案ダッシュボードの表示関数

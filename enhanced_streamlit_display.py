@@ -66,7 +66,7 @@ def display_enhanced_action_dashboard(df_original, target_data, selected_period)
         from config import EXCLUDED_WARDS
         
         if target_data is not None and not target_data.empty:
-            from report_generation.utils import create_dept_mapping_table
+            from utils import create_dept_mapping_table
             create_dept_mapping_table(target_data)
         
         hospital_targets = get_hospital_targets(target_data)

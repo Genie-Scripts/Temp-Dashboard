@@ -16,7 +16,7 @@ import traceback
 from config import EXCLUDED_WARDS
 
 # 統一フィルター関連のインポート
-from .unified_filters import (
+from unified_filters import (
     apply_unified_filters,
     get_unified_filter_summary,
     validate_unified_filters,
@@ -24,24 +24,24 @@ from .unified_filters import (
 )
 
 # ユーティリティ関数のインポート
-from report_generation.utils import safe_date_filter
+from utils import safe_date_filter
 
 # 既存モジュールからのインポート
 try:
-    from .alos_analysis_tab import display_alos_analysis_tab
-    from .dow_analysis_tab import display_dow_analysis_tab
-    from .individual_analysis_tab import display_individual_analysis_tab
-    from .forecast_analysis_tab import display_forecast_analysis_tab
-    from .forecast import generate_filtered_summaries
+    from alos_analysis_tab import display_alos_analysis_tab
+    from dow_analysis_tab import display_dow_analysis_tab
+    from individual_analysis_tab import display_individual_analysis_tab
+    from forecast_analysis_tab import display_forecast_analysis_tab
+    from forecast import generate_filtered_summaries
     from chart import (
         create_interactive_patient_chart,
         create_interactive_dual_axis_chart,
         create_forecast_comparison_chart
     )
     from pdf_generator import create_pdf, create_landscape_pdf
-    from .forecast import generate_filtered_summaries, create_forecast_dataframe
-    from .kpi_calculator import calculate_kpis, analyze_kpi_insights
-    from report_generation.utils import get_display_name_for_dept
+    from forecast import generate_filtered_summaries, create_forecast_dataframe
+    from kpi_calculator import calculate_kpis, analyze_kpi_insights
+    from utils import get_display_name_for_dept
 except ImportError as e:
     st.error(f"必要なモジュールのインポートに失敗しました: {e}")
     display_alos_analysis_tab = None
@@ -164,7 +164,7 @@ def create_ward_table_section(df_filtered):
             st.warning("指定された期間にデータがありません。")
             return
         
-        from report_generation.utils import initialize_all_mappings, get_ward_display_name
+        from utils import initialize_all_mappings, get_ward_display_name
         initialize_all_mappings(df_filtered, st.session_state.get('target_data'))
         ward_mapping = st.session_state.get('ward_mapping', {})
         

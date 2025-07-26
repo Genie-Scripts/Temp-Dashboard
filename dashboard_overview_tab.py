@@ -18,24 +18,22 @@ except ImportError:
     create_admissions_discharges_chart = None
     create_occupancy_chart = None
 
-# ▼▼▼ 修正箇所 ▼▼▼
-# kpi_calculator.py からのインポートを相対パスに修正
+# kpi_calculator.py からのインポートは維持
 try:
-    from .kpi_calculator import calculate_kpis, analyze_kpi_insights, get_kpi_status
+    from kpi_calculator import calculate_kpis, analyze_kpi_insights, get_kpi_status
 except ImportError:
     st.error("kpi_calculator.py が見つからないか、必要な関数が定義されていません。")
     calculate_kpis = None
     analyze_kpi_insights = None
     get_kpi_status = None
 
-# unified_filters.py からのインポートを相対パスに修正
+# unified_filters.py からのインポート
 try:
-    from .unified_filters import apply_unified_filters, get_unified_filter_config
+    from unified_filters import apply_unified_filters, get_unified_filter_config
 except ImportError:
     st.error("unified_filters.py が見つからないか、必要な関数が定義されていません。")
     apply_unified_filters = None
     get_unified_filter_config = None
-# ▲▲▲ 修正ここまで ▲▲▲
 
 # config.py から定数をインポート
 from config import (

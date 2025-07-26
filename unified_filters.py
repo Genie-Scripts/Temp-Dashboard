@@ -5,7 +5,7 @@ import logging
 from config import EXCLUDED_WARDS
 
 # utilsから必要な関数をインポート
-from report_generation.utils import (
+from utils import (
     safe_date_filter,
     create_ward_display_options,
     create_dept_display_options,
