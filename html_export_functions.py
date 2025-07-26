@@ -282,44 +282,66 @@ def generate_all_in_one_html_report(df, target_data, period="直近12週"):
                     </div>
                     
                     <div id="evaluation-tab" class="tab-pane">
-                        <h3>🌟 週間総合評価（S〜D）- 直近週基準</h3>
+                        <h3>🌟 週間総合評価（S〜D）- 新基準</h3>
+                        <p>直近週の「目標達成率」と「期間平均比（改善度）」の2軸で総合的に評価します。</p>
                         <table class="criteria-table">
-                            <tr>
-                                <th>評価</th>
-                                <th>基準</th>
-                                <th>説明</th>
-                            </tr>
-                            <tr class="grade-s">
-                                <td><strong>S</strong></td>
-                                <td>直近週目標達成＋大幅改善</td>
-                                <td>直近週達成率<span style="color: #10b981; font-weight: bold;">98%以上</span>かつ期間平均比+10%以上</td>
-                            </tr>
-                            <tr class="grade-a">
-                                <td><strong>A</strong></td>
-                                <td>直近週目標達成＋改善傾向</td>
-                                <td>直近週達成率<span style="color: #3b82f6; font-weight: bold;">98%以上</span>かつ期間平均比+5%以上</td>
-                            </tr>
-                            <tr class="grade-b">
-                                <td><strong>B</strong></td>
-                                <td>改善傾向あり</td>
-                                <td>直近週目標未達だが期間平均比プラス</td>
-                            </tr>
-                            <tr class="grade-c">
-                                <td><strong>C</strong></td>
-                                <td>横ばい傾向</td>
-                                <td>期間平均比±5%以内</td>
-                            </tr>
-                            <tr class="grade-d">
-                                <td><strong>D</strong></td>
-                                <td>要改善</td>
-                                <td>期間平均比-5%以下</td>
-                            </tr>
+                            <thead>
+                                <tr>
+                                    <th>評価</th>
+                                    <th>定義</th>
+                                    <th>基準</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="grade-s">
+                                    <td><strong>S</strong></td>
+                                    <td>直近週目標達成＋顕著な改善</td>
+                                    <td>
+                                        直近週達成率 <strong>98%以上</strong> かつ 期間平均比 <strong>+5%以上</strong>
+                                        <br><em>もしくは</em><br>
+                                        直近週達成率 <strong>100%以上</strong> かつ 期間平均比 <strong>±5%以内</strong>
+                                    </td>
+                                </tr>
+                                <tr class="grade-a">
+                                    <td><strong>A</strong></td>
+                                    <td>直近週目標達成 or 改善傾向</td>
+                                    <td>
+                                        直近週達成率 <strong>98%以上</strong>
+                                        <br><em>もしくは</em><br>
+                                        直近週達成率 <strong>95-98%</strong> かつ 期間平均比 <strong>+5%以上</strong>
+                                    </td>
+                                </tr>
+                                <tr class="grade-b">
+                                    <td><strong>B</strong></td>
+                                    <td>目標にやや届かず or 改善傾向</td>
+                                    <td>
+                                        直近週達成率 <strong>95-98%</strong>（A条件に該当しない）
+                                        <br><em>もしくは</em><br>
+                                        直近週達成率 <strong>90-95%</strong> かつ 期間平均比 <strong>+5%以上</strong>
+                                    </td>
+                                </tr>
+                                <tr class="grade-c">
+                                    <td><strong>C</strong></td>
+                                    <td>要注意</td>
+                                    <td>
+                                        直近週達成率 <strong>85-95%</strong> かつ 期間平均比 <strong>±5%以内</strong>
+                                    </td>
+                                </tr>
+                                <tr class="grade-d">
+                                    <td><strong>D</strong></td>
+                                    <td>要改善</td>
+                                    <td>
+                                        直近週達成率 <strong>85%未満</strong>
+                                        <br><em>もしくは</em><br>
+                                        直近週達成率 <strong>90%未満</strong> かつ 期間平均比 <strong>-5%未満</strong>
+                                    </td>
+                                </tr>
+                            </tbody>
                         </table>
                         <div class="attention-box">
-                            <span style="color: #92400e;">⚠️ 重要な変更点</span><br>
-                            • 目標達成基準を95%から<strong style="color: #e91e63;">98%</strong>に引き上げ<br>
-                            • 評価軸を期間平均から<strong style="color: #5b5fde;">直近週実績</strong>に変更<br>
-                            • 変化率は「直近週 vs 期間平均」で算出
+                            <span style="color: #92400e;">⚠️ 重要なポイント</span><br>
+                            • 全ての評価は<strong style="color: #e91e63;">直近週の実績</strong>を主軸としています。<br>
+                            • 「期間平均比」は改善の勢いを示す指標です。
                         </div>
                     </div>
                     
