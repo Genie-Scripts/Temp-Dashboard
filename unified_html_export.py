@@ -1,12 +1,12 @@
-# unified_html_export.py - 努力度表示版（病院貢献度→目標達成努力度に変更）
-
+# -*- coding: utf-8 -*-
 import json
 
 def get_effort_status_from_kpi(kpi):
     """KPIデータから努力度を計算（enhanced_action_analysis.pyと同じロジック）"""
-    current_census = kpi.get('daily_avg_census', 0)
-    recent_week_census = kpi.get('recent_week_daily_census', 0)
-    census_achievement = kpi.get('daily_census_achievement', 0)
+    # ★修正: or 0 を追加してNoneを安全に処理
+    current_census = kpi.get('daily_avg_census', 0) or 0
+    recent_week_census = kpi.get('recent_week_daily_census', 0) or 0
+    census_achievement = kpi.get('daily_census_achievement', 0) or 0
     
     trend_change = recent_week_census - current_census
     
@@ -55,9 +55,10 @@ def get_effort_status_from_kpi(kpi):
 
 def calculate_improvement_speed(kpi):
     """改善スピード度を計算"""
-    current_avg = kpi.get('daily_avg_census', 0)
-    recent_week = kpi.get('recent_week_daily_census', 0)
-    target = kpi.get('daily_census_target', 0)
+    # ★修正: or 0 を追加してNoneを安全に処理
+    current_avg = kpi.get('daily_avg_census', 0) or 0
+    recent_week = kpi.get('recent_week_daily_census', 0) or 0
+    target = kpi.get('daily_census_target', 0) or 0
     
     if target <= 0:
         return {"speed_icon": "❓", "speed_text": "評価困難", "color": "#9E9E9E", "rate": ""}
@@ -75,129 +76,42 @@ def calculate_improvement_speed(kpi):
     else:
         return {"speed_icon": "⬇️", "speed_text": "要注意", "color": "#F44336", "rate": f"{improvement_rate:.1f}%/週"}
 
-def _generate_variance_warning(actual_census, theoretical_census):
-    """理論値と実績値の乖離警告を生成"""
-    if theoretical_census <= 0:
-        return ""
-    
-    variance = actual_census - theoretical_census
-    variance_percentage = abs(variance / theoretical_census * 100)
-    
-    if variance_percentage <= 20:
-        # 乖離が小さい場合は警告なし
-        return ""
-    elif variance_percentage <= 50:
-        # 中程度の乖離
-        warning_color = "#fff3cd"
-        border_color = "#ffeaa7"
-        icon = "⚠️"
-        title = "データ整合性の注意"
-        message = f"理論値と実績の乖離が{variance_percentage:.1f}%あります。効果予測は参考値としてご活用ください。"
-    else:
-        # 大きな乖離
-        warning_color = "#f8d7da"
-        border_color = "#f5c6cb"
-        icon = "📊"
-        title = "理論値と実績の大きな乖離を検出"
-        message = f"理論値と実績の乖離が{variance_percentage:.1f}%と大きくなっています。"
-    
-    # 乖離の理由説明
-    reasons = [
-        "長期入院患者の滞留",
-        "他科からの転科患者",
-        "期間開始時点での既存患者",
-        "季節的な入院患者数の変動",
-        "退院調整中の患者"
-    ]
-    
-    reasons_text = "、".join(reasons)
-    
-    return f"""
-        <div style="background: {warning_color}; border: 1px solid {border_color}; border-radius: 5px; padding: 12px; margin-bottom: 12px;">
-            <div style="font-weight: bold; margin-bottom: 8px;">
-                {icon} {title}
-            </div>
-            <div style="font-size: 0.9em; margin-bottom: 8px;">
-                {message}
-            </div>
-            <div style="font-size: 0.85em; color: #666; line-height: 1.4;">
-                <strong>考えられる要因：</strong><br>
-                {reasons_text}など<br><br>
-                <strong>→ 効果予測は実用的計算として参考にご活用ください</strong>
-            </div>
-        </div>
-    """
-
 def generate_simple_effect_simulation(kpi):
-    """リトルの法則に基づく効果シミュレーション"""
+    """シンプルな効果シミュレーション（理論説明なし）"""
     try:
         # 現在の値を取得
-        weekly_admissions = kpi.get('weekly_avg_admissions', 0)
-        daily_admissions = weekly_admissions / 7  # λ（日平均新入院率）
-        current_los = kpi.get('avg_length_of_stay', 0)  # W（平均在院日数）
-        current_census = kpi.get('daily_avg_census', 0)  # L（現在の在院患者数）
-        
-        # リトルの法則で現在の状況を確認
-        theoretical_census = daily_admissions * current_los
+        # ★修正: or 0 を追加してNoneを安全に処理
+        weekly_admissions = kpi.get('weekly_avg_admissions', 0) or 0
+        daily_admissions = weekly_admissions / 7
+        current_los = kpi.get('avg_length_of_stay', 0) or 0
+        current_census = kpi.get('daily_avg_census', 0) or 0
         
         # シナリオ1：新入院を週に1人増やした場合
-        # λ_new = λ + 1/7, W_new = W
         new_daily_admissions_1 = daily_admissions + 1/7
         new_census_1 = new_daily_admissions_1 * current_los
+        theoretical_census = daily_admissions * current_los
         admission_effect = new_census_1 - theoretical_census
         
         # シナリオ2：平均在院日数を1日延ばした場合  
-        # λ_new = λ, W_new = W + 1
         new_los_2 = current_los + 1
         new_census_2 = daily_admissions * new_los_2
         los_effect = new_census_2 - theoretical_census
         
         return f"""
             <div class="simple-simulation">
-                <div class="simulation-header" style="background: #f0f8ff; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                    <strong>📊 リトルの法則による効果予測</strong><br>
-                    <span style="font-size: 0.9em; color: #666;">在院患者数 = 新入院率 × 平均在院日数</span>
-                </div>
-                
-                <div class="current-status" style="background: #f9f9f9; padding: 8px; border-radius: 5px; margin-bottom: 12px;">
-                    <strong>現在の状況：</strong><br>
-                    新入院率: {daily_admissions:.2f}人/日 × 平均在院日数: {current_los:.1f}日 = 理論値: {theoretical_census:.1f}人<br>
-                    <span style="font-size: 0.85em; color: #666;">実績: {current_census:.1f}人 (差異: {current_census - theoretical_census:+.1f}人)</span>
-                </div>
-                
-                {_generate_variance_warning(current_census, theoretical_census)}
-                
                 <div class="simulation-item">
                     <strong>📈 シナリオ1：新入院を週に1人増やすと</strong><br>
-                    新入院率: {new_daily_admissions_1:.3f}人/日 × 平均在院日数: {current_los:.1f}日<br>
                     → 日平均在院患者数 <strong>+{admission_effect:.1f}人</strong>
                 </div>
                 
                 <div class="simulation-item" style="margin-top: 10px;">
                     <strong>📊 シナリオ2：平均在院日数を1日延ばすと</strong><br>
-                    新入院率: {daily_admissions:.2f}人/日 × 平均在院日数: {new_los_2:.1f}日<br>
                     → 日平均在院患者数 <strong>+{los_effect:.1f}人</strong>
-                </div>
-                
-                <div class="simulation-note" style="margin-top: 10px;">
-                    ※リトルの法則（L=λ×W）による理論計算
-                </div>
-                
-                <div class="simulation-detail">
-                    <details style="margin-top: 8px; color: #666; font-size: 0.85em;">
-                        <summary>リトルの法則とは</summary>
-                        <div style="margin-top: 5px; padding-left: 10px;">
-                            • 待ち行列理論の基本法則<br>
-                            • L（在院患者数）= λ（新入院率）× W（平均在院日数）<br>
-                            • 定常状態における平均関係を表す<br>
-                            • 病院運営の理論的基盤として広く使用
-                        </div>
-                    </details>
                 </div>
             </div>
         """
     except Exception as e:
-        return '<div class="simulation-error">リトルの法則シミュレーション: 計算エラー</div>'
+        return '<div class="simulation-error">効果シミュレーション: 計算エラー</div>'
 
 def generate_unified_html_export(action_results, period_desc, hospital_targets, dashboard_type="department"):
     """
@@ -205,11 +119,9 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
     エラーハンドリング強化版
     """
     try:
-        # データの妥当性チェック
         if not action_results or not isinstance(action_results, list):
             return "<html><body><h1>エラー: 有効なアクション結果データがありません</h1></body></html>"
-        
-        # 優先度でソート（安全なアクセス）
+
         priority_order = {"urgent": 0, "medium": 1, "low": 2}
         try:
             sorted_results = sorted(action_results, key=lambda x: (
@@ -217,73 +129,79 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
                 -x.get('kpi', {}).get('daily_avg_census', 0)
             ))
         except Exception as e:
-            # ソートに失敗した場合は元の順序を維持
             sorted_results = action_results
 
-        # dashboard_typeに応じて設定を切り替え
         is_department = dashboard_type == "department"
         dashboard_title = "診療科別アクション提案" if is_department else "病棟別アクション提案"
-        
-        # HTMLカード生成（努力度表示版）
+
         cards_html = ""
+        try:
+            total_current_census = sum(r.get('kpi', {}).get('daily_avg_census', 0) or 0 for r in sorted_results if r.get('kpi'))
+            total_hospital_gap = hospital_targets.get('daily_census', 580) - total_current_census
+        except Exception:
+            total_hospital_gap = None
+
         for result in sorted_results:
             try:
                 kpi = result.get('kpi', {})
                 action_result = result.get('action_result', {})
                 feasibility = result.get('feasibility', {})
                 simulation = result.get('simulation', {})
-                
+
                 if not kpi or not action_result:
-                    # 基本データが不足している場合はスキップ
                     continue
-                
-                # 努力度計算（メイン表示項目）
+
                 effort_status = get_effort_status_from_kpi(kpi)
                 improvement_speed = calculate_improvement_speed(kpi)
-                
-                # dashboard_typeに応じて名前を取得
-                if is_department:
-                    item_name = kpi.get('dept_name', 'Unknown')
-                else:
-                    item_name = kpi.get('ward_name', 'Unknown')
 
+                item_name = kpi.get('dept_name', 'Unknown') if is_department else kpi.get('ward_name', 'Unknown')
                 action = action_result.get('action', '要確認')
                 reasoning = action_result.get('reasoning', '')
                 action_color = action_result.get('color', '#b3b9b3')
-                
-                # 現状分析データ（安全なアクセス）
+
                 census_target = kpi.get('daily_census_target', 0) or 0
-                census_actual = kpi.get('daily_avg_census', 0) or 0
-                census_ach = kpi.get('daily_census_achievement', 0) or 0
-                census_gap = census_actual - census_target if census_target > 0 else 0
-                
+                recent_week_census = kpi.get('recent_week_daily_census', 0) or 0
+                recalculated_ach = (recent_week_census / census_target * 100) if census_target > 0 else 0
+                recalculated_gap = recent_week_census - census_target if census_target > 0 else 0
+
                 admission_avg = kpi.get('weekly_avg_admissions', 0) / 7 if kpi.get('weekly_avg_admissions') else 0
                 admission_recent = kpi.get('recent_week_admissions', 0) / 7 if kpi.get('recent_week_admissions') else 0
                 admission_trend = "↗️増加" if admission_recent > admission_avg * 1.03 else "↘️減少" if admission_recent < admission_avg * 0.97 else "➡️安定"
-                
+
                 los_avg = kpi.get('avg_length_of_stay', 0) or 0
                 los_recent = kpi.get('recent_week_avg_los', 0) or 0
-                los_range = feasibility.get('los_range') if feasibility else None
-                los_status = "✅" if los_range and los_range.get("lower", 0) <= los_recent <= los_range.get("upper", 0) else "⚠️"
-                
-                # 実現可能性データ（安全なアクセス）
-                admission_feas = feasibility.get('admission', {}) if feasibility else {}
-                los_feas = feasibility.get('los', {}) if feasibility else {}
-                
-                feas_admission_text = " ".join([f"{'✅' if v else '❌'}{k}" for k, v in admission_feas.items()]) if admission_feas else "評価なし"
-                feas_los_text = " ".join([f"{'✅' if v else '❌'}{k}" for k, v in los_feas.items()]) if los_feas else "評価なし"
+                los_range = None
+                los_status = "❓"
+                if feasibility:
+                    los_range = feasibility.get('los_range', None)
+                    if los_range and los_recent > 0:
+                        if los_range.get("lower", 0) <= los_recent <= los_range.get("upper", 0):
+                            los_status = "✅"
+                        elif los_recent > los_range.get("upper", 0):
+                            los_status = "⚠️"
+                        else:
+                            los_status = "📉"
 
-                # 簡素化された効果シミュレーション
+                # ★ここが最重要修正ポイント
+                admission_feas = feasibility.get('admission_feasibility', {}) if feasibility else {}
+                los_feas = feasibility.get('los_feasibility', {}) if feasibility else {}
+
+                feas_admission_text = " ".join([
+                    f"{'✅' if v else '❌'}{k}" for k, v in admission_feas.get('details', {}).items()
+                ]) if admission_feas and admission_feas.get('details') else "評価なし"
+
+                feas_los_text = " ".join([
+                    f"{'✅' if v else '❌'}{k}" for k, v in los_feas.get('details', {}).items()
+                ]) if los_feas and los_feas.get('details') else "評価なし"
+
                 simple_simulation = generate_simple_effect_simulation(kpi)
-
-                # 期待効果（安全な計算）
                 effect_text = "目標達成済み"
+                census_gap = recalculated_gap  # サマリで使うgap
+
                 if census_target and census_target > 0 and census_gap < 0:
-                    # 病院全体ギャップの計算
-                    total_hospital_gap = hospital_targets.get('daily_census', 580) - sum(r.get('kpi', {}).get('daily_avg_census', 0) for r in action_results if r.get('kpi'))
-                    if total_hospital_gap > 0:
+                    if total_hospital_gap is not None and total_hospital_gap > 0:
                         hospital_contribution = abs(census_gap) / total_hospital_gap * 100
-                        hospital_contribution = min(100.0, max(0.0, hospital_contribution))  # 0-100%に制限
+                        hospital_contribution = min(100.0, max(0.0, hospital_contribution))
                         effect_text = f"目標達成により病院全体ギャップの{hospital_contribution:.1f}%改善"
                     else:
                         effect_text = "現状維持により安定した貢献"
@@ -308,7 +226,7 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
                     
                     <div class="analysis-section">
                         <h4>現状分析</h4>
-                        <div class="metric-line">• 在院患者数：{census_target:.0f}人目標 → {census_actual:.1f}人実績 ({census_ach:.1f}%) {'✅' if census_ach >= 95 else '❌'} {census_gap:+.1f}人</div>
+                        <div class="metric-line">• 在院患者数：{census_target:.0f}人目標 → <strong>{recent_week_census:.1f}人実績</strong> ({recalculated_ach:.1f}%) {'✅' if recalculated_ach >= 95 else '❌'} {recalculated_gap:+.1f}人</div>
                         <div class="metric-line">• 新入院：{admission_avg:.1f}人/日期間平均 → {admission_recent:.1f}人/日直近週 ({admission_trend})</div>
                         <div class="metric-line">• 在院日数：{los_avg:.1f}日期間平均 → {los_recent:.1f}日直近週 {los_status}
                         {f'(適正範囲: {los_range["lower"]:.1f}-{los_range["upper"]:.1f}日)' if los_range and isinstance(los_range, dict) and los_range.get("lower") is not None else ''}</div>
@@ -321,7 +239,7 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
                     </div>
                     
                     <div class="simulation-section">
-                        <h4>効果シミュレーション（簡易版）</h4>
+                        <h4>効果シミュレーション</h4>
                         {simple_simulation}
                     </div>
                     
@@ -337,9 +255,8 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
                 </div>
                 """
                 cards_html += card_html
-                
+
             except Exception as e:
-                # 個別カードでエラーが発生した場合も処理を継続
                 error_card = f"""
                 <div class="action-card" style="border-left-color: #e08283;">
                     <div class="card-header">
@@ -357,7 +274,7 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
 
         # 病院全体サマリー（安全な計算）
         try:
-            total_census = sum(r.get('kpi', {}).get('daily_avg_census', 0) for r in action_results if r.get('kpi'))
+            total_census = sum(r.get('kpi', {}).get('daily_avg_census', 0) or 0 for r in action_results if r.get('kpi'))
             total_admissions = sum(r.get('kpi', {}).get('weekly_avg_admissions', 0) for r in action_results if r.get('kpi')) / 7
             
             hospital_census_ach = (total_census / hospital_targets['daily_census'] * 100) if hospital_targets.get('daily_census', 0) > 0 else 0
@@ -378,8 +295,8 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
             hospital_admission_gap = 0
             census_color = "#e08283"
             admission_color = "#e08283"
-            
-        # HTML出力（スタイル追加版）
+
+        # HTML出力（スタイル部分も元コード通り）
         html_content = f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -408,7 +325,6 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
         .metric-line, .feasibility-line {{ margin-bottom: 5px; font-size: 0.95em; }}
         .simple-simulation {{ background: #f8f9fa; padding: 12px; border-radius: 8px; }}
         .simulation-item {{ margin-bottom: 8px; font-size: 0.95em; }}
-        .simulation-note {{ font-size: 0.85em; color: #666; font-style: italic; }}
         .simulation-error {{ color: #e08283; font-style: italic; }}
         .reasoning {{ font-style: italic; color: #2e3532; }}
         .effect-text {{ font-weight: 600; font-size: 1.05em; }}
@@ -454,24 +370,6 @@ def generate_unified_html_export(action_results, period_desc, hospital_targets, 
 </html>"""
         
         return html_content
-        
+
     except Exception as e:
-        # 全体的なエラーが発生した場合のフォールバック
-        error_html = f"""<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>エラー - {dashboard_type}別アクション提案</title>
-</head>
-<body style="font-family: sans-serif; padding: 20px;">
-    <h1>HTMLエクスポートエラー</h1>
-    <p>アクション提案のHTMLエクスポート中にエラーが発生しました。</p>
-    <p>エラー詳細: {str(e)}</p>
-    <p>期間: {period_desc}</p>
-    <p>データ件数: {len(action_results) if action_results else 0}件</p>
-    <hr>
-    <p>この問題が継続する場合は、システム管理者にお問い合わせください。</p>
-</body>
-</html>"""
-        return error_html
+        return f"<html><body><h1>アクションHTML生成エラー: {e}</h1></body></html>"
